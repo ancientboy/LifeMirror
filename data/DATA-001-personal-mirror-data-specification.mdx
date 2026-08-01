@@ -1,0 +1,333 @@
+---
+id: DATA-001
+slug: personal-mirror-data-specification
+title: Personal Mirror Data Specification
+subtitle: 个人镜像数据规范
+version: "1.0"
+date: August 2026
+category: DATA ARCHITECTURE
+status: published
+summary: 定义 Life Mirror 如何存储、处理、保护和治理个人镜像数据。
+---
+
+# DATA-001
+
+# Personal Mirror Data Specification
+
+## 个人镜像数据规范
+
+**Life Mirror Institute · Data Architecture Paper**
+
+---
+
+## Abstract
+
+Life Mirror 的核心资产不是单纯的数据，而是随着时间形成的个人镜像。
+
+这些数据包含人生经历、情绪、关系、价值观和成长轨迹，因此必须同时满足：
+
+- 支持 AI 理解用户
+- 保护个人隐私
+- 保证用户拥有镜像
+- 支持长期演化
+
+DATA-001 定义 Life Mirror 的个人数据治理架构。
+
+---
+
+# 1. From User Data to Personal Mirror
+
+传统系统关注：
+
+> 保存用户数据。
+
+Life Mirror 关注：
+
+> 在保护用户的前提下，将人生经历转化为个人镜像。
+
+```text
+Human Experience
+
+↓
+
+Personal Data
+
+↓
+
+Mirror Processing
+
+↓
+
+Personal Mirror Model
+```
+
+---
+
+# 2. Data Layer Architecture
+
+Life Mirror 数据分为四层：
+
+## Layer 01 · Personal Data Layer
+
+原始个人数据。
+
+包括：
+
+- Identity
+- Conversation
+- Life Events
+- Uploaded Content
+- External Connections
+
+---
+
+## Layer 02 · Processing Layer
+
+数据理解与结构化处理层。
+
+负责：
+
+- 信息提取
+- 分类
+- 脱敏
+- 信号生成
+
+例如：
+
+原始表达：
+
+> 最近工作压力很大，但是我还想创业。
+
+转换为：
+
+```json
+{
+"event":"career_pressure",
+"emotion":"stress",
+"goal":"entrepreneurship"
+}
+```
+
+---
+
+## Layer 03 · Mirror Model Layer
+
+人生镜像模型。
+
+包括：
+
+- Mirror DNA
+- Mirror Graph
+- Memory
+- Pattern
+- Growth State
+
+对应：
+
+SYSTEM-003 Mirror Data Model
+
+---
+
+## Layer 04 · Anonymous Intelligence Layer
+
+匿名智能层。
+
+用于：
+
+- 群体模式研究
+- 产品优化
+- 公共知识提升
+
+不包含用户身份信息。
+
+---
+
+# 3. Data Anonymization Architecture
+
+Life Mirror 不采用完全匿名化。
+
+因为个人镜像需要保持连续理解。
+
+采用分层策略：
+
+```text
+Personal Mirror
+
+↓
+
+Privacy Filter
+
+↓
+
+Anonymous Pattern
+
+↓
+
+Collective Intelligence
+```
+
+个人服务可以使用完整上下文。
+
+群体学习必须脱敏。
+
+---
+
+# 4. Identity Separation
+
+原始身份信息与理解模型分离。
+
+例如：
+
+原始数据：
+
+```json
+{
+"name":"User",
+"company":"Private",
+"event":"career_change"
+}
+```
+
+处理后：
+
+```json
+{
+"user_id":"anonymous_id",
+"pattern":"career_transition"
+}
+```
+
+---
+
+# 5. Permission Architecture
+
+用户拥有：
+
+## Access
+
+查看自己的镜像。
+
+## Edit
+
+修改理解结果。
+
+## Delete
+
+删除数据。
+
+## Export
+
+导出个人镜像。
+
+---
+
+# 6. Context Permission
+
+不同场景只使用必要数据。
+
+例如：
+
+职业分析需要：
+
+- Career History
+- Values
+- Goals
+
+不需要：
+
+- Private Relationship Memory
+
+原则：
+
+> Minimum Data, Maximum Understanding
+
+---
+
+# 7. Relationship Data Boundary
+
+关系数据必须保护第三方隐私。
+
+Life Mirror 不应该未经授权建立他人的完整镜像。
+
+系统分析的是：
+
+用户自身经历中的关系模式。
+
+---
+
+# 8. AI Training Boundary
+
+用户数据默认不用于模型训练。
+
+任何公共学习需要：
+
+- 用户授权
+- 脱敏处理
+- 可退出机制
+
+---
+
+# 9. Data Lifecycle
+
+```text
+Capture
+
+↓
+
+Process
+
+↓
+
+Store
+
+↓
+
+Use
+
+↓
+
+Review
+
+↓
+
+Delete
+```
+
+---
+
+# 10. Integration With Life Mirror System
+
+```text
+SYSTEM-002
+Acquisition Pipeline
+
+↓
+
+DATA-001
+Privacy Processing
+
+↓
+
+SYSTEM-003
+Data Model
+
+↓
+
+SYSTEM-004
+Runtime
+
+↓
+
+SYSTEM-006
+Evaluation & Trust
+```
+
+---
+
+# Conclusion
+
+Personal Mirror Data Specification 定义了 Life Mirror 如何在理解人与保护人之间取得平衡。
+
+> The mirror can understand you, but it belongs to you.
+
+> 镜像可以理解你，但它属于你。
