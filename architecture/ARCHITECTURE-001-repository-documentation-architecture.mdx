@@ -1,0 +1,74 @@
+---
+title: ARCHITECTURE-001 Repository & Documentation Architecture
+category: ARCHITECTURE
+status: published
+---
+
+# Life Mirror Repository & Documentation Architecture
+
+## Purpose
+
+Define repository structure, documentation ownership, naming conventions and development governance.
+
+## Repository Layers
+
+```
+LifeMirror/
+
+research/
+  theory/
+  system/
+  knowledge/
+  data/
+
+tools/
+product/
+design/
+engineering/
+implementation/
+architecture/
+```
+
+## Layer Responsibilities
+
+### Research
+Defines why Life Mirror exists and foundational understanding.
+
+### Tools
+Defines executable capabilities.
+
+### Product
+Defines user value and experience requirements.
+
+### Design
+Defines interaction and visual experience.
+
+### Engineering
+Defines technical implementation.
+
+### Implementation
+Defines current execution phases for development.
+
+## Naming Convention
+
+Use:
+
+`TYPE-NUMBER-title.mdx`
+
+Examples:
+
+- TECH-001-life-mirror-mvp-technical-architecture.mdx
+- PHASE-001-foundation-setup.mdx
+
+## Development Governance
+
+Work execution follows:
+
+Architecture → Specification → Implementation Phase
+
+Do not skip architecture layers or mix:
+
+- Knowledge with User Data
+- Tools with Agents
+- Product with Engineering
+- Memory with Training Data
