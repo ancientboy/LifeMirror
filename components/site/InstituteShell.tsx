@@ -8,6 +8,7 @@ import type { TheoryMeta } from "@/lib/theory";
 import { theoryParts, type TheoryPartSlug } from "@/lib/theory-parts";
 import { systemPaperDefinitions } from "@/lib/system-catalog";
 import { knowledgePaperDefinitions } from "@/lib/knowledge-catalog";
+import { dataPaperDefinitions } from "@/lib/data-catalog";
 
 type InstituteShellProps = {
   papers: TheoryMeta[];
@@ -15,11 +16,12 @@ type InstituteShellProps = {
   activePart?: TheoryPartSlug;
   activeSystemId?: string;
   activeKnowledgeId?: string;
-  activeResearchLayer?: "theory" | "system" | "knowledge";
+  activeDataId?: string;
+  activeResearchLayer?: "theory" | "system" | "knowledge" | "data";
   children: ReactNode;
 };
 
-export function InstituteShell({ papers, activeSlug, activePart, activeSystemId, activeKnowledgeId, activeResearchLayer = "theory", children }: InstituteShellProps) {
+export function InstituteShell({ papers, activeSlug, activePart, activeSystemId, activeKnowledgeId, activeDataId, activeResearchLayer = "theory", children }: InstituteShellProps) {
   const [reducedGlow, setReducedGlow] = useState(false);
   const researchPapers = papers.filter((paper) => paper.slug !== "manifesto");
 
@@ -33,6 +35,7 @@ export function InstituteShell({ papers, activeSlug, activePart, activeSystemId,
         </Link>
 
         <nav aria-label="Life Mirror 研究目录">
+          <p className="research-nav-heading">RESEARCH</p>
           <section className="research-nav-layer" aria-label="Theory Papers">
           <Link className={`theory-nav-title${activeResearchLayer === "theory" ? " selected" : ""}`} href="/theory/">
             <Aperture weight="thin" />
@@ -106,10 +109,24 @@ export function InstituteShell({ papers, activeSlug, activePart, activeSystemId,
             </div>
           </section>
 
-          <section className="research-nav-layer product-nav-layer" aria-label="Product Documents">
-            <div className="theory-nav-title product-nav-title" aria-disabled="true">
+          <section className="research-nav-layer data-nav-layer" aria-label="Data Architecture Papers">
+            <Link className={`theory-nav-title data-nav-title${activeResearchLayer === "data" ? " selected" : ""}`} href="/data/">
               <Aperture weight="thin" />
-              <span><b>PRODUCT</b><small>FUTURE PRODUCT DOCUMENTS</small></span>
+              <span><b>DATA ARCHITECTURE</b><small>PERSONAL MIRROR DATA LAYER</small></span>
+            </Link>
+            <div className="system-nav-papers data-nav-papers">
+              {dataPaperDefinitions.map((paper) => (
+                <Link
+                  href={`/data/${paper.slug}/`}
+                  className={activeDataId === paper.id ? "selected" : ""}
+                  aria-current={activeDataId === paper.id ? "page" : undefined}
+                  key={paper.id}
+                >
+                  <span className="timeline-dot" />
+                  <span><b>{paper.id}</b><strong>{paper.navTitle}</strong></span>
+                  <i />
+                </Link>
+              ))}
             </div>
           </section>
         </nav>
