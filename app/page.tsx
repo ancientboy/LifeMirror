@@ -22,11 +22,13 @@ export default function HomePage() {
     <InstituteShell papers={papers}>
       <section className="hero" aria-labelledby="hero-title">
         <img className="hero-backdrop" src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/images/life-mirror-cosmos.webp`} alt="" />
+        <img className="hero-shiguang" src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/characters/shiguang/shiguang-hero.webp`} alt="拾光，Life Mirror 的 AI 陪伴者" />
         <div className="hero-copy">
-          <p className="eyebrow">LIFE MIRROR MANIFESTO</p>
-          <h1 id="hero-title">每个人<br />都值得拥有<br /><span>一面真正理解自己</span>的镜子。</h1>
+          <p className="eyebrow">LIFE MIRROR · SHIGUANG</p>
+          <h1 id="hero-title">借一卦，<br /><span>看见自己。</span></h1>
           <div className="hero-rule"><span /></div>
-          <p className="hero-intro">Life Mirror 不是为了预测未来，也不是替你定义人生。<br />它是一面会随着人生不断成长的镜子，<br />帮助你看见自己、理解自己、成为自己。</p>
+          <p className="hero-intro">拾光会陪你，把模糊的心事慢慢照亮。<br />她先读懂传统卦意，再陪你看见此刻真正关心的问题。</p>
+          <Link className="hero-persona-cta" href="/app/">和拾光开始今日镜像 →</Link>
         </div>
 
         <div className="gateway-grid" aria-label="五个研究入口">

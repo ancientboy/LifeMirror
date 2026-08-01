@@ -32,6 +32,16 @@ const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
 const lineNames = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"];
+const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
+
+function loadCanvasImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -190,6 +200,17 @@ export function DailyMirrorExperience() {
     const gradient = context.createLinearGradient(0, 0, 1080, 1350);
     gradient.addColorStop(0, "#153f39"); gradient.addColorStop(0.58, "#0f302d"); gradient.addColorStop(1, "#081f20");
     context.fillStyle = gradient; context.fillRect(0, 0, 1080, 1350);
+    const shiguangImage = await loadCanvasImage(assetPath("/characters/shiguang/shiguang-share.webp"));
+    if (shiguangImage) {
+      context.save();
+      context.globalAlpha = .82;
+      context.drawImage(shiguangImage, 690, 660, 390, 690);
+      const imageFade = context.createLinearGradient(620, 0, 890, 0);
+      imageFade.addColorStop(0, "#0f302d"); imageFade.addColorStop(1, "rgba(15,48,45,0)");
+      context.globalAlpha = 1;
+      context.fillStyle = imageFade; context.fillRect(600, 620, 310, 730);
+      context.restore();
+    }
     context.fillStyle = "rgba(216, 186, 111, .22)"; context.beginPath(); context.arc(900, 160, 260, 0, Math.PI * 2); context.fill();
     context.fillStyle = "#d8ba6f"; context.font = "500 28px sans-serif"; context.fillText("LIFE MIRROR · 拾光", 90, 110);
     context.fillStyle = "#f5efe2"; context.font = "64px serif"; context.fillText(`${reflectionResult.hexagram.originalHexagram.symbol}  ${reflectionResult.hexagram.originalHexagram.name}  →  ${reflectionResult.hexagram.changedHexagram.symbol}  ${reflectionResult.hexagram.changedHexagram.name}`, 90, 255);
@@ -202,9 +223,12 @@ export function DailyMirrorExperience() {
     }
     if (line) lines.push(line);
     lines.slice(0, 6).forEach((item, index) => context.fillText(item, 90, 475 + index * 86));
-    context.strokeStyle = "rgba(216,186,111,.5)"; context.beginPath(); context.moveTo(90, 1110); context.lineTo(990, 1110); context.stroke();
-    context.fillStyle = "rgba(245,239,226,.7)"; context.font = "26px sans-serif"; context.fillText("传统智慧，照见此刻。", 90, 1190);
-    context.fillText("Life Mirror · 人生镜像", 90, 1240);
+    context.strokeStyle = "rgba(216,186,111,.5)"; context.beginPath(); context.moveTo(90, 1035); context.lineTo(650, 1035); context.stroke();
+    context.fillStyle = "#d8ba6f"; context.font = "500 23px sans-serif"; context.fillText("拾光给你的提醒", 90, 1100);
+    context.fillStyle = "rgba(245,239,226,.76)"; context.font = "25px sans-serif";
+    const reminder = reflectionResult.reflection.practicalGuidance.slice(0, 42);
+    context.fillText(reminder, 90, 1150);
+    context.fillStyle = "rgba(245,239,226,.7)"; context.font = "25px sans-serif"; context.fillText("Life Mirror · 人生镜像", 90, 1255);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return;
     const file = new File([blob], "life-mirror-reflection.png", { type: "image/png" });
@@ -322,8 +346,8 @@ export function DailyMirrorExperience() {
 
       {stage === "home" && (
         <section className={styles.homeScreen}>
-          <div className={styles.homeCopy}><p>今日镜像 · DAILY REFLECTION</p><h1>今天，<br />你想看清什么？</h1><span>提出一个此刻真实困扰你的问题。象征不是答案，而是一种重新看见自己的方式。</span><button className={styles.heroButton} onClick={startMirror}>开始今日镜像 <ArrowRight /></button></div>
-          <div className={styles.mirrorPortal}><div><span>☰</span><i /><strong>REFLECTION<br />BEGINS WITH<br />A QUESTION</strong></div></div>
+          <div className={styles.homeCopy}><p>今日镜像 · 拾光在这里</p><h1>借一卦，<br />看见自己。</h1><span>把此刻最模糊的心事交给拾光。她会先看卦，再陪你把传统象征带回真实生活。</span><button className={styles.heroButton} onClick={startMirror}>和拾光开始今日镜像 <ArrowRight /></button></div>
+          <div className={styles.mirrorPortal}><div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /><strong>SHIGUANG<br />IS HERE<br />WITH YOU</strong></div></div>
           <aside className={styles.memoryPreview}>
             <header><ClockCounterClockwise /><span><b>你的镜像</b><small>{history.length} 次已保存的反思</small></span></header>
             {history[0] ? <article><time>{new Date(history[0].savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</time><p>{history[0].question}</p><span>{history[0].hexagram.originalHexagram.name} → {history[0].hexagram.changedHexagram.name}</span></article> : <p className={styles.emptyMemory}>完成并保存第一次反思后，它会出现在这里。</p>}
@@ -392,6 +416,7 @@ export function DailyMirrorExperience() {
           <details className={styles.allLines}><summary>查看本卦全部六爻原文</summary><div>{knowledge.original.classical.lines.filter((line) => line.id <= 6).map((line) => <article className={hexagram.movingLines.includes(line.id) ? styles.activeLine : ""} key={line.id}><small>{line.name}</small><p>{line.text}</p><span>{line.image}</span></article>)}</div></details>
           <section className={styles.changedMeaning}><span className={styles.hexSymbol}>{hexagram.changedHexagram.symbol}</span><div><small>变卦 · 第 {knowledge.changed.number} 卦 · {knowledge.changed.name}</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p><blockquote><b>卦辞</b>{knowledge.changed.classical.judgment}</blockquote><blockquote><b>大象</b>{knowledge.changed.classical.image}</blockquote></div></section>
           <div className={styles.readingFocus}><small>本次传统判读顺序</small>{knowledge.readingRule.focus.map((item) => <p key={`${item.hexagram}-${item.label}`}><b>{item.label}</b>{item.text}</p>)}</div>
+          {busy && <div className={styles.shiguangLoading} role="status"><img src={assetPath("/characters/shiguang/shiguang-companion.webp")} alt="" /><span><b>拾光正在为你整理这次卦象……</b><small>她会先看卦，再来看你此刻的问题。</small></span><CircleNotch className={styles.spin} /></div>}
           {error && <div className={styles.error} role="alert">{error}</div>}
           <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <CircleNotch className={styles.spin} /> : <><Sparkle /> 让拾光陪我解读</>}</button>
         </section>
@@ -401,7 +426,7 @@ export function DailyMirrorExperience() {
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回传统解释</button>
           <div className={styles.reflectionHero}><span>05 · SHIGUANG PERSONA</span><h1>拾光陪你读懂这一卦。</h1><p>传统解释已经说清卦意；现在，我们把它带回你真正关心的处境。</p></div>
-          <div className={styles.shiguangIntro}><span className={styles.shiguangAvatar}>拾</span><div><small>拾光 · SHIGUANG</small><p>我不会替你预测结果，也不会只留下一段漂亮话。我们一起看看，这一卦对你眼前的问题究竟有什么用。</p></div></div>
+          <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-avatar.webp")} alt="拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会替你预测结果，也不会只留下一段漂亮话。我们一起看看，这一卦对你眼前的问题究竟有什么用。</p></div></div>
           <div className={styles.personaFlow}>
             <article className={styles.seesCard}><small>01 · 拾光看见</small><h2>先回应你真正关心的事</h2><p>{reflectionResult.reflection.shiguangSees}</p></article>
             <article><small>02 · 这一卦在说什么</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.hexagramMeaning}</p></article>
@@ -410,6 +435,7 @@ export function DailyMirrorExperience() {
           </div>
           <article className={styles.shareCard}>
             <div><small>可分享的今日镜像</small><blockquote>“{reflectionResult.reflection.shareableReflection}”</blockquote><span>{reflectionResult.hexagram.originalHexagram.symbol} {reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.symbol} {reflectionResult.hexagram.changedHexagram.name}</span></div>
+            <img src={assetPath("/characters/shiguang/shiguang-share.webp")} alt="" />
             <button onClick={shareReflectionCard}><ShareNetwork /> 生成分享卡</button>
           </article>
           {shareStatus && <p className={styles.shareStatus}><DownloadSimple /> {shareStatus}</p>}

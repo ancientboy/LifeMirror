@@ -1,0 +1,111 @@
+---
+title: Shiguang Persona Integration
+id: DESIGN-011
+category: DESIGN
+status: published
+---
+
+# DESIGN-011 Shiguang Persona Integration
+
+## 拾光在产品中的角色接入规范
+
+## Purpose
+
+拾光是 Life Mirror 的人格入口、情绪解释者、品牌记忆锚点，也是位于 Reflection System 之上的陪伴表达层。她让用户感受到“有人正在陪我理解这个问题”，但不改变知识、推理与记忆系统的权责边界。
+
+```text
+Traditional Symbolic Layer
+↓
+Mirror Understanding Layer
+↓
+Shiguang Persona Expression Layer
+```
+
+## Where Shiguang Appears
+
+### 1. Homepage Hero
+
+使用 4:5 半身主视觉，承担第一眼品牌识别。角色保持安静注视，文案使用“借一卦，看见自己”与“拾光会陪你，把模糊的心事慢慢照亮”。桌面端角色与标题形成左右关系，移动端角色退到标题之后或下方，不能遮挡 CTA。
+
+### 2. App Loading and Transition
+
+在从传统解释进入镜像解读时，以小幅陪伴图和两行短文案出现：
+
+- 拾光正在为你整理这次卦象……
+- 她会先看卦，再来看你此刻的问题。
+
+等待状态不使用催促、夸张动效或拟人化表演；微弱呼吸光即可。
+
+### 3. Reflection Result
+
+“拾光看到”旁显示 48–56px 头像；页首可以使用低对比度半身陪伴图。角色只标记发言来源，不把正文挤成聊天气泡，也不替代传统解释层。
+
+### 4. Shareable Reflection Card
+
+分享卡使用小型头像或位于边缘的半身人物，包含：
+
+- 本卦与变卦。
+- 一句可记住的本次镜像。
+- 一条简短、可执行的提醒。
+- Life Mirror 与拾光身份。
+
+卡片输出为 1080×1350 PNG，优先调用系统分享，不支持时下载。不得复制整份报告，也不得默认暴露用户原问题。
+
+### 5. Personal Mirror Dashboard
+
+仅在欢迎语、最近反思或重要阶段节点使用头像和一句短提示。长期仪表盘的主体仍然是用户自己的记忆与模式，不把拾光做成持续悬浮、抢夺注意力的聊天入口。
+
+## Where Shiguang Does Not Dominate
+
+- 不把每一页做成全屏人物海报。
+- 不把角色当成与内容无关的墙纸。
+- 不使用人物遮挡卦辞、镜像文字、输入框或操作按钮。
+- 不在同一屏重复出现多个大幅角色。
+- 不把传统知识页面改造成角色对白页面。
+
+## Product Function
+
+| Function | Product meaning |
+| --- | --- |
+| Personality entrance | 用户从第一屏知道 Life Mirror 不是无人格工具 |
+| Emotional interpreter | 把系统结论表达成有人情味、能回应处境的话 |
+| Brand memory anchor | 通过稳定脸型、服装、配色和语气形成可识别资产 |
+| Companion layer | 在犹豫、等待、理解与行动之间提供连续陪伴感 |
+
+## Visual System
+
+### Character Lock
+
+- 女性，视觉年龄 24–30。
+- 深棕或黑色盘发，柔和碎发，清楚而克制的眼神。
+- 月白、玉绿、深青的现代东方融合层叠服装，少量暖金扣饰。
+- 细微镜面圆环或月晕作为稳定母题。
+- 保留真实、自然的皮肤与情绪，不做高饱和美妆、偶像化或游戏角色化处理。
+
+### Asset Set
+
+| Filename | Ratio | Use |
+| --- | --- | --- |
+| `public/characters/shiguang/shiguang-hero.webp` | 4:5 | Homepage 与 App 首页主视觉 |
+| `public/characters/shiguang/shiguang-companion.webp` | 3:4 | 等待、过渡与解读页陪伴图 |
+| `public/characters/shiguang/shiguang-avatar.webp` | 1:1 | 发言头像、时间线与仪表盘轻提示 |
+| `public/characters/shiguang/shiguang-share.webp` | 4:5 | 动态生成的分享卡人物层 |
+
+## Layout Rules
+
+- Hero 桌面端人物占可用宽度约 30–40%，正文优先。
+- Result 页面头像限定在 48–64px，避免制造客服聊天感。
+- Companion 图使用柔边、低对比度和足够留白。
+- Share 图应位于卡片边缘，文字对比度达到可读标准。
+- 移动端必要时裁到面部与肩部，保留眼睛和金色识别细节。
+
+## Accessibility
+
+- 装饰性大图使用空 `alt`，发言头像使用“拾光”。
+- 任何关键信息不得只由人物表情表达。
+- 角色图加载失败时，完整文案与操作流程仍可使用。
+- 尊重 reduced motion；呼吸光不是理解流程的必要条件。
+
+## Experience Principle
+
+拾光的存在感应当像一个安静坐在旁边的人：当用户需要理解时，她出现；当用户阅读经典、填写问题或回看个人记忆时，她把空间还给用户。
