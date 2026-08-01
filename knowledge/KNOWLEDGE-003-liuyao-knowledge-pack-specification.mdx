@@ -1,0 +1,323 @@
+---
+id: KNOWLEDGE-003
+slug: liuyao-knowledge-pack-specification
+title: Liuyao Knowledge Pack Specification
+subtitle: 六爻象征知识包规范
+version: "1.0"
+date: August 2026
+category: SYMBOLIC KNOWLEDGE
+status: published
+summary: 定义 Life Mirror 如何将六爻传统体系结构化，并通过工具与 AI Reflection 转化为个人理解体验。
+---
+
+# KNOWLEDGE-003
+
+# Liuyao Knowledge Pack Specification
+
+## 六爻象征知识包规范
+
+**Life Mirror Institute · Knowledge Architecture Paper**
+
+---
+
+## Abstract
+
+六爻是传统象征体系的重要组成部分，通过卦象、爻位和变化关系提供观察问题的语言。
+
+Life Mirror 不将六爻作为确定性预测系统，而将其定义为：
+
+> Symbolic Reflection Framework
+
+一种帮助用户探索自身状态、决策和成长方向的象征性反思框架。
+
+---
+
+# 1. Role in Life Mirror
+
+传统六爻：
+
+```text
+问题
+↓
+起卦
+↓
+解释
+↓
+判断
+```
+
+Life Mirror：
+
+```text
+问题
+↓
+起卦
+↓
+传统象征解释
+↓
+个人上下文
+↓
+AI Reflection
+↓
+人生镜像更新
+```
+
+六爻提供观察视角，而不是替用户做决定。
+
+---
+
+# 2. Knowledge Pack Architecture
+
+```text
+Liuyao Knowledge Pack
+
+├── Calculation Layer
+│
+│   起卦
+│   排盘
+│   变卦
+│
+├── Structural Layer
+│
+│   六十四卦
+│   八卦
+│   爻位
+│   六亲
+│   五行
+│
+├── Traditional Interpretation Layer
+│
+│   卦辞
+│   爻辞
+│   象传
+│
+├── Reflection Mapping Layer
+│
+│   人生主题映射
+│
+└── Tool Interface Layer
+```
+
+---
+
+# 3. Divination Method
+
+第一版本采用：
+
+## Three Coins Method
+
+三枚铜钱起卦。
+
+用户通过六次摇卦生成完整六爻结构。
+
+```text
+第一次 → 初爻
+第二次 → 二爻
+第三次 → 三爻
+第四次 → 四爻
+第五次 → 五爻
+第六次 → 上爻
+```
+
+---
+
+# 4. Hexagram Structure
+
+一次完整输出包含：
+
+- 本卦 Original Hexagram
+- 动爻 Moving Lines
+- 变卦 Changed Hexagram
+- 六亲关系
+- 五行关系
+
+示例：
+
+```json
+{
+"original_hexagram":"火水未济",
+"moving_lines":[3],
+"changed_hexagram":"风水涣"
+}
+```
+
+---
+
+# 5. Traditional Knowledge Layer
+
+这一层保持传统体系完整性。
+
+包括：
+
+## Hexagram Knowledge
+
+- 卦名
+- 卦象
+- 卦辞
+- 象征主题
+- 传统关键词
+
+## Line Knowledge
+
+- 爻位意义
+- 阶段意义
+- 爻辞解释
+
+## Relationship Knowledge
+
+- 六亲
+- 世应
+- 五行关系
+
+---
+
+# 6. Reflection Mapping Layer
+
+Life Mirror 增加现代反思层。
+
+传统解释回答：
+
+> 这个卦象代表什么。
+
+Reflection Mapping 回答：
+
+> 这个象征可以帮助用户思考什么。
+
+例如：
+
+传统：
+
+未济代表尚未完成、处于变化阶段。
+
+Reflection：
+
+- 哪些准备还没有完成？
+- 你正在结束什么阶段？
+- 你真正想改变的是什么？
+
+---
+
+# 7. Dual Interpretation Output
+
+Life Mirror 不替代传统解释。
+
+用户体验分为两层：
+
+## Traditional Interpretation
+
+展示原始六爻体系解释。
+
+## Mirror Reflection
+
+结合：
+
+- 用户问题
+- Personal Memory
+- Mirror DNA
+- 当前人生阶段
+
+生成个人化反思。
+
+---
+
+# 8. Integration Pipeline
+
+```text
+User Question
+
+↓
+
+Liuyao Tool
+
+↓
+
+Hexagram Result
+
+↓
+
+Traditional Knowledge Retrieval
+
+↓
+
+Reflection Mapping
+
+↓
+
+Personal Context
+
+↓
+
+LLM Reflection
+
+↓
+
+Memory Update
+```
+
+---
+
+# 9. Data Integration
+
+六爻产生的数据进入 Personal Mirror：
+
+包括：
+
+- 用户问题
+- 时间
+- 卦象
+- 主题领域
+- 情绪信号
+- AI Reflection
+- 用户反馈
+
+用于形成长期 Pattern。
+
+---
+
+# 10. Safety Boundary
+
+Life Mirror 不输出：
+
+- 绝对预测
+- 宿命判断
+- 强制决策
+
+而提供：
+
+- 象征解释
+- 反思视角
+- 决策辅助问题
+
+---
+
+# Integration
+
+```text
+KNOWLEDGE-002
+Symbolic Knowledge Framework
+
+↓
+
+KNOWLEDGE-003
+Liuyao Knowledge Pack
+
+↓
+
+Liuyao Tool
+
+↓
+
+Mirror Runtime
+```
+
+---
+
+# Conclusion
+
+六爻知识包不是为了复制传统算命，而是将传统象征体系转化为现代个人反思工具。
+
+> Traditional symbols provide perspective.
+
+> AI provides understanding.
+
+> Personal memory creates meaning.
