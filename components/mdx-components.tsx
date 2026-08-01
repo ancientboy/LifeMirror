@@ -3,6 +3,7 @@ import {
   HumanMirrorFramework,
   LifeTimeline,
   MirrorDNA,
+  MirrorEngine,
   MirrorEquation,
   MirrorEvolution,
   MirrorGraph,
@@ -15,6 +16,7 @@ export const mdxComponents: MDXComponents = {
   MirrorEvolution,
   MirrorGraph,
   MirrorDNA,
+  MirrorEngine,
   PrincipleCards,
   LifeTimeline,
   img: ({ src = "", alt = "", ...props }) => {
