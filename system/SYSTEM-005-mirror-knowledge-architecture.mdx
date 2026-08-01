@@ -1,0 +1,100 @@
+---
+id: SYSTEM-005
+slug: mirror-knowledge-architecture
+version: "1.0"
+title: Mirror Knowledge Architecture
+subtitle: 人生镜像知识架构
+status: published
+category: SYSTEM
+part: SYSTEM ARCHITECTURE
+summary: 定义 Life Mirror 如何组织、检索、验证并更新理解一个人所需的多层知识。
+---
+
+# SYSTEM-005 Mirror Knowledge Architecture
+
+## 人生镜像知识架构
+
+**Life Mirror Institute · System Architecture Paper**
+
+---
+
+## Purpose
+
+Life Mirror 不能只依赖模型参数中的通用知识，也不能把个人记忆误当作普遍事实。
+
+Mirror Knowledge Architecture 将知识来源、适用边界与个人语境分层管理，使 Runtime 能够知道：使用了什么知识、为什么使用，以及这项知识是否适合当前的人。
+
+## Knowledge Layers
+
+- Foundation Knowledge：稳定的基础概念与通用事实
+- Domain Knowledge：心理、行为、关系、成长与其他专业领域知识
+- Cultural Knowledge：文化、语言、地域与时代语境
+- Personal Context：只属于当前个体的经历、偏好与长期模式
+- Temporal Knowledge：具有时间范围、版本与失效条件的知识
+
+## Knowledge Pack
+
+每个 Knowledge Pack 至少包含：
+
+- Source
+- Scope
+- Version
+- Evidence
+- Applicability
+- Confidence
+- Safety Boundary
+
+知识包不是结论，而是 Runtime 可以引用、比较和验证的理解材料。
+
+## Retrieval Flow
+
+```text
+Current Context
+↓
+Knowledge Router
+↓
+Relevant Knowledge Packs
+↓
+Evidence and Applicability Check
+↓
+Context Assembly
+↓
+Reasoning Runtime
+```
+
+## Knowledge Principles
+
+### Context Before Recall
+
+检索以人的当前处境为入口，而不是以关键词相似度代替理解。
+
+### Evidence Before Authority
+
+知识需要保留来源、证据与版本，不能只因为被系统检索到就成为权威。
+
+### Personal Context Is Not Universal Knowledge
+
+个人记忆与个人模式必须保持隔离，不能被泛化为对其他人的判断。
+
+### Knowledge Must Evolve
+
+当来源更新、证据冲突或个人语境变化时，系统能够重新评估原有知识的适用性。
+
+## Runtime Interfaces
+
+SYSTEM-005 向 SYSTEM-004 Runtime 提供：
+
+- Knowledge Retrieval
+- Source Attribution
+- Evidence Context
+- Applicability Score
+- Version Awareness
+- Conflict Detection
+
+## System Boundary
+
+Knowledge Architecture 提供理解材料，但不直接定义一个人。
+
+最终输出仍需经过 SYSTEM-006 Evaluation & Trust，并服从 SYSTEM-007 Privacy & Ownership。
+
+> Knowledge should expand understanding without replacing the person with a category.

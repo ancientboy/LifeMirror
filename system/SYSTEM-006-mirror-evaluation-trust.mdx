@@ -1,0 +1,101 @@
+---
+id: SYSTEM-006
+slug: mirror-evaluation-trust
+version: "1.0"
+title: Mirror Evaluation & Trust
+subtitle: 人生镜像评估与信任架构
+status: published
+category: SYSTEM
+part: SYSTEM ARCHITECTURE
+summary: 定义 Life Mirror 如何评估理解质量、标记不确定性并建立可解释、可纠正的长期信任。
+---
+
+# SYSTEM-006 Mirror Evaluation & Trust
+
+## 人生镜像评估与信任架构
+
+**Life Mirror Institute · System Architecture Paper**
+
+---
+
+## Purpose
+
+Life Mirror 的价值不在于始终给出答案，而在于知道自己的理解何时可靠、何时不完整，以及何时应该暂停判断。
+
+SYSTEM-006 为采集、记忆、知识、推理、反思和学习建立统一的质量与信任边界。
+
+## Evaluation Dimensions
+
+- Evidence Quality：结论是否由足够且可追溯的信号支持
+- Context Fit：理解是否符合当前时间、情境与关系背景
+- Confidence Calibration：置信度是否与真实准确性一致
+- Consistency：不同时间与模块的判断是否存在未解释冲突
+- Human Usefulness：输出是否帮助用户看见、理解或行动
+- Safety：是否越过健康、法律、财务或人格定义等高风险边界
+
+## Trust Record
+
+每项重要理解都应保存：
+
+- Claim
+- Supporting Signals
+- Source and Time
+- Confidence
+- Alternative Interpretation
+- User Feedback
+- Review Status
+- Expiration or Re-evaluation Condition
+
+## Evaluation Pipeline
+
+```text
+System Output
+↓
+Evidence Check
+↓
+Confidence Calibration
+↓
+Risk and Boundary Check
+↓
+Human Feedback
+↓
+Trust Record
+↓
+Learning Update
+```
+
+## Trust Principles
+
+### Uncertainty Must Be Visible
+
+系统必须区分事实、推断、假设和待验证模式，不能用确定语气隐藏证据不足。
+
+### The User Can Correct the Mirror
+
+用户可以查看、修正、拒绝或要求重新评估系统形成的理解。
+
+### High-Impact Claims Need Stronger Evidence
+
+越可能影响身份、关系、健康、财务或重大决定的判断，所需证据与人工确认级别越高。
+
+### Evaluation Is Continuous
+
+信任不是一次性评分。新的经历、反馈与时间变化都可能使旧结论失效。
+
+## Evaluation Levels
+
+| Level | Meaning | Runtime Behavior |
+|---|---|---|
+| Observed | 直接来自可验证信号 | 可作为事实语境使用 |
+| Supported | 多个信号形成一致模式 | 可用于温和反思 |
+| Inferred | 有限证据形成的解释 | 明确标注不确定性 |
+| Unverified | 尚未验证的可能性 | 仅用于探索性提问 |
+| Restricted | 高风险或超出系统边界 | 不生成确定性结论 |
+
+## System Relationships
+
+SYSTEM-006 评估 SYSTEM-002 的信号质量、SYSTEM-003 的模型置信度、SYSTEM-004 的推理输出与 SYSTEM-005 的知识证据。
+
+所有评估记录与用户纠正权同时受 SYSTEM-007 Privacy & Ownership 约束。
+
+> Trust grows when the mirror can explain, doubt, correct and learn.

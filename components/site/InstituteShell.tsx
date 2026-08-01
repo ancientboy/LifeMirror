@@ -6,15 +6,18 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import type { TheoryMeta } from "@/lib/theory";
 import { theoryParts, type TheoryPartSlug } from "@/lib/theory-parts";
+import { systemPaperDefinitions } from "@/lib/system-catalog";
 
 type InstituteShellProps = {
   papers: TheoryMeta[];
   activeSlug?: string;
   activePart?: TheoryPartSlug;
+  activeSystemId?: string;
+  activeResearchLayer?: "theory" | "system";
   children: ReactNode;
 };
 
-export function InstituteShell({ papers, activeSlug, activePart, children }: InstituteShellProps) {
+export function InstituteShell({ papers, activeSlug, activePart, activeSystemId, activeResearchLayer = "theory", children }: InstituteShellProps) {
   const [reducedGlow, setReducedGlow] = useState(false);
   const researchPapers = papers.filter((paper) => paper.slug !== "manifesto");
 
@@ -27,10 +30,11 @@ export function InstituteShell({ papers, activeSlug, activePart, children }: Ins
           <small>RESEARCHING HUMAN UNDERSTANDING</small>
         </Link>
 
-        <nav aria-label="Life Mirror Theory 目录">
-          <Link className="theory-nav-title" href="/theory/">
+        <nav aria-label="Life Mirror 研究目录">
+          <section className="research-nav-layer" aria-label="Theory Papers">
+          <Link className={`theory-nav-title${activeResearchLayer === "theory" ? " selected" : ""}`} href="/theory/">
             <Aperture weight="thin" />
-            <span><b>LIFE MIRROR THEORY</b><small>THEORY MAP · V1.0</small></span>
+            <span><b>THEORY PAPERS</b><small>LM-001—LM-010</small></span>
           </Link>
           {theoryParts.map((part) => (
             <div className="nav-part" key={part.slug}>
@@ -56,6 +60,28 @@ export function InstituteShell({ papers, activeSlug, activePart, children }: Ins
               ))}
             </div>
           ))}
+          </section>
+
+          <section className="research-nav-layer system-nav-layer" aria-label="System Architecture Papers">
+            <Link className={`theory-nav-title system-nav-title${activeResearchLayer === "system" ? " selected" : ""}`} href="/system/">
+              <Aperture weight="thin" />
+              <span><b>SYSTEM ARCHITECTURE</b><small>SYSTEM-001—SYSTEM-007</small></span>
+            </Link>
+            <div className="system-nav-papers">
+              {systemPaperDefinitions.map((paper) => (
+                <Link
+                  href={`/system/${paper.slug}/`}
+                  className={activeSystemId === paper.id ? "selected" : ""}
+                  aria-current={activeSystemId === paper.id ? "page" : undefined}
+                  key={paper.id}
+                >
+                  <span className="timeline-dot" />
+                  <span><b>{paper.id}</b><strong>{paper.navTitle}</strong></span>
+                  <i />
+                </Link>
+              ))}
+            </div>
+          </section>
         </nav>
 
         <footer className="sidebar-footer">
@@ -71,7 +97,7 @@ export function InstituteShell({ papers, activeSlug, activePart, children }: Ins
         <header className="topbar">
           <span><CalendarBlank weight="thin" /> August 2026</span>
           <i />
-          <span>Interactive Theory System</span>
+          <span>Institute Research Platform</span>
           <i />
           <span>Life Mirror Institute</span>
         </header>
