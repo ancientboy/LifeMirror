@@ -15,6 +15,7 @@ import {
   MirrorMoment,
   PrincipleCards,
   RelationshipMirror,
+  TheorySystemBridge,
 } from "@/components/theory";
 
 type FallbackProps = { children?: ReactNode };
@@ -44,6 +45,7 @@ export const mdxComponents: MDXComponents = {
   MirrorEconomyModel,
   PrincipleCards,
   RelationshipMirror,
+  TheorySystemBridge,
   LifeTimeline,
   img: ({ src = "", alt = "", ...props }) => {
     const resolvedSrc = typeof src === "string" && src.startsWith("/")

@@ -6,7 +6,7 @@ import { getSystemPapers } from "@/lib/system";
 import { getTheoryPapers } from "@/lib/theory";
 
 export const metadata: Metadata = {
-  title: "System Architecture Papers — Life Mirror Institute",
+  title: "Life Mirror System Architecture — Life Mirror Institute",
   description: "Life Mirror SYSTEM-001～SYSTEM-007：从总体架构、采集、数据模型与运行时，到知识、评估信任和隐私所有权。",
 };
 
@@ -20,9 +20,9 @@ export default function SystemOverviewPage() {
         <header className="system-overview-header">
           <Link href="/theory/">LIFE MIRROR THEORY ↗</Link>
           <p>LIFE MIRROR INSTITUTE · SYSTEM ARCHITECTURE</p>
-          <h1>System Architecture<br /><span>Papers</span></h1>
+          <h1>Life Mirror<br /><span>System Architecture</span></h1>
           <h2>人生镜像系统架构论文</h2>
-          <p className="system-overview-intro">Theory 定义如何理解人。System Architecture 定义这种理解如何被采集、组织、运行、验证并由个人拥有。两层相互映射，但保持独立研究序列。</p>
+          <p className="system-overview-intro">Theory explains why Life Mirror exists.<br />System explains how Life Mirror works.</p>
           <div><span>07 SYSTEM PAPERS</span><i /><span>ONE HUMAN UNDERSTANDING SYSTEM</span><i /><span>V1.0</span></div>
         </header>
 

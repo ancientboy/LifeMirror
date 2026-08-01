@@ -7,17 +7,19 @@ import type { ReactNode } from "react";
 import type { TheoryMeta } from "@/lib/theory";
 import { theoryParts, type TheoryPartSlug } from "@/lib/theory-parts";
 import { systemPaperDefinitions } from "@/lib/system-catalog";
+import { knowledgePaperDefinitions } from "@/lib/knowledge-catalog";
 
 type InstituteShellProps = {
   papers: TheoryMeta[];
   activeSlug?: string;
   activePart?: TheoryPartSlug;
   activeSystemId?: string;
-  activeResearchLayer?: "theory" | "system";
+  activeKnowledgeId?: string;
+  activeResearchLayer?: "theory" | "system" | "knowledge";
   children: ReactNode;
 };
 
-export function InstituteShell({ papers, activeSlug, activePart, activeSystemId, activeResearchLayer = "theory", children }: InstituteShellProps) {
+export function InstituteShell({ papers, activeSlug, activePart, activeSystemId, activeKnowledgeId, activeResearchLayer = "theory", children }: InstituteShellProps) {
   const [reducedGlow, setReducedGlow] = useState(false);
   const researchPapers = papers.filter((paper) => paper.slug !== "manifesto");
 
@@ -34,7 +36,7 @@ export function InstituteShell({ papers, activeSlug, activePart, activeSystemId,
           <section className="research-nav-layer" aria-label="Theory Papers">
           <Link className={`theory-nav-title${activeResearchLayer === "theory" ? " selected" : ""}`} href="/theory/">
             <Aperture weight="thin" />
-            <span><b>THEORY PAPERS</b><small>LM-001—LM-010</small></span>
+              <span><b>LIFE MIRROR THEORY</b><small>LM-001—LM-010</small></span>
           </Link>
           {theoryParts.map((part) => (
             <div className="nav-part" key={part.slug}>
@@ -80,6 +82,34 @@ export function InstituteShell({ papers, activeSlug, activePart, activeSystemId,
                   <i />
                 </Link>
               ))}
+            </div>
+          </section>
+
+          <section className="research-nav-layer knowledge-nav-layer" aria-label="Knowledge Papers">
+            <Link className={`theory-nav-title knowledge-nav-title${activeResearchLayer === "knowledge" ? " selected" : ""}`} href="/knowledge/">
+              <Aperture weight="thin" />
+              <span><b>KNOWLEDGE</b><small>HUMAN UNDERSTANDING LAYER</small></span>
+            </Link>
+            <div className="system-nav-papers knowledge-nav-papers">
+              {knowledgePaperDefinitions.map((paper) => (
+                <Link
+                  href={`/knowledge/${paper.slug}/`}
+                  className={activeKnowledgeId === paper.id ? "selected" : ""}
+                  aria-current={activeKnowledgeId === paper.id ? "page" : undefined}
+                  key={paper.id}
+                >
+                  <span className="timeline-dot" />
+                  <span><b>{paper.id}</b><strong>{paper.navTitle}</strong></span>
+                  <i />
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="research-nav-layer product-nav-layer" aria-label="Product Documents">
+            <div className="theory-nav-title product-nav-title" aria-disabled="true">
+              <Aperture weight="thin" />
+              <span><b>PRODUCT</b><small>FUTURE PRODUCT DOCUMENTS</small></span>
             </div>
           </section>
         </nav>
