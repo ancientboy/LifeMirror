@@ -2,15 +2,16 @@ import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import { InstituteShell } from "@/components/site/InstituteShell";
+import { TheoryPaperGrid } from "@/components/site/TheoryPaperGrid";
 import { getMdxComponents } from "@/components/mdx-components";
 import { getTheoryDocument, getTheoryPapers } from "@/lib/theory";
 
 const gateways = [
-  { number: "01", key: "WHY", title: "为什么", copy: "理解需求与时代背景", href: "/theory/lm-001/", image: "card-why.webp" },
-  { number: "02", key: "WHAT", title: "是什么", copy: "人生镜像的本质与结构", href: "/theory/lm-002/", image: "card-what.webp" },
-  { number: "03", key: "HOW", title: "如何实现", copy: "理论原则与动态框架", href: "/theory/lm-003/", image: "card-how.webp" },
-  { number: "04", key: "APPLICATION", title: "应用场景", copy: "在人生中的实践与价值", href: "/theory/lm-007/", image: "card-application.webp" },
-  { number: "05", key: "FUTURE", title: "未来展望", copy: "通向更高维度的人类理解", href: "/theory/lm-010/", image: "card-future.webp" },
+  { number: "01", key: "WHY", title: "为什么", copy: "理解需求与时代背景", href: "/theory/why/", image: "card-why.webp" },
+  { number: "02", key: "WHAT", title: "是什么", copy: "人生镜像的本质与结构", href: "/theory/what/", image: "card-what.webp" },
+  { number: "03", key: "HOW", title: "如何实现", copy: "理论原则与动态框架", href: "/theory/how/", image: "card-how.webp" },
+  { number: "04", key: "APPLICATION", title: "应用场景", copy: "在人生中的实践与价值", href: "/theory/application/", image: "card-application.webp" },
+  { number: "05", key: "FUTURE", title: "未来展望", copy: "通向更高维度的人类理解", href: "/theory/future/", image: "card-future.webp" },
 ];
 
 export default function HomePage() {
@@ -60,22 +61,8 @@ export default function HomePage() {
 
       <section className="research-index" id="research">
         <header><span>LM RESEARCH PAPER SYSTEM</span><h2>持续演化的理论档案</h2><p>目录、路由与页面由 MDX metadata 自动生成。</p></header>
-        <div className="research-grid">
-          {papers.filter((paper) => paper.slug !== "manifesto").map((paper) => (
-            <Link className={`research-card ${paper.status}`} href={`/theory/${paper.slug}/`} key={paper.slug}>
-              <div><span>{paper.part}</span><em>{paper.status === "planned" ? "IN EVOLUTION" : `V${paper.version}`}</em></div>
-              <b>{paper.id}</b>
-              <h3>{paper.title}</h3>
-              <h4>{paper.subtitle}</h4>
-              <p>{paper.summary}</p>
-              <small>OPEN RESEARCH PAPER →</small>
-            </Link>
-          ))}
-        </div>
+        <TheoryPaperGrid papers={papers.filter((paper) => paper.slug !== "manifesto")} />
       </section>
-
-      <section className="planned-section" id="application"><span>APPLICATION</span><h2>应用场景</h2><p>理论将通过交互式模型进入真实人生场景，而不止停留在文章中。</p></section>
-      <section className="planned-section" id="future"><span>FUTURE</span><h2>未来展望</h2><p>Life Mirror Institute 将持续研究 AI 如何理解、映照并支持人的长期成长。</p></section>
     </InstituteShell>
   );
 }

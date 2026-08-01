@@ -1,27 +1,22 @@
 "use client";
 
-import {
-  Aperture,
-  CalendarBlank,
-  CaretDoubleLeft,
-  GlobeHemisphereWest,
-  MoonStars,
-  Sun,
-} from "@phosphor-icons/react";
+import { Aperture, CalendarBlank, CaretDoubleLeft, GlobeHemisphereWest, MoonStars, Sun } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { TheoryMeta } from "@/lib/theory";
+import { theoryParts, type TheoryPartSlug } from "@/lib/theory-parts";
 
 type InstituteShellProps = {
   papers: TheoryMeta[];
   activeSlug?: string;
+  activePart?: TheoryPartSlug;
   children: ReactNode;
 };
 
-export function InstituteShell({ papers, activeSlug, children }: InstituteShellProps) {
+export function InstituteShell({ papers, activeSlug, activePart, children }: InstituteShellProps) {
   const [reducedGlow, setReducedGlow] = useState(false);
-  let lastPart = "";
+  const researchPapers = papers.filter((paper) => paper.slug !== "manifesto");
 
   return (
     <main className={`site-shell${reducedGlow ? " reduced-glow" : ""}`}>
@@ -32,30 +27,35 @@ export function InstituteShell({ papers, activeSlug, children }: InstituteShellP
           <small>RESEARCHING HUMAN UNDERSTANDING</small>
         </Link>
 
-        <nav aria-label="LM Research Paper 目录">
-          {papers.map((paper, index) => {
-            const showPart = paper.part !== lastPart && paper.part !== "MANIFESTO";
-            lastPart = paper.part;
-            return (
-              <div className="nav-unit" key={paper.slug}>
-                {showPart && <p className="nav-group">{paper.part}</p>}
-                <Link
-                  href={`/theory/${paper.slug}/`}
-                  className={`${paper.status} ${activeSlug === paper.slug ? "selected" : ""}`}
-                  aria-current={activeSlug === paper.slug ? "page" : undefined}
-                >
-                  <span className="timeline-dot" />
-                  {index === 0 ? <Aperture className="manifest-icon" weight="thin" /> : null}
-                  <span className="paper-copy">
-                    <b>{paper.id}</b>
-                    <strong>{paper.title}</strong>
-                    <small>{paper.subtitle}</small>
-                  </span>
-                  <i />
-                </Link>
-              </div>
-            );
-          })}
+        <nav aria-label="Life Mirror Theory 目录">
+          <Link className="theory-nav-title" href="/theory/">
+            <Aperture weight="thin" />
+            <span><b>LIFE MIRROR THEORY</b><small>THEORY MAP · V1.0</small></span>
+          </Link>
+          {theoryParts.map((part) => (
+            <div className="nav-part" key={part.slug}>
+              <Link className={`nav-group${activePart === part.slug ? " selected" : ""}`} href={`/theory/${part.slug}/`}>
+                PART {part.number} · {part.label}
+              </Link>
+              {researchPapers.filter((paper) => part.paperIds.includes(paper.id)).map((paper) => (
+                <div className="nav-unit" key={paper.slug}>
+                  <Link
+                    href={`/theory/${paper.slug}/`}
+                    className={`${paper.status} ${activeSlug === paper.slug ? "selected" : ""}`}
+                    aria-current={activeSlug === paper.slug ? "page" : undefined}
+                  >
+                    <span className="timeline-dot" />
+                    <span className="paper-copy">
+                      <b>{paper.id}</b>
+                      <strong>{paper.title}</strong>
+                      <small>{paper.subtitle}</small>
+                    </span>
+                    <i />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ))}
         </nav>
 
         <footer className="sidebar-footer">

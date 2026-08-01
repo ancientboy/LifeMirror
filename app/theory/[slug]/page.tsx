@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { InstituteShell } from "@/components/site/InstituteShell";
 import { getMdxComponents } from "@/components/mdx-components";
 import { getTheoryDocument, getTheoryPapers } from "@/lib/theory";
+import { getTheoryPart } from "@/lib/theory-parts";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -36,7 +37,7 @@ export default async function TheoryPage({ params }: PageProps) {
   const next = currentIndex < papers.length - 1 ? papers[currentIndex + 1] : undefined;
 
   return (
-    <InstituteShell papers={papers} activeSlug={document.slug}>
+    <InstituteShell papers={papers} activeSlug={document.slug} activePart={getTheoryPart(document.category)?.slug}>
       <article className="theory-page">
         <header className="theory-page-header">
           <div className="paper-status"><span>{document.part}</span><i /> <span>{document.status === "planned" ? "IN EVOLUTION" : "PUBLISHED"}</span></div>
