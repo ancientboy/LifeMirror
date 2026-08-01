@@ -1,0 +1,229 @@
+---
+id: TOOL-001
+slug: liuyao-engine-specification
+title: Liuyao Engine Specification
+subtitle: 六爻计算引擎规范
+version: "1.0"
+date: August 2026
+category: TOOL ARCHITECTURE
+status: published
+summary: 定义 Life Mirror 如何通过独立工具执行六爻计算，并将结构化结果交给知识系统与 Mirror Runtime。
+---
+
+# TOOL-001
+
+# Liuyao Engine Specification
+
+## 六爻计算引擎规范
+
+**Life Mirror Institute · Tool Architecture Paper**
+
+---
+
+## Abstract
+
+Life Mirror 将六爻作为 Symbolic Knowledge Framework 的第一个应用案例。
+
+六爻计算过程不由 LLM 生成，而由独立计算工具执行，保证计算结果可验证、可追踪。
+
+Liuyao Engine 负责：
+
+- 起卦
+- 六爻生成
+- 阴阳转换
+- 动爻识别
+- 本卦生成
+- 变卦生成
+- 结构化输出
+
+随后由 Knowledge Retrieval、Mirror Runtime 和 Reflection Engine 完成现代化个人解释。
+
+---
+
+# 1. Architecture Position
+
+```text
+User Question
+
+↓
+
+TOOL-001
+Liuyao Engine
+
+↓
+
+KNOWLEDGE-003
+Liuyao Knowledge Pack
+
+↓
+
+SYSTEM-004
+Mirror Runtime
+
+↓
+
+AI Reflection
+
+↓
+
+Personal Mirror Memory
+```
+
+---
+
+# 2. Design Principles
+
+## Deterministic Calculation
+
+六爻计算必须：
+
+- 可重复
+- 可验证
+- 可追踪
+
+不能由 LLM 自由生成卦象。
+
+## Separation of Calculation and Interpretation
+
+工具负责计算。
+
+知识系统负责传统解释。
+
+AI 负责个人化反思。
+
+---
+
+# 3. Divination Method
+
+第一版本采用：
+
+## Three Coins Method
+
+三枚铜钱起卦。
+
+一次完整起卦需要六次摇卦：
+
+```text
+第一次 → 初爻
+第二次 → 二爻
+第三次 → 三爻
+第四次 → 四爻
+第五次 → 五爻
+第六次 → 上爻
+```
+
+六个爻组成完整卦象。
+
+---
+
+# 4. Calculation Flow
+
+```text
+Coin Toss
+
+↓
+
+Line Generation
+
+↓
+
+Moving Line Detection
+
+↓
+
+Original Hexagram
+
+↓
+
+Changed Hexagram
+
+↓
+
+Structured Result
+```
+
+---
+
+# 5. Output Schema
+
+```json
+{
+  "question":"",
+  "method":"three_coins",
+  "original_hexagram":"",
+  "moving_lines":[],
+  "changed_hexagram":"",
+  "timestamp":""
+}
+```
+
+---
+
+# 6. Knowledge Integration
+
+计算完成后调用 KNOWLEDGE-003。
+
+流程：
+
+```text
+Liuyao Result
+
+↓
+
+Traditional Interpretation
+
+↓
+
+Reflection Mapping
+
+↓
+
+Personal Context
+
+↓
+
+Mirror Reflection
+```
+
+---
+
+# 7. Mirror Runtime Integration
+
+最终输入：
+
+- 用户问题
+- 六爻结果
+- 传统解释
+- Personal Mirror Context
+
+输出：
+
+不是预测，而是个人反思。
+
+---
+
+# 8. Memory Update
+
+六爻结果可进入 Personal Mirror Memory：
+
+```json
+{
+"type":"symbolic_reflection",
+"topic":"career",
+"pattern_signal":"transition"
+}
+```
+
+用于长期理解用户模式。
+
+---
+
+# Conclusion
+
+Liuyao Engine 将传统六爻体系转化为 Life Mirror 可调用能力。
+
+工具计算象征。
+
+知识提供意义。
+
+AI 帮助用户理解自身。
