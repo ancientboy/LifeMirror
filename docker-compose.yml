@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: life_mirror
+      POSTGRES_USER: life_mirror
+      POSTGRES_PASSWORD: life_mirror
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U life_mirror -d life_mirror"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - life_mirror_postgres:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    environment:
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 8787
+      WEB_ORIGIN: http://localhost:4173
+      DATABASE_URL: postgres://life_mirror:life_mirror@postgres:5432/life_mirror
+      SESSION_COOKIE_NAME: life_mirror_session
+      SESSION_TTL_DAYS: 30
+      LLM_PROVIDER: disabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8787:8787"
+
+volumes:
+  life_mirror_postgres:

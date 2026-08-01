@@ -1,19 +1,71 @@
+---
+id: PHASE-001
+title: Foundation Setup
+status: completed
+---
+
 # PHASE-001 Foundation Setup
 
 ## Goal
-Establish the technical foundation for Life Mirror MVP.
 
-## Scope
-- Frontend framework
-- Backend API
-- Database
-- Authentication
-- LLM provider abstraction
-- Deployment environment
+Establish the technical foundation for Life Mirror MVP without implementing Daily Mirror product features.
+
+## Implemented Foundation
+
+- Existing Next.js frontend and Institute site remain intact.
+- Fastify provides an independently deployable API runtime.
+- PostgreSQL provides identity and session persistence.
+- Authentication uses server-side sessions and stores only hashed session tokens.
+- Identity storage is explicitly separated from future Personal Mirror data.
+- LLM access is isolated behind a provider interface with disabled and OpenAI-compatible implementations.
+- GitHub Pages continues to deploy the static Institute frontend.
+- The API has a separate Docker image and development Compose environment.
+- CI verifies type safety, unit tests and both build targets.
+
+## Intentional Boundaries
+
+PHASE-001 does not implement:
+
+- Daily Mirror screens
+- Liuyao execution
+- Knowledge retrieval
+- Reflection generation endpoints
+- Personal Memory tables or APIs
+
+Those capabilities begin only after PHASE-002 is approved.
+
+## Runtime Topology
+
+```text
+Frontend
+↓
+API Runtime
+↓
+PostgreSQL
+
+API Runtime
+↓
+LLM Provider Interface
+```
+
+## Environment Progression
+
+Development → Staging → Production
+
+All secrets and provider credentials are supplied through environment variables.
 
 ## Related
-- TECH-001
-- TECH-009
 
-## Deliverables
-A runnable development environment ready for Daily Mirror MVP.
+- TECH-001
+- TECH-004
+- TECH-009
+- SYSTEM-004
+- SYSTEM-007
+
+## Completion Criteria
+
+- Frontend build passes.
+- API compilation passes.
+- Foundation unit tests pass.
+- Database migrations run against PostgreSQL.
+- API liveness and readiness endpoints respond correctly.

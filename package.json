@@ -2,25 +2,43 @@
   "name": "life-mirror-institute",
   "version": "0.5.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "build": "next build",
-    "start": "next start"
+    "dev": "node scripts/dev-all.mjs",
+    "dev:web": "node scripts/dev.mjs",
+    "dev:api": "tsx watch server/index.ts",
+    "build": "npm run build:web && npm run build:api",
+    "build:web": "next build",
+    "build:api": "tsc -p tsconfig.server.json",
+    "start": "next start",
+    "start:api": "node dist/server/index.js",
+    "db:migrate": "tsx server/database/migrate.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js",
+    "test:integration": "tsc -p tsconfig.integration.json && node --test dist/integration/integration/*.integration.js"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
     "@mdx-js/react": "^3.1.1",
     "@phosphor-icons/react": "^2.1.10",
+    "fastify": "^5.11.0",
     "gray-matter": "^4.0.3",
     "next": "15.5.22",
     "next-mdx-remote": "^6.0.0",
+    "pg": "^8.22.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/pg": "^8.20.3",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "tsx": "^4.23.1",
     "typescript": "^5.8.3"
   }
 }

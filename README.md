@@ -176,3 +176,56 @@ A system that helps people understand themselves through:
 # Mission
 
 **让 AI 不只是理解世界，也帮助每一个正在成长的人理解自己。**
+
+---
+
+# Development Foundation
+
+PHASE-001 keeps the existing Institute website and the product runtime separate:
+
+```text
+Next.js Institute / H5 frontend
+              ↓
+       Fastify API Runtime
+              ↓
+          PostgreSQL
+
+Runtime → LLM Provider abstraction
+```
+
+The foundation contains authentication and provider infrastructure only. Daily Mirror, Liuyao, Reflection and Personal Memory business features begin in later phases.
+
+## Local Setup
+
+Requirements:
+
+- Node.js 22
+- Docker with Compose
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
+npm ci
+npm run db:migrate
+npm run dev
+```
+
+Local services:
+
+- Web: `http://localhost:4173`
+- API liveness: `http://localhost:8787/health/live`
+- API readiness: `http://localhost:8787/health/ready`
+
+Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Secrets belong in local or deployment environment variables and must not be committed.
+
+## Foundation Commands
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run build:api
+npm run start:api
+```
+
+The public Institute remains deployable through GitHub Pages. The API is packaged independently with `deploy/api.Dockerfile` for development, staging and production environments.
