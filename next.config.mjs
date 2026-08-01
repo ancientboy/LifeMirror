@@ -8,6 +8,13 @@ const nextConfig = {
   basePath: isGitHubPages ? "/LifeMirror" : "",
   assetPrefix: isGitHubPages ? "/LifeMirror/" : "",
   env: { NEXT_PUBLIC_BASE_PATH: isGitHubPages ? "/LifeMirror" : "" },
+  webpack(config) {
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      ".js": [".ts", ".tsx", ".js"],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

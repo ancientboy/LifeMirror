@@ -3,10 +3,12 @@
 import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, Eye, FloppyDisk, LockKey, SignOut, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
+import { calculateLiuyao } from "@/server/tools/liuyao/engine";
 import styles from "./DailyMirrorExperience.module.css";
 
 type CoinValue = 2 | 3;
-type Toss = [CoinValue, CoinValue, CoinValue];
+type Toss = readonly [CoinValue, CoinValue, CoinValue];
 type Stage = "home" | "question" | "cast" | "reveal" | "reflection";
 type Hexagram = {
   method: "three_coins";
@@ -26,6 +28,8 @@ type ReflectionResponse = { question: string; hexagram: Hexagram; knowledge: Kno
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection; savedAt: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
+const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
 const lineNames = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"];
 
@@ -56,7 +60,37 @@ function readableError(error: unknown): string {
 function createToss(): Toss {
   const random = new Uint8Array(3);
   crypto.getRandomValues(random);
-  return Array.from(random, (value) => value % 2 === 0 ? 2 : 3) as Toss;
+  const coin = (value: number): CoinValue => value % 2 === 0 ? 2 : 3;
+  return [coin(random[0]), coin(random[1]), coin(random[2])];
+}
+
+function readGuestHistory(): HistoryEvent[] {
+  try {
+    const value = window.localStorage.getItem(GUEST_HISTORY_KEY);
+    return value ? (JSON.parse(value) as HistoryEvent[]).slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
+function createGuestReflection(question: string, hexagram: Hexagram, knowledge: Knowledge): ReflectionResponse {
+  const movingContext = hexagram.movingLines.length
+    ? `第 ${hexagram.movingLines.join("、")} 爻的变化提示，当前处境并非静止不动。`
+    : "没有动爻，提示你先把注意力放回当前处境本身。";
+  const reflection: Reflection = {
+    observation: `当你带着“${question.trim()}”进入镜像，${hexagram.originalHexagram.name}卦把注意力带向“${knowledge.original.meaning}”。${movingContext}`,
+    insight: `${knowledge.original.traditionalInterpretation} 从${hexagram.originalHexagram.name}走向${hexagram.changedHexagram.name}，也许重要的不是立即得到结论，而是看见你正在如何回应变化。`,
+    reflectionQuestion: knowledge.original.reflectionPrompt,
+    actionSuggestion: `今天先围绕“${knowledge.original.symbolicConcepts[0]}”完成一个可逆的小行动，并记录行动前后的真实感受。`,
+  };
+  return {
+    question: question.trim(),
+    hexagram,
+    knowledge,
+    reflection,
+    draftToken: `guest-${crypto.randomUUID()}`,
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  };
 }
 
 function LineGlyph({ polarity, moving }: { polarity: "yin" | "yang"; moving?: boolean }) {
@@ -65,7 +99,7 @@ function LineGlyph({ polarity, moving }: { polarity: "yin" | "yang"; moving?: bo
 
 export function DailyMirrorExperience() {
   const [stage, setStage] = useState<Stage>("home");
-  const [authState, setAuthState] = useState<"checking" | "guest" | "authenticated">("checking");
+  const [authState, setAuthState] = useState<"checking" | "signedOut" | "guest" | "authenticated">("checking");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -88,7 +122,14 @@ export function DailyMirrorExperience() {
   useEffect(() => {
     api<{ authenticated: boolean }>("/api/v1/auth/session")
       .then(() => { setAuthState("authenticated"); void loadHistory(); })
-      .catch(() => setAuthState("guest"));
+      .catch(() => {
+        if (window.localStorage.getItem(GUEST_SESSION_KEY) === "active") {
+          setHistory(readGuestHistory());
+          setAuthState("guest");
+        } else {
+          setAuthState("signedOut");
+        }
+      });
   }, [loadHistory]);
 
   const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, reveal: 3, reflection: 4 })[stage], [stage]);
@@ -106,8 +147,19 @@ export function DailyMirrorExperience() {
 
   async function logout() {
     setBusy(true);
-    try { await api("/api/v1/auth/logout", { method: "POST" }); } catch { /* local state still clears */ }
-    setAuthState("guest"); setHistory([]); setStage("home"); setBusy(false);
+    if (authState === "authenticated") {
+      try { await api("/api/v1/auth/logout", { method: "POST" }); } catch { /* local state still clears */ }
+    } else {
+      window.localStorage.removeItem(GUEST_SESSION_KEY);
+    }
+    setAuthState("signedOut"); setHistory([]); setStage("home"); setBusy(false);
+  }
+
+  function enterAsGuest() {
+    window.localStorage.setItem(GUEST_SESSION_KEY, "active");
+    setHistory(readGuestHistory());
+    setError("");
+    setAuthState("guest");
   }
 
   function startMirror() {
@@ -124,7 +176,13 @@ export function DailyMirrorExperience() {
     if (next.length === 6) {
       setBusy(true);
       try {
-        const result = await api<{ hexagram: Hexagram; knowledge: Knowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
+        let result: { hexagram: Hexagram; knowledge: Knowledge };
+        if (authState === "guest") {
+          const localHexagram = calculateLiuyao(next);
+          result = { hexagram: localHexagram, knowledge: retrieveLiuyaoKnowledge(localHexagram) };
+        } else {
+          result = await api<{ hexagram: Hexagram; knowledge: Knowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
+        }
         setHexagram(result.hexagram);
         setKnowledge(result.knowledge);
       } catch (cause) { setError(readableError(cause)); }
@@ -135,7 +193,9 @@ export function DailyMirrorExperience() {
   async function generateReflection() {
     setBusy(true); setError("");
     try {
-      const result = await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses }) });
+      const result = authState === "guest" && hexagram && knowledge
+        ? createGuestReflection(question, hexagram, knowledge)
+        : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses }) });
       setReflectionResult(result); setStage("reflection");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
@@ -145,13 +205,27 @@ export function DailyMirrorExperience() {
     if (!reflectionResult || saved) return;
     setBusy(true); setError("");
     try {
-      await api("/api/v1/daily-mirror/reflections/save", { method: "POST", body: JSON.stringify({ draftToken: reflectionResult.draftToken }) });
-      setSaved(true); await loadHistory();
+      if (authState === "guest") {
+        const event: HistoryEvent = {
+          id: crypto.randomUUID(),
+          question: reflectionResult.question,
+          hexagram: reflectionResult.hexagram,
+          reflection: reflectionResult.reflection,
+          savedAt: new Date().toISOString(),
+        };
+        const events = [event, ...readGuestHistory()].slice(0, 20);
+        window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(events));
+        setHistory(events);
+      } else {
+        await api("/api/v1/daily-mirror/reflections/save", { method: "POST", body: JSON.stringify({ draftToken: reflectionResult.draftToken }) });
+        await loadHistory();
+      }
+      setSaved(true);
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
   }
 
-  if (authState !== "authenticated") {
+  if (authState === "checking" || authState === "signedOut") {
     return (
       <main className={styles.appShell}>
         <div className={styles.ambient} />
@@ -170,6 +244,8 @@ export function DailyMirrorExperience() {
             <label>密码<input type="password" minLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="至少 12 位" /></label>
             {error && <div className={styles.error} role="alert">{error}</div>}
             <button className={styles.primaryButton} disabled={busy || authState === "checking"}>{busy || authState === "checking" ? <CircleNotch className={styles.spin} /> : authMode === "login" ? "登录" : "创建账户"}</button>
+            <div className={styles.authDivider}><span>或</span></div>
+            <button className={styles.guestButton} type="button" onClick={enterAsGuest}>以游客身份登录 <ArrowRight /></button>
             <button className={styles.textButton} type="button" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setError(""); }}>{authMode === "login" ? "第一次使用？创建账户" : "已有账户？直接登录"}</button>
           </form>
         </section>
@@ -182,7 +258,7 @@ export function DailyMirrorExperience() {
       <div className={styles.ambient} />
       <header className={styles.appHeader}>
         <Link href="/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>DAILY MIRROR</small></Link>
-        <div className={styles.headerActions}><span><LockKey /> 私人镜像</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
+        <div className={styles.headerActions}><span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
       {stage !== "home" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "反思"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}

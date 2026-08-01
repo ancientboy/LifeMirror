@@ -85,6 +85,11 @@
 .primaryButton:disabled, .heroButton:disabled { opacity: .44; cursor: not-allowed; transform: none; }
 .primaryButton svg, .heroButton svg, .secondaryButton svg { width: 18px; height: 18px; }
 .authCard .primaryButton { width: 100%; margin-top: 26px; }
+.authDivider { height: 1px; position: relative; margin: 24px 0; background: rgba(49,95,87,.12); text-align: center; }
+.authDivider span { position: relative; top: -8px; padding: 0 10px; color: var(--muted); background: #f4f3ed; font-size: 10px; }
+.guestButton { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid rgba(49,95,87,.24); border-radius: 99px; color: var(--jade-dark) !important; background: rgba(255,255,255,.45); cursor: pointer; }
+.guestButton:hover { border-color: var(--jade); background: rgba(255,255,255,.75); }
+.guestButton svg { width: 17px; height: 17px; }
 .textButton { width: 100%; margin-top: 17px; border: 0; color: var(--jade) !important; background: transparent; font-size: 11px !important; cursor: pointer; }
 .error { margin: 15px 0 0; padding: 12px 14px; border: 1px solid rgba(147,65,48,.2); border-radius: 9px; color: #853e31; background: rgba(181,86,63,.08); font-size: 12px; line-height: 1.5; }
 .spin { animation: spin 800ms linear infinite; }
