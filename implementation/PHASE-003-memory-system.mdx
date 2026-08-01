@@ -16,3 +16,37 @@ Enable Life Mirror to remember and understand users over time.
 
 ## Deliverables
 Personal memory foundation.
+
+## Implementation Status
+
+Completed in version 0.7.0:
+
+- Memory Processing Layer runs after an explicit Reflection Event save
+- existing PHASE-002 events are lazily backfilled on the first memory read
+- Event Memory stores topic, trigger, meaningful summary and source time
+- Reflection Memory preserves observation, insight, reflection question, action and concepts
+- Pattern Memory requires at least two independent source events
+- every Pattern retains evidence source IDs, signal count and bounded confidence
+- user controls support inspect, correct, hide, restore, delete and JSON export
+- deleted automatic patterns are suppressed so processing cannot silently recreate them
+- retrieval excludes hidden Memory and returns only personal reflection context
+- dashboard preparation exposes counts, latest reflection, patterns and timeline preview
+- Mirror DNA remains untouched and the dashboard itself is not implemented
+- all personal Memory tables enforce `training_data_eligible = false`
+
+## Processing Flow
+
+```text
+Explicit Reflection Event save
+  → deterministic topic and concept extraction
+  → Event Memory + Reflection Memory upsert
+  → evidence aggregation
+  → Pattern Memory when signal_count >= 2
+  → retrieval / user controls / dashboard summary
+```
+
+The processor is a Runtime service, not an independent Agent. It does not call an LLM and does not infer identity or fixed personality labels.
+
+## Migration
+
+`003_memory_system.sql` creates Event, Reflection and Pattern storage, evidence links, durable pattern suppressions and processing-run state. The migration is additive. It does not rewrite existing `reflection_events`; those records are processed idempotently when their owner first reads Memory.

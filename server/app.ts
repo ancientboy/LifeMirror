@@ -8,6 +8,7 @@ import type { LlmProvider } from "./llm/types.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerDailyMirrorRoutes } from "./routes/daily-mirror.js";
+import { registerMemoryRoutes } from "./routes/memories.js";
 
 export type AppDependencies = {
   config: AppConfig;
@@ -25,7 +26,7 @@ export async function buildApp(dependencies: AppDependencies) {
   await app.register(cors, {
     origin: dependencies.config.WEB_ORIGIN,
     credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
   await app.register(cookie);
   await app.register(rateLimit, {
@@ -54,6 +55,7 @@ export async function buildApp(dependencies: AppDependencies) {
   await registerHealthRoutes(app, dependencies);
   await registerAuthRoutes(app, dependencies);
   await registerDailyMirrorRoutes(app, dependencies);
+  await registerMemoryRoutes(app, dependencies);
 
   return app;
 }

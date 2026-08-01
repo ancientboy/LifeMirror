@@ -9,6 +9,7 @@ import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js
 import type { ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
 import type { CoinToss } from "../tools/liuyao/types.js";
+import { processReflectionEvent } from "../memory/processor.js";
 
 const coinSchema = z.union([z.literal(2), z.literal(3)]);
 const tossSchema = z.tuple([coinSchema, coinSchema, coinSchema]);
@@ -128,8 +129,15 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       RETURNING id, saved_at`,
       [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), draft.provider, draft.model, draft.generatedAt],
     );
+    let memoryProcessing: "completed" | "retry_pending" = "completed";
+    try {
+      await processReflectionEvent(dependencies.database, result.rows[0].id);
+    } catch (error) {
+      memoryProcessing = "retry_pending";
+      request.log.error({ err: error }, "memory processing failed; scheduled for retrieval retry");
+    }
     return reply.code(201).send({
-      event: { id: result.rows[0].id, savedAt: result.rows[0].saved_at.toISOString() },
+      event: { id: result.rows[0].id, savedAt: result.rows[0].saved_at.toISOString(), memoryProcessing },
     });
   });
 

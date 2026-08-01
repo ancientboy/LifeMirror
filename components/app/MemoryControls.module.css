@@ -1,0 +1,38 @@
+.screen { max-width: 1120px; min-height: calc(100vh - 150px); position: relative; z-index: 1; margin: auto; padding: 52px 38px 110px; }
+.back { display: flex; align-items: center; gap: 8px; padding: 6px 0; border: 0; color: #687370 !important; background: transparent; font-size: 11px; cursor: pointer; }
+.back svg, .actions svg, .exportButton svg { width: 17px; height: 17px; }
+.hero { margin-top: 45px; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
+.hero span, .sectionHeader span { color: #b48a4d; font-size: 10px; font-weight: 600; letter-spacing: .2em; }
+.hero h1 { margin: 19px 0 0; font: 400 clamp(43px, 5vw, 68px)/1.25 Georgia, "Songti SC", serif; }
+.hero p { max-width: 650px; margin: 20px 0 0; color: #687370; font: 14px/1.9 Georgia, "Songti SC", serif; }
+.exportButton { min-height: 48px; flex: 0 0 auto; display: flex; align-items: center; gap: 9px; padding: 0 20px; border: 1px solid rgba(49,95,87,.2); border-radius: 99px; color: #193b36; background: rgba(255,255,255,.45); cursor: pointer; }
+.sectionHeader { margin-top: 65px; padding-bottom: 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(49,95,87,.14); }
+.sectionHeader small { color: #687370; font-size: 10px; }
+.memoryList { margin-top: 17px; display: grid; gap: 12px; }
+.card, .patternCard { padding: 25px; border: 1px solid rgba(49,95,87,.14); border-radius: 16px; background: rgba(250,249,245,.64); }
+.card time { color: #b48a4d; font-size: 9px; }
+.card input, .card textarea { width: 100%; border: 0; color: #17201f; background: transparent; }
+.card input { margin-top: 12px; font: 20px/1.5 Georgia, "Songti SC", serif; }
+.card textarea { min-height: 74px; margin-top: 9px; resize: vertical; color: #51605d; font: 13px/1.8 Georgia, "Songti SC", serif; }
+.card > p { color: #51605d; font: 13px/1.8 Georgia, "Songti SC", serif; }
+.card > small { color: #7c8784; font-size: 10px; }
+.actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button { min-height: 35px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid rgba(49,95,87,.17); border-radius: 99px; color: #315f57; background: rgba(255,255,255,.45); font-size: 10px; cursor: pointer; }
+.actions .danger { color: #8a483d; border-color: rgba(138,72,61,.2); }
+.patternGrid { margin-top: 17px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.patternCard > small { color: #b48a4d; font-size: 9px; }
+.patternCard h2 { margin: 13px 0 8px; font: 400 22px/1.4 Georgia, "Songti SC", serif; }
+.patternCard p { margin: 0; color: #687370; font: 12px/1.8 Georgia, "Songti SC", serif; }
+.hidden { opacity: .5; }
+.empty { margin: 20px 0; color: #687370; font: 13px/1.8 Georgia, "Songti SC", serif; }
+.error { margin-top: 24px; padding: 13px 16px; border: 1px solid rgba(147,65,48,.2); border-radius: 9px; color: #853e31; background: rgba(181,86,63,.08); font-size: 12px; }
+.spin { animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .screen { padding: 38px 20px 80px; }
+  .hero { align-items: stretch; flex-direction: column; }
+  .exportButton { align-self: flex-start; }
+  .patternGrid { grid-template-columns: 1fr; }
+  .actions button { flex: 1; justify-content: center; }
+}

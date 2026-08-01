@@ -195,6 +195,18 @@ Runtime → LLM Provider abstraction
 
 PHASE-001 provides authentication and provider infrastructure. PHASE-002 adds the first product route at `/app`: Question → deterministic Liuyao Tool → traditional knowledge retrieval → AI Reflection → explicit Reflection Event save.
 
+PHASE-003 adds the long-term personal Memory Processing Layer:
+
+```text
+Saved Reflection Event
+          ↓
+Event Memory + Reflection Memory
+          ↓
+Evidence-backed Pattern Memory
+```
+
+Pattern Memory requires at least two independent saved events. It does not update Mirror DNA. Users can inspect, correct, hide, delete and export their memory. Personal memory is database-constrained as ineligible for model training.
+
 ## Local Setup
 
 Requirements:
@@ -231,3 +243,17 @@ npm run start:api
 ```
 
 The public Institute remains deployable through GitHub Pages. The API is packaged independently with `deploy/api.Dockerfile` for development, staging and production environments.
+
+## Memory API
+
+```text
+GET    /api/v1/memories
+GET    /api/v1/memories/context
+GET    /api/v1/memories/summary
+GET    /api/v1/memories/export
+PATCH  /api/v1/memories/:type/:id
+DELETE /api/v1/memories/:type/:id
+DELETE /api/v1/memories/source-events/:id
+```
+
+The summary contract prepares PHASE-004 consumers with current reflection, recent patterns and timeline data while returning `mirrorDna: null` until that phase is approved.

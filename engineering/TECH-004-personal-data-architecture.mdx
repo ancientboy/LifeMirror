@@ -13,3 +13,31 @@ Define ownership, storage and protection of Personal Mirror data.
 - User owns data.
 - Identity and Mirror data are separated.
 - Memory requires permission and lifecycle management.
+
+## PHASE-003 Implementation
+
+Identity remains in `identity_users`. Personal Mirror data references the opaque user ID and never duplicates email or password data.
+
+```text
+Raw Personal Data
+  reflection_events
+
+Processing Layer
+  memory_processing_runs
+
+Mirror Model Foundation
+  event_memories
+  reflection_memories
+  pattern_memories
+  pattern_memory_evidence
+```
+
+Controls are owner-scoped at every query:
+
+- access and retrieval
+- correction with `user_corrected`
+- visible / hidden lifecycle
+- hard deletion with cascading derived-data deletion
+- portable JSON export
+
+`training_data_eligible` has a database `CHECK` constraint requiring `false`. No Anonymous Intelligence Layer receives data in PHASE-003.

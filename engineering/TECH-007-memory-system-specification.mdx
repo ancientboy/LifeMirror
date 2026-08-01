@@ -12,3 +12,53 @@ Define how Life Mirror forms long-term understanding.
 
 ## Principle
 Store meaningful understanding, not all conversations.
+
+## PHASE-003 Boundary
+
+Implemented:
+
+- Event Memory
+- Reflection Memory
+- Pattern Memory foundation
+- retrieval and user lifecycle controls
+
+Deferred:
+
+- Mirror DNA Memory
+- Mirror Graph
+- proactive memory use
+- Personal Mirror Dashboard
+
+## Extraction Contract
+
+The source is an explicitly saved `reflection_event`. The deterministic processor produces:
+
+```text
+Event Memory
+  title / topic / trigger / summary / occurred_at
+
+Reflection Memory
+  observation / insight / reflection_question / action_suggestion / concepts
+```
+
+The processor is idempotent per source event and version. User-corrected fields survive reprocessing.
+
+## Pattern Contract
+
+A Pattern Memory is created only when the same topic or symbolic concept has at least two independent source events. It contains:
+
+- neutral, non-diagnostic title and summary
+- signal count
+- confidence capped below certainty
+- first and last observation time
+- source-event evidence links
+
+Patterns are observations, not personality labels. Deleting a pattern creates an owner-scoped suppression so it is not silently recreated. Pattern extraction never updates Mirror DNA in PHASE-003.
+
+## Retrieval Contract
+
+Retrieval uses only visible Event and Reflection Memory owned by the authenticated user. It can filter by title, topic, summary, insight or concepts. Responses explicitly identify personal reflection usage and `trainingData: false`.
+
+## Dashboard Preparation
+
+`GET /api/v1/memories/summary` provides counts, current reflection, recent patterns and timeline entries. `mirrorDna` is explicitly `null` until PHASE-004.

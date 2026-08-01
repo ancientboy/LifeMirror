@@ -132,6 +132,8 @@
 .memoryPreview article p { margin: 12px 0; font: 14px/1.65 Georgia, "Songti SC", serif; }
 .memoryPreview article span { color: var(--jade); font-size: 11px; }
 .emptyMemory { margin: 22px 0 0; color: var(--muted); font: 12px/1.8 Georgia, serif; }
+.manageMemoryButton { margin-top: 18px; display: flex; align-items: center; gap: 7px; padding: 7px 0; border: 0; color: var(--jade) !important; background: transparent; font-size: 10px !important; cursor: pointer; }
+.manageMemoryButton svg { width: 15px; height: 15px; }
 
 .stepScreen, .resultScreen, .reflectionScreen { max-width: 1160px; min-height: calc(100vh - 150px); position: relative; z-index: 1; margin: auto; padding: 60px 38px 110px; }
 .backButton { display: flex; align-items: center; gap: 8px; padding: 6px 0; border: 0; color: var(--muted) !important; background: transparent; font-size: 11px !important; cursor: pointer; }

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
 import { calculateLiuyao } from "@/server/tools/liuyao/engine";
+import { MemoryControls } from "./MemoryControls";
 import styles from "./DailyMirrorExperience.module.css";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
-type Stage = "home" | "question" | "cast" | "reveal" | "reflection";
+type Stage = "home" | "question" | "cast" | "reveal" | "reflection" | "memory";
 type Hexagram = {
   method: "three_coins";
   lines: Array<{ position: number; coins: Toss; value: 6 | 7 | 8 | 9; polarity: "yin" | "yang"; moving: boolean; changedPolarity: "yin" | "yang" }>;
@@ -132,7 +133,7 @@ export function DailyMirrorExperience() {
       });
   }, [loadHistory]);
 
-  const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, reveal: 3, reflection: 4 })[stage], [stage]);
+  const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, reveal: 3, reflection: 4, memory: 0 })[stage], [stage]);
 
   async function authenticate(event: React.FormEvent) {
     event.preventDefault();
@@ -261,7 +262,7 @@ export function DailyMirrorExperience() {
         <div className={styles.headerActions}><span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
-      {stage !== "home" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "反思"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
+      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "反思"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
 
       {stage === "home" && (
         <section className={styles.homeScreen}>
@@ -270,9 +271,12 @@ export function DailyMirrorExperience() {
           <aside className={styles.memoryPreview}>
             <header><ClockCounterClockwise /><span><b>你的镜像</b><small>{history.length} 次已保存的反思</small></span></header>
             {history[0] ? <article><time>{new Date(history[0].savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</time><p>{history[0].question}</p><span>{history[0].hexagram.originalHexagram.name} → {history[0].hexagram.changedHexagram.name}</span></article> : <p className={styles.emptyMemory}>完成并保存第一次反思后，它会出现在这里。</p>}
+            <button className={styles.manageMemoryButton} onClick={() => setStage("memory")}>管理我的记忆 <ArrowRight /></button>
           </aside>
         </section>
       )}
+
+      {stage === "memory" && <MemoryControls mode={authState} onClose={() => setStage("home")} onChanged={() => { if (authState === "guest") setHistory(readGuestHistory()); else void loadHistory(); }} />}
 
       {stage === "question" && (
         <section className={styles.stepScreen}>
@@ -325,7 +329,7 @@ export function DailyMirrorExperience() {
           <div className={styles.sourceNote}><Sparkle /><span><b>这不是预测或命令</b><small>{reflectionResult.knowledge.framing} 最终意义由你的真实经验决定。</small></span></div>
           {error && <div className={styles.error} role="alert">{error}</div>}
           <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存这次反思</>}</button></div>
-          {saved && <p className={styles.savedNote}>Reflection Event 已保存。Pattern 分析不会在本阶段自动运行。</p>}
+          {saved && <p className={styles.savedNote}>Reflection Event 已保存，并进入你的长期记忆。</p>}
         </section>
       )}
 
