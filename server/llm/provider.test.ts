@@ -11,6 +11,8 @@ const baseConfig: AppConfig = {
   DATABASE_URL: "postgres://test:test@localhost/test",
   SESSION_COOKIE_NAME: "test_session",
   SESSION_TTL_DAYS: 1,
+  SESSION_COOKIE_SAME_SITE: "strict",
+  REFLECTION_TOKEN_SECRET: "test-reflection-secret-at-least-32-characters",
   LLM_PROVIDER: "disabled",
   LLM_BASE_URL: "https://api.openai.com/v1",
 };

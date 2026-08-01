@@ -7,6 +7,7 @@ import type { Database } from "./database/pool.js";
 import type { LlmProvider } from "./llm/types.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerDailyMirrorRoutes } from "./routes/daily-mirror.js";
 
 export type AppDependencies = {
   config: AppConfig;
@@ -52,6 +53,7 @@ export async function buildApp(dependencies: AppDependencies) {
 
   await registerHealthRoutes(app, dependencies);
   await registerAuthRoutes(app, dependencies);
+  await registerDailyMirrorRoutes(app, dependencies);
 
   return app;
 }

@@ -147,6 +147,7 @@ export function InstituteShell({ papers, activeSlug, activePart, activeSystemId,
           <span>Institute Research Platform</span>
           <i />
           <span>Life Mirror Institute</span>
+          <Link className="product-entry" href="/app/">进入 Daily Mirror →</Link>
         </header>
         {children}
       </section>

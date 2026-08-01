@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { ReflectionDraftPayload } from "./types.js";
+import { openReflectionDraft, sealReflectionDraft } from "./token.js";
+
+const secret = "test-reflection-secret-at-least-32-characters";
+const payload = {
+  version: 1,
+  runtimeId: "00000000-0000-4000-8000-000000000001",
+  userId: "00000000-0000-4000-8000-000000000002",
+  question: "我应该怎样看待这个选择？",
+  tosses: Array(6).fill([2, 2, 2]),
+  hexagram: {},
+  knowledge: {},
+  reflection: {},
+  provider: "fixture",
+  model: "fixture",
+  generatedAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 60_000).toISOString(),
+} as unknown as ReflectionDraftPayload;
+
+test("reflection drafts round-trip and reject tampering", () => {
+  const token = sealReflectionDraft(payload, secret);
+  assert.equal(openReflectionDraft(token, secret).runtimeId, payload.runtimeId);
+  assert.throws(() => openReflectionDraft(`${token}x`, secret), /invalid_reflection_token/);
+});
+
+test("expired reflection drafts cannot be saved", () => {
+  const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
+  assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);
+});

@@ -24,7 +24,7 @@ export async function registerAuthRoutes(
   const { config, database } = dependencies;
   const cookieOptions = {
     httpOnly: true,
-    sameSite: "strict" as const,
+    sameSite: config.SESSION_COOKIE_SAME_SITE,
     secure: config.NODE_ENV === "production",
     path: "/",
   };

@@ -9,7 +9,7 @@ export async function registerHealthRoutes(
   app.get("/health/live", async () => ({
     status: "ok",
     service: "life-mirror-api",
-    phase: "PHASE-001",
+    phase: "PHASE-002",
   }));
 
   app.get("/health/ready", async (_request, reply) => {

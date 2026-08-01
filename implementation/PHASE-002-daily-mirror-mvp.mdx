@@ -18,3 +18,27 @@ Question → Liuyao → Traditional Interpretation → AI Reflection → Save Me
 - DESIGN-003
 - DESIGN-004
 - TECH-006
+
+## Implementation Status
+
+Completed in version 0.6.0:
+
+- `/app` mobile-first Daily Mirror experience
+- authenticated Question → Liuyao → Traditional Interpretation → AI Reflection → Save flow
+- deterministic three-coin Liuyao Tool with moving-line and changed-hexagram calculation
+- structured KNOWLEDGE-003 retrieval for all 64 hexagrams
+- Mirror Runtime output: Observation, Insight, Reflection Question and Action Suggestion
+- explicit, user-owned Reflection Event save and recent event retrieval
+
+PHASE-002 stores only Event and Reflection Memory. It does not infer Pattern Memory or Mirror DNA.
+
+## Runtime API
+
+```text
+POST /api/v1/tools/liuyao/calculate
+POST /api/v1/daily-mirror/reflections
+POST /api/v1/daily-mirror/reflections/save
+GET  /api/v1/daily-mirror/reflections
+```
+
+Reflection drafts are signed and expire after 30 minutes. Personal questions are not persisted until the user explicitly saves the reflection.

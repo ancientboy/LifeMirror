@@ -1,4 +1,4 @@
-name: Life Mirror Foundation CI
+name: Life Mirror CI
 
 on:
   pull_request:
@@ -30,6 +30,7 @@ jobs:
       DATABASE_URL: postgres://life_mirror:life_mirror@localhost:5432/life_mirror_test
       WEB_ORIGIN: http://localhost:4173
       LLM_PROVIDER: disabled
+      REFLECTION_TOKEN_SECRET: integration-reflection-secret-at-least-32-chars
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
         run: npm test
       - name: Migrate database
         run: npm run db:migrate
-      - name: Test authentication against PostgreSQL
+      - name: Test authentication and Daily Mirror against PostgreSQL
         run: npm run test:integration
       - name: Build web and API
         run: npm run build
