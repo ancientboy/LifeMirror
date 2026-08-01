@@ -244,11 +244,26 @@
 .reflectionHero { margin-top: 48px; text-align: center; }
 .reflectionHero h1 { font-size: clamp(43px, 5vw, 68px); }
 .reflectionHero p { margin-left: auto; margin-right: auto; }
-.reflectionGrid { margin-top: 58px; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
-.reflectionGrid article { min-height: 230px; padding: 32px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid rgba(49,95,87,.13); border-radius: 18px; background: rgba(250,249,245,.64); }
-.reflectionGrid .insightCard { color: #f7f3e9; background: var(--jade-dark); }
-.reflectionGrid small { color: var(--gold); font-size: 9px; letter-spacing: .14em; }
-.reflectionGrid p { margin: 35px 0 0; font: 20px/1.75 Georgia, "Songti SC", serif; }
+.shiguangIntro { max-width: 760px; margin: 42px auto 0; padding: 20px 24px; display: flex; align-items: center; gap: 18px; border: 1px solid rgba(180,138,77,.18); border-radius: 18px; background: rgba(250,249,245,.67); }
+.shiguangAvatar { width: 54px; height: 54px; flex: 0 0 54px; display: grid; place-items: center; border-radius: 50%; color: #f7f3e9; background: linear-gradient(145deg, var(--jade), var(--jade-dark)); font: 24px Georgia, "Songti SC", serif; box-shadow: 0 12px 30px rgba(25,65,59,.18); }
+.shiguangIntro small, .personaFlow small, .shareCard small { color: var(--gold); font-size: 9px; letter-spacing: .14em; }
+.shiguangIntro p { margin: 8px 0 0; color: var(--muted); font: 13px/1.8 Georgia, "Songti SC", serif; }
+.personaFlow { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.personaFlow article { min-height: 220px; padding: 30px 32px; border: 1px solid rgba(49,95,87,.13); border-radius: 18px; background: rgba(250,249,245,.64); }
+.personaFlow .seesCard { grid-column: 1/3; min-height: 0; border-color: rgba(180,138,77,.22); background: linear-gradient(120deg, rgba(245,237,216,.82), rgba(250,249,245,.7)); }
+.personaFlow .understandingCard { color: #f7f3e9; background: var(--jade-dark); }
+.personaFlow .guidanceCard { background: rgba(180,138,77,.08); }
+.personaFlow h2 { margin: 22px 0 12px; font: 400 22px/1.45 Georgia, "Songti SC", serif; }
+.personaFlow p { margin: 0; color: inherit; opacity: .83; font: 17px/1.85 Georgia, "Songti SC", serif; }
+.shareCard { margin-top: 20px; padding: 31px 34px; display: flex; align-items: flex-end; justify-content: space-between; gap: 25px; overflow: hidden; position: relative; color: #f7f3e9; border-radius: 20px; background: linear-gradient(135deg, #17463f, #0a2827); box-shadow: 0 20px 55px rgba(16,48,44,.12); }
+.shareCard::after { content: "◌"; position: absolute; right: 20px; top: -65px; color: rgba(216,186,111,.12); font: 220px/1 Georgia, serif; }
+.shareCard > div, .shareCard button { position: relative; z-index: 1; }
+.shareCard blockquote { max-width: 690px; margin: 18px 0 17px; font: 400 clamp(23px, 3vw, 34px)/1.6 Georgia, "Songti SC", serif; }
+.shareCard span { color: rgba(247,243,233,.62); font-size: 10px; letter-spacing: .1em; }
+.shareCard button { flex: 0 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(216,186,111,.35); border-radius: 99px; color: #f1d8a6; background: rgba(255,255,255,.05); cursor: pointer; }
+.shareCard button svg { width: 17px; height: 17px; }
+.shareStatus { margin: 10px 4px 0; display: flex; justify-content: flex-end; align-items: center; gap: 6px; color: var(--jade); font-size: 10px; }
+.shareStatus svg { width: 14px; height: 14px; }
 .questionFocus, .saveSummary { max-width: 800px; margin: 50px auto 0; padding: 38px; border: 1px solid rgba(49,95,87,.14); border-radius: 20px; background: rgba(250,249,245,.67); }
 .questionFocus h2, .saveSummary h2 { margin: 18px 0 28px; font: 400 clamp(28px, 4vw, 43px)/1.55 Georgia, "Songti SC", serif; }
 .questionFocus > div { margin-top: 13px; padding: 20px; border-radius: 13px; background: rgba(49,95,87,.055); }
@@ -325,8 +340,12 @@
   .changedMeaning { grid-template-columns: 1fr; padding: 25px 21px; }
   .changedMeaning > .hexSymbol { font-size: 62px; }
   .questionFocus, .saveSummary { padding: 27px 22px; }
-  .reflectionGrid { grid-template-columns: 1fr; }
-  .reflectionGrid article { min-height: 190px; }
+  .shiguangIntro { align-items: flex-start; padding: 19px; }
+  .personaFlow { grid-template-columns: 1fr; }
+  .personaFlow .seesCard { grid-column: auto; }
+  .personaFlow article { min-height: 0; padding: 25px 22px; }
+  .shareCard { padding: 27px 22px; flex-direction: column; align-items: stretch; }
+  .shareCard button { align-self: flex-start; }
   .reflectionActions { flex-direction: column-reverse; }
   .reflectionActions button { width: 100%; }
   .savedNote { text-align: center; }

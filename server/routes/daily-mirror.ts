@@ -6,7 +6,7 @@ import type { AppDependencies } from "../app.js";
 import { retrieveLiuyaoKnowledge } from "../knowledge/liuyao-retrieval.js";
 import { generateMirrorReflection } from "../reflection/runtime.js";
 import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js";
-import type { ReflectionDraftPayload } from "../reflection/types.js";
+import { normalizeMirrorReflection, type ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
 import type { CoinToss } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
@@ -75,7 +75,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
 
       const now = new Date();
       const payload: ReflectionDraftPayload = {
-        version: 1,
+        version: 2,
         runtimeId: randomUUID(),
         userId: user.id,
         question: parsed.data.question,
@@ -93,7 +93,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         question: payload.question,
         hexagram,
         knowledge,
-        reflection: payload.reflection,
+        reflection: normalizeMirrorReflection(payload.reflection),
         draftToken: sealReflectionDraft(payload, dependencies.config.REFLECTION_TOKEN_SECRET),
         expiresAt: payload.expiresAt,
       };
@@ -166,7 +166,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         id: row.id,
         question: row.question,
         hexagram: row.hexagram_result,
-        reflection: row.reflection,
+        reflection: normalizeMirrorReflection(row.reflection),
         savedAt: row.saved_at.toISOString(),
       })),
     };

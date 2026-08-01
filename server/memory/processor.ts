@@ -135,7 +135,16 @@ export async function processReflectionEvent(database: Database, sourceEventId: 
          action_suggestion = CASE WHEN reflection_memories.user_corrected THEN reflection_memories.action_suggestion ELSE EXCLUDED.action_suggestion END,
          concepts = CASE WHEN reflection_memories.user_corrected THEN reflection_memories.concepts ELSE EXCLUDED.concepts END,
          updated_at = now()`,
-      [randomUUID(), source.user_id, source.id, extracted.reflection.observation, extracted.reflection.insight, extracted.reflection.reflectionQuestion, extracted.reflection.actionSuggestion, extracted.reflection.concepts],
+      [
+        randomUUID(),
+        source.user_id,
+        source.id,
+        extracted.reflection.shiguangSees,
+        `${extracted.reflection.hexagramMeaning}\n${extracted.reflection.mirrorUnderstanding}`,
+        extracted.reflection.reflectionQuestion,
+        extracted.reflection.practicalGuidance,
+        extracted.reflection.concepts,
+      ],
     );
     await rebuildPatterns(database, source.user_id);
     await database.query(

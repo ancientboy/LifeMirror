@@ -35,7 +35,8 @@ test("extracts Event and Reflection Memory while preserving the source", () => {
   assert.equal(memory.event.topic, "career");
   assert.equal(memory.event.triggerText, source.question);
   assert.deepEqual(memory.reflection.concepts, ["career", "创造", "行动", "承载"]);
-  assert.equal(memory.reflection.insight, source.reflection.insight);
+  assert.equal(memory.reflection.mirrorUnderstanding, "先做一个小验证。");
+  assert.equal(memory.reflection.practicalGuidance, "完成一次访谈。");
 });
 
 test("does not promote an unsupported AI assumption into Event or Pattern evidence", () => {

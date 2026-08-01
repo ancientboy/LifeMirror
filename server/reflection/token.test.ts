@@ -25,6 +25,11 @@ test("reflection drafts round-trip and reject tampering", () => {
   assert.throws(() => openReflectionDraft(`${token}x`, secret), /invalid_reflection_token/);
 });
 
+test("Shiguang v2 reflection drafts round-trip", () => {
+  const token = sealReflectionDraft({ ...payload, version: 2 }, secret);
+  assert.equal(openReflectionDraft(token, secret).version, 2);
+});
+
 test("expired reflection drafts cannot be saved", () => {
   const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
   assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);

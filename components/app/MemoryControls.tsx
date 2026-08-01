@@ -28,7 +28,7 @@ type GuestEvent = {
   id: string;
   question: string;
   savedAt: string;
-  reflection: { insight: string };
+  reflection: { insight?: string; mirrorUnderstanding?: string; shareableReflection?: string };
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
@@ -159,7 +159,7 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
           <article className={styles.card} key={event.id}>
             <time>{new Date(event.savedAt).toLocaleDateString("zh-CN")}</time>
             <input value={event.question} maxLength={500} onChange={(input) => updateGuest(event, input.target.value)} aria-label="事件内容" />
-            <p>{event.reflection.insight}</p>
+            <p>{event.reflection.shareableReflection ?? event.reflection.mirrorUnderstanding ?? event.reflection.insight}</p>
             <div className={styles.actions}><button onClick={() => deleteGuest(event)}><Trash /> 删除</button></div>
           </article>
         )) : events.map((event) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, Eye, FloppyDisk, LockKey, SignOut, Sparkle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, LockKey, ShareNetwork, SignOut, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
@@ -15,9 +15,17 @@ type Toss = readonly [CoinValue, CoinValue, CoinValue];
 type Stage = "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
 type Hexagram = LiuyaoResult;
 type Knowledge = LiuyaoKnowledgeContext;
-type Reflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
+type Reflection = {
+  shiguangSees: string;
+  hexagramMeaning: string;
+  mirrorUnderstanding: string;
+  practicalGuidance: string;
+  reflectionQuestion: string;
+  shareableReflection: string;
+};
+type LegacyReflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
 type ReflectionResponse = { question: string; hexagram: Hexagram; knowledge: Knowledge; reflection: Reflection; draftToken: string; expiresAt: string };
-type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection; savedAt: string };
+type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection | LegacyReflection; savedAt: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
 const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
@@ -65,15 +73,29 @@ function readGuestHistory(): HistoryEvent[] {
   }
 }
 
+function normalizeReflection(reflection: Reflection | LegacyReflection): Reflection {
+  if ("shiguangSees" in reflection) return reflection;
+  return {
+    shiguangSees: reflection.observation,
+    hexagramMeaning: reflection.insight,
+    mirrorUnderstanding: reflection.insight,
+    practicalGuidance: reflection.actionSuggestion,
+    reflectionQuestion: reflection.reflectionQuestion,
+    shareableReflection: reflection.insight,
+  };
+}
+
 function createGuestReflection(question: string, hexagram: Hexagram, knowledge: Knowledge): ReflectionResponse {
   const movingContext = hexagram.movingLines.length
     ? `第 ${hexagram.movingLines.join("、")} 爻的变化提示，当前处境并非静止不动。`
     : "没有动爻，提示你先把注意力放回当前处境本身。";
   const reflection: Reflection = {
-    observation: `当你带着“${question.trim()}”进入镜像，${hexagram.originalHexagram.name}卦把注意力带向“${knowledge.original.symbolic.meaning}”。${movingContext}`,
-    insight: `${knowledge.original.symbolic.interpretation} 从${hexagram.originalHexagram.name}走向${hexagram.changedHexagram.name}，这组象征与你的问题可能相关，因为它把注意力从“立即得到结论”转向“看见自己正在如何回应变化”。`,
+    shiguangSees: `我看到你真正想弄清的是：“${question.trim()}”这不是在索要一个标准答案，而是在寻找一个能帮助自己看清下一步的角度。`,
+    hexagramMeaning: `${hexagram.originalHexagram.name}卦把重点放在“${knowledge.original.symbolic.meaning}”。${movingContext}`,
+    mirrorUnderstanding: `${knowledge.original.symbolic.interpretation} 从${hexagram.originalHexagram.name}走向${hexagram.changedHexagram.name}，对你来说，也许不是要立刻决定“做或不做”，而是先辨认哪些条件已经具备、哪些仍需要验证。`,
+    practicalGuidance: `今天先围绕“${knowledge.original.symbolic.keywords[0]}”写下一个最小验证：明确你需要确认的一个条件，再完成一步可撤回的尝试。`,
     reflectionQuestion: knowledge.original.reflectionMapping.prompt,
-    actionSuggestion: `今天先围绕“${knowledge.original.symbolic.keywords[0]}”完成一个可逆的小行动，并记录行动前后的真实感受。`,
+    shareableReflection: `答案不必急着抵达，先看清让下一步变得踏实的条件。`,
   };
   return {
     question: question.trim(),
@@ -105,6 +127,7 @@ export function DailyMirrorExperience() {
   const [casting, setCasting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
 
   const loadHistory = useCallback(async () => {
     const data = await api<{ events: HistoryEvent[] }>("/api/v1/daily-mirror/reflections");
@@ -155,7 +178,49 @@ export function DailyMirrorExperience() {
   }
 
   function startMirror() {
-    setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionResult(null); setSaved(false); setError(""); setStage("question");
+    setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
+  }
+
+  async function shareReflectionCard() {
+    if (!reflectionResult) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080; canvas.height = 1350;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const gradient = context.createLinearGradient(0, 0, 1080, 1350);
+    gradient.addColorStop(0, "#153f39"); gradient.addColorStop(0.58, "#0f302d"); gradient.addColorStop(1, "#081f20");
+    context.fillStyle = gradient; context.fillRect(0, 0, 1080, 1350);
+    context.fillStyle = "rgba(216, 186, 111, .22)"; context.beginPath(); context.arc(900, 160, 260, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#d8ba6f"; context.font = "500 28px sans-serif"; context.fillText("LIFE MIRROR · 拾光", 90, 110);
+    context.fillStyle = "#f5efe2"; context.font = "64px serif"; context.fillText(`${reflectionResult.hexagram.originalHexagram.symbol}  ${reflectionResult.hexagram.originalHexagram.name}  →  ${reflectionResult.hexagram.changedHexagram.symbol}  ${reflectionResult.hexagram.changedHexagram.name}`, 90, 255);
+    context.fillStyle = "rgba(245,239,226,.72)"; context.font = "28px sans-serif"; context.fillText("今天的镜像", 90, 345);
+    context.fillStyle = "#ffffff"; context.font = "600 58px serif";
+    const characters = [...reflectionResult.reflection.shareableReflection];
+    const lines: string[] = []; let line = "";
+    for (const character of characters) {
+      if (context.measureText(line + character).width > 850 && line) { lines.push(line); line = character; } else line += character;
+    }
+    if (line) lines.push(line);
+    lines.slice(0, 6).forEach((item, index) => context.fillText(item, 90, 475 + index * 86));
+    context.strokeStyle = "rgba(216,186,111,.5)"; context.beginPath(); context.moveTo(90, 1110); context.lineTo(990, 1110); context.stroke();
+    context.fillStyle = "rgba(245,239,226,.7)"; context.font = "26px sans-serif"; context.fillText("传统智慧，照见此刻。", 90, 1190);
+    context.fillText("Life Mirror · 人生镜像", 90, 1240);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) return;
+    const file = new File([blob], "life-mirror-reflection.png", { type: "image/png" });
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "我的 Life Mirror 镜像", text: reflectionResult.reflection.shareableReflection, files: [file] });
+        setShareStatus("分享卡已准备好");
+      } else {
+        const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = file.name; anchor.click(); URL.revokeObjectURL(url);
+        setShareStatus("分享卡已下载");
+      }
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      setShareStatus("暂时无法生成分享卡，请稍后重试");
+    }
   }
 
   async function castLine() {
@@ -226,7 +291,7 @@ export function DailyMirrorExperience() {
           <div className={styles.authIntro}>
             <p>PERSONAL AI MIRROR</p>
             <h1>看见此刻，<br />也看见正在成为的自己。</h1>
-            <span>Daily Mirror 通过传统象征、知识检索和 AI Reflection，提供一面温和而诚实的个人镜子。</span>
+            <span>拾光会陪你先读懂传统卦意，再把它带回你真正关心的生活处境。</span>
           </div>
           <form className={styles.authCard} onSubmit={authenticate}>
             <LockKey weight="thin" />
@@ -328,20 +393,27 @@ export function DailyMirrorExperience() {
           <section className={styles.changedMeaning}><span className={styles.hexSymbol}>{hexagram.changedHexagram.symbol}</span><div><small>变卦 · 第 {knowledge.changed.number} 卦 · {knowledge.changed.name}</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p><blockquote><b>卦辞</b>{knowledge.changed.classical.judgment}</blockquote><blockquote><b>大象</b>{knowledge.changed.classical.image}</blockquote></div></section>
           <div className={styles.readingFocus}><small>本次传统判读顺序</small>{knowledge.readingRule.focus.map((item) => <p key={`${item.hexagram}-${item.label}`}><b>{item.label}</b>{item.text}</p>)}</div>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <CircleNotch className={styles.spin} /> : <><Sparkle /> 进入 Life Mirror 镜像解读</>}</button>
+          <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <CircleNotch className={styles.spin} /> : <><Sparkle /> 让拾光陪我解读</>}</button>
         </section>
       )}
 
       {stage === "mirror" && reflectionResult && (
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回传统解释</button>
-          <div className={styles.reflectionHero}><span>05 · MIRROR LAYER</span><h1>Life Mirror 镜像解读</h1><p>现在才把传统象征与你的问题和个人上下文连接起来。</p></div>
-          <div className={styles.layerBadge}><span>Runtime + LLM</span><b>连接你的处境</b><small>PERSONAL REFLECTION</small></div>
-          <div className={styles.reflectionGrid}>
-            <article><small>OBSERVATION · 观察</small><p>{reflectionResult.reflection.observation}</p></article>
-            <article className={styles.insightCard}><small>INSIGHT · 为什么可能相关</small><p>{reflectionResult.reflection.insight}</p></article>
+          <div className={styles.reflectionHero}><span>05 · SHIGUANG PERSONA</span><h1>拾光陪你读懂这一卦。</h1><p>传统解释已经说清卦意；现在，我们把它带回你真正关心的处境。</p></div>
+          <div className={styles.shiguangIntro}><span className={styles.shiguangAvatar}>拾</span><div><small>拾光 · SHIGUANG</small><p>我不会替你预测结果，也不会只留下一段漂亮话。我们一起看看，这一卦对你眼前的问题究竟有什么用。</p></div></div>
+          <div className={styles.personaFlow}>
+            <article className={styles.seesCard}><small>01 · 拾光看见</small><h2>先回应你真正关心的事</h2><p>{reflectionResult.reflection.shiguangSees}</p></article>
+            <article><small>02 · 这一卦在说什么</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.hexagramMeaning}</p></article>
+            <article className={styles.understandingCard}><small>03 · 放回你的处境</small><h2>它为什么可能与你有关</h2><p>{reflectionResult.reflection.mirrorUnderstanding}</p></article>
+            <article className={styles.guidanceCard}><small>04 · 接下来可以怎么做</small><h2>先走一小步，不急着押上全部</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
           </div>
-          <div className={styles.sourceNote}><Sparkle /><span><b>这不是预测或命令</b><small>{reflectionResult.knowledge.framing} 最终意义由你的真实经验决定。</small></span></div>
+          <article className={styles.shareCard}>
+            <div><small>可分享的今日镜像</small><blockquote>“{reflectionResult.reflection.shareableReflection}”</blockquote><span>{reflectionResult.hexagram.originalHexagram.symbol} {reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.symbol} {reflectionResult.hexagram.changedHexagram.name}</span></div>
+            <button onClick={shareReflectionCard}><ShareNetwork /> 生成分享卡</button>
+          </article>
+          {shareStatus && <p className={styles.shareStatus}><DownloadSimple /> {shareStatus}</p>}
+          <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
           <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("reflectionQuestion")}>查看反思问题如何生成 <ArrowRight /></button></div>
         </section>
       )}
@@ -350,7 +422,7 @@ export function DailyMirrorExperience() {
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("mirror")}><ArrowLeft /> 返回镜像解读</button>
           <div className={styles.reflectionHero}><span>06 · REFLECTION QUESTION</span><h1>把解释带回你的经验。</h1><p>这个问题来自前面的传统象征、你的提问和镜像观察，不是突然出现的建议。</p></div>
-          <article className={styles.questionFocus}><small>给你的反思问题</small><h2>{reflectionResult.reflection.reflectionQuestion}</h2><div><b>它为何出现</b><p>{reflectionResult.reflection.insight}</p></div><div><b>一个可逆的小行动</b><p>{reflectionResult.reflection.actionSuggestion}</p></div></article>
+          <article className={styles.questionFocus}><small>拾光想问你</small><h2>{reflectionResult.reflection.reflectionQuestion}</h2><div><b>它为何出现</b><p>{reflectionResult.reflection.mirrorUnderstanding}</p></div><div><b>现在可以做的事</b><p>{reflectionResult.reflection.practicalGuidance}</p></div></article>
           <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("save")}>继续保存这次镜像 <ArrowRight /></button></div>
         </section>
       )}
@@ -359,7 +431,7 @@ export function DailyMirrorExperience() {
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("reflectionQuestion")}><ArrowLeft /> 返回反思问题</button>
           <div className={styles.reflectionHero}><span>07 · PERSONAL MEMORY</span><h1>保存到你的长期镜像。</h1><p>保存后，问题成为 Event Memory，镜像解读成为 Reflection Memory；Pattern 只会在多次独立证据重复出现后更新。</p></div>
-          <article className={styles.saveSummary}><small>本次镜像</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</p><blockquote>{reflectionResult.reflection.insight}</blockquote></article>
+          <article className={styles.saveSummary}><small>本次镜像</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</p><blockquote>{reflectionResult.reflection.shareableReflection}</blockquote></article>
           {error && <div className={styles.error} role="alert">{error}</div>}
           <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存 Event 与 Reflection Memory</>}</button></div>
           {saved && <p className={styles.savedNote}>已保存。没有把未经支持的 AI 假设写入 Pattern Memory。</p>}

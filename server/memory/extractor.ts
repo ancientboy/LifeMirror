@@ -1,4 +1,5 @@
 import type { ExtractedMemory, MemorySourceEvent } from "./types.js";
+import { normalizeMirrorReflection } from "../reflection/types.js";
 
 const topics = [
   { key: "career", title: "职业与方向", words: ["工作", "职业", "事业", "创业", "方向", "career", "business"] },
@@ -29,6 +30,7 @@ export function extractMemory(source: MemorySourceEvent): ExtractedMemory {
     ...(legacyKnowledge.original.symbolic?.keywords ?? legacyKnowledge.original.symbolicConcepts ?? []),
     ...(legacyKnowledge.changed.symbolic?.keywords ?? legacyKnowledge.changed.symbolicConcepts ?? []),
   ].map((value) => value.trim()).filter(Boolean))).slice(0, 12);
+  const reflection = normalizeMirrorReflection(source.reflection);
 
   return {
     event: {
@@ -38,7 +40,7 @@ export function extractMemory(source: MemorySourceEvent): ExtractedMemory {
       summary: `围绕“${source.question}”完成了一次 Daily Mirror，并从${source.hexagram_result.originalHexagram.name}卦观察到${source.hexagram_result.changedHexagram.name}卦的变化。`,
     },
     reflection: {
-      ...source.reflection,
+      ...reflection,
       concepts,
     },
   };

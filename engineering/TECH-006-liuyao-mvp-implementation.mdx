@@ -22,12 +22,14 @@ Knowledge Retrieval resolves the corresponding KNOWLEDGE-003 entries before the 
 
 The enhanced contract returns `classical`, `symbolic`, `reflectionMapping`, exact `movingLines`, and a deterministic `readingRule`. The classical branch contains complete judgment, Great Image, line text and Small Image data. The Reflection Runtime cannot supply missing classical content.
 
-The Reflection Runtime returns four structured fields:
+The Shiguang Persona contract returns six structured fields:
 
-- Observation
-- Insight
+- Shiguang Sees
+- Hexagram Meaning
+- Mirror Understanding
+- Practical Guidance
 - Reflection Question
-- Action Suggestion
+- Shareable Reflection
 
 Runtime input is:
 
@@ -36,5 +38,9 @@ Hexagram + Traditional Interpretation + User Question + visible Personal Memory
 ```
 
 Personal Memory is optional evidence. The prompt forbids converting tentative inference into a user fact and requires the Insight to explain why the supplied symbol may relate to the present question rather than forecast the future.
+
+The provider must answer the user's actual concern before offering reflection. It may acknowledge only emotions stated by the user; otherwise it describes tension tentatively. Cold report language, generic motivation, abstract philosophy and unsupported certainty are rejected by the output contract and evaluation tests.
+
+Existing Reflection Memory columns remain unchanged. The processor maps `shiguangSees` to observation, `hexagramMeaning + mirrorUnderstanding` to insight, and `practicalGuidance` to action suggestion. Legacy four-field Reflection Events are normalized during retrieval and lazy Memory processing, so no database migration is required.
 
 Generated drafts remain unpersisted until explicit user save. A signed, short-lived draft token binds the generated reflection to its authenticated owner. Saving creates one `reflection_events` record and the PHASE-003 processor derives Event and Reflection Memory. Pattern Memory still requires repeated independent evidence.

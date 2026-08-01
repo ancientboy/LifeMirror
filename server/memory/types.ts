@@ -1,4 +1,4 @@
-import type { ReflectionDraftPayload } from "../reflection/types.js";
+import type { MirrorReflection, ReflectionDraftPayload, StoredMirrorReflection } from "../reflection/types.js";
 
 export const MEMORY_PROCESSING_VERSION = 1;
 
@@ -8,7 +8,7 @@ export type MemorySourceEvent = {
   question: string;
   hexagram_result: ReflectionDraftPayload["hexagram"];
   knowledge_context: ReflectionDraftPayload["knowledge"];
-  reflection: ReflectionDraftPayload["reflection"];
+  reflection: StoredMirrorReflection;
   saved_at: Date;
 };
 
@@ -19,5 +19,5 @@ export type ExtractedMemory = {
     triggerText: string;
     summary: string;
   };
-  reflection: ReflectionDraftPayload["reflection"] & { concepts: string[] };
+  reflection: MirrorReflection & { concepts: string[] };
 };

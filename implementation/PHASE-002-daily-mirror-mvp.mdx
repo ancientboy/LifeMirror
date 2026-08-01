@@ -27,7 +27,7 @@ Completed in version 0.6.0:
 - authenticated Question → Liuyao → Traditional Interpretation → AI Reflection → Save flow
 - deterministic three-coin Liuyao Tool with moving-line and changed-hexagram calculation
 - structured KNOWLEDGE-003 retrieval for all 64 hexagrams
-- Mirror Runtime output: Observation, Insight, Reflection Question and Action Suggestion
+- Shiguang Persona output: Shiguang Sees, Hexagram Meaning, Mirror Understanding, Practical Guidance, Reflection Question and Shareable Reflection
 - explicit, user-owned Reflection Event save and recent event retrieval
 
 PHASE-002 stores only Event and Reflection Memory. It does not infer Pattern Memory or Mirror DNA.
@@ -56,3 +56,15 @@ Your Hexagram
 ```
 
 KNOWLEDGE-003 now supplies complete classical judgments, Images and line texts. The UI labels the Knowledge System Symbolic Layer separately from the Runtime + LLM Mirror Layer.
+
+## Shiguang Persona Enhancement 0.7.2
+
+The existing Traditional Interpretation and Memory layers remain unchanged. A final Persona Expression layer now turns the Mirror Runtime output into a warm, contextual conversation:
+
+```text
+Traditional Symbolic Layer
+→ Mirror Reflection Layer
+→ Shiguang Persona Expression
+```
+
+The Mirror page follows `拾光看见 → 卦意承接 → 镜像理解 → 实际建议`, then asks one meaningful Reflection Question. A privacy-safe reflection line can be exported as a branded PNG sharing card. Legacy saved reflections and PHASE-003 Memory remain compatible without a new database migration.
