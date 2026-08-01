@@ -226,9 +226,14 @@ export function DailyMirrorExperience() {
     context.strokeStyle = "rgba(216,186,111,.5)"; context.beginPath(); context.moveTo(90, 1035); context.lineTo(650, 1035); context.stroke();
     context.fillStyle = "#d8ba6f"; context.font = "500 23px sans-serif"; context.fillText("拾光给你的提醒", 90, 1100);
     context.fillStyle = "rgba(245,239,226,.76)"; context.font = "25px sans-serif";
-    const reminder = reflectionResult.reflection.practicalGuidance.slice(0, 42);
-    context.fillText(reminder, 90, 1150);
-    context.fillStyle = "rgba(245,239,226,.7)"; context.font = "25px sans-serif"; context.fillText("Life Mirror · 人生镜像", 90, 1255);
+    const reminderCharacters = [...reflectionResult.reflection.practicalGuidance];
+    const reminderLines: string[] = []; let reminderLine = "";
+    for (const character of reminderCharacters) {
+      if (context.measureText(reminderLine + character).width > 540 && reminderLine) { reminderLines.push(reminderLine); reminderLine = character; } else reminderLine += character;
+    }
+    if (reminderLine) reminderLines.push(reminderLine);
+    reminderLines.slice(0, 2).forEach((item, index) => context.fillText(item, 90, 1150 + index * 42));
+    context.fillStyle = "rgba(245,239,226,.7)"; context.font = "25px sans-serif"; context.fillText("Life Mirror · 人生镜像", 90, 1285);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return;
     const file = new File([blob], "life-mirror-reflection.png", { type: "image/png" });
