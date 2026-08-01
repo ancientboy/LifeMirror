@@ -2,15 +2,15 @@ import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import { InstituteShell } from "@/components/site/InstituteShell";
-import { mdxComponents } from "@/components/mdx-components";
+import { getMdxComponents } from "@/components/mdx-components";
 import { getTheoryDocument, getTheoryPapers } from "@/lib/theory";
 
 const gateways = [
   { number: "01", key: "WHY", title: "为什么", copy: "理解需求与时代背景", href: "/theory/lm-001/", image: "card-why.webp" },
   { number: "02", key: "WHAT", title: "是什么", copy: "人生镜像的本质与结构", href: "/theory/lm-002/", image: "card-what.webp" },
   { number: "03", key: "HOW", title: "如何实现", copy: "理论原则与动态框架", href: "/theory/lm-003/", image: "card-how.webp" },
-  { number: "04", key: "APPLICATION", title: "应用场景", copy: "在人生中的实践与价值", href: "/#application", image: "card-application.webp" },
-  { number: "05", key: "FUTURE", title: "未来展望", copy: "通向更高维度的人类理解", href: "/#future", image: "card-future.webp" },
+  { number: "04", key: "APPLICATION", title: "应用场景", copy: "在人生中的实践与价值", href: "/theory/lm-007/", image: "card-application.webp" },
+  { number: "05", key: "FUTURE", title: "未来展望", copy: "通向更高维度的人类理解", href: "/theory/lm-010/", image: "card-future.webp" },
 ];
 
 export default function HomePage() {
@@ -51,7 +51,7 @@ export default function HomePage() {
           <div className="paper-body mdx-content manifesto-copy">
             <MDXRemote
               source={manifesto.content}
-              components={mdxComponents}
+              components={getMdxComponents(manifesto.content)}
               options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
             />
           </div>

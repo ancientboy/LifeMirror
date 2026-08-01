@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import { InstituteShell } from "@/components/site/InstituteShell";
-import { mdxComponents } from "@/components/mdx-components";
+import { getMdxComponents } from "@/components/mdx-components";
 import { getTheoryDocument, getTheoryPapers } from "@/lib/theory";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -52,7 +52,7 @@ export default async function TheoryPage({ params }: PageProps) {
         <div className="theory-page-body mdx-content">
           <MDXRemote
             source={document.content}
-            components={mdxComponents}
+            components={getMdxComponents(document.content)}
             options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
           />
         </div>
