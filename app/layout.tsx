@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Life Mirror Theory",
-  description: "帮助每一个人，看见自己，理解自己，成为自己。",
+  title: "Life Mirror Institute — Researching Human Understanding",
+  description: "Life Mirror Institute 研究 AI 如何长期理解、映照并支持一个人的成长。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
