@@ -14,12 +14,15 @@ Life Mirror 不是一个命理工具，也不是一个普通聊天机器人。�
 - 视觉方向：东方未来主义
 - 当前版本：v0.1 Draft
 
-## 项目结构
+## Interactive Theory System
 
-- `theory/`：Life Mirror Theory 白皮书正文
-- `research/`：研究笔记与开放问题
-- `product/`：产品方向、MVP 与体验设计
-- `website/`：理论站点
+- `theory/*.mdx`：带 metadata 的理论论文，新增文件会自动进入目录和静态路由
+- `lib/theory.ts`：内容发现、metadata 解析与排序
+- `components/theory/`：可嵌入 MDX 的理论模型、图谱与时间轴
+- `app/theory/[slug]/page.tsx`：自动生成的研究论文页面
+- `app/page.tsx`：研究院首页、Manifesto 与五个研究入口
+
+每篇论文通过 frontmatter 声明 `id`、`slug`、`title`、`subtitle`、`version`、`part`、`order` 与 `status`。正文可同时使用 Markdown、GFM 表格、图片、代码块和 React 理论组件。
 
 ## 核心原则
 

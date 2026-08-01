@@ -176,3 +176,149 @@ button { font: inherit; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; }
 }
+
+/* Interactive Theory System */
+.paper > header > a { width: fit-content; margin-top: 34px; padding-bottom: 7px; border-bottom: 1px solid rgba(213,168,95,.5); color: #d9b675; font: 11px/1 Georgia, serif; letter-spacing: .08em; }
+.theory-home .mdx-content > h1,.theory-home .mdx-content > h2 { display: none; }
+.research-index { padding: 116px max(5vw, calc((100vw - var(--sidebar) - 1120px) / 2)); border-top: 1px solid var(--line); background: radial-gradient(circle at 77% 4%, rgba(38,49,100,.18), transparent 34%), #030a13; }
+.research-index > header { max-width: 720px; margin-bottom: 58px; }
+.research-index > header span { color: var(--gold); font: 10px/1 Georgia, serif; letter-spacing: .2em; }
+.research-index > header h2 { margin: 23px 0 13px; font: 400 clamp(42px,5vw,70px)/1.2 Georgia,"Songti SC",serif; }
+.research-index > header p { color: var(--muted); font-family: Georgia,"Songti SC",serif; }
+.research-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.research-card { min-height: 320px; padding: 29px; display: flex; flex-direction: column; border: 1px solid rgba(199,159,91,.22); border-radius: 14px; background: linear-gradient(145deg,rgba(10,24,39,.9),rgba(3,10,18,.88)); transition: 200ms ease; }
+.research-card:hover { transform: translateY(-5px); border-color: rgba(229,186,108,.55); box-shadow: 0 20px 55px rgba(0,0,0,.3); }
+.research-card > div { display: flex; justify-content: space-between; color: #a88d66; font: 9px/1.2 Georgia,serif; letter-spacing: .12em; }
+.research-card em { color: #737d8a; font-style: normal; }
+.research-card > b { margin-top: 48px; color: var(--gold); font: 12px/1 Georgia,serif; letter-spacing: .12em; }
+.research-card h3 { margin: 14px 0 3px; color: #e9e1d4; font: 400 27px/1.3 Georgia,serif; }
+.research-card h4 { margin: 0; color: #aaa49b; font: 400 16px/1.5 Georgia,"Songti SC",serif; }
+.research-card p { color: #8f959e; font: 14px/1.8 Georgia,"Songti SC",serif; }
+.research-card > small { margin-top: auto; color: #c7a467; font: 9px/1 Georgia,serif; letter-spacing: .12em; }
+.research-card.planned { border-style: dashed; }
+
+.theory-page { min-height: 100vh; background: radial-gradient(circle at 75% 7%,rgba(61,52,122,.2),transparent 26%),#06101b; }
+.theory-page-header { min-height: 680px; padding: 175px max(8vw,calc((100vw - var(--sidebar) - 960px)/2)) 95px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--line); background: linear-gradient(125deg,rgba(2,8,16,.97),rgba(5,18,31,.82)); }
+.paper-status { display: flex; align-items: center; gap: 12px; color: #9b8b75; font: 9px/1 Georgia,serif; letter-spacing: .14em; }
+.paper-status i { width: 34px; height: 1px; background: rgba(213,168,95,.35); }
+.theory-page-header > p:not(.theory-summary) { margin: 40px 0 0; color: var(--gold); font: 11px/1 Georgia,serif; letter-spacing: .2em; }
+.theory-page-header h1 { margin: 26px 0 6px; max-width: 1050px; color: #eee5d8; font: 400 clamp(55px,7vw,102px)/1.03 Georgia,serif; letter-spacing: -.025em; }
+.theory-page-header h2 { margin: 18px 0 0; color: #c7b89f; font: 400 clamp(25px,3vw,43px)/1.4 Georgia,"Songti SC",serif; }
+.theory-meta { margin-top: 45px; display: flex; flex-wrap: wrap; gap: 9px; }
+.theory-meta span { padding: 8px 12px; border: 1px solid rgba(177,149,103,.2); border-radius: 99px; color: #9d9b99; font: 9px/1 Georgia,serif; letter-spacing: .09em; }
+.theory-summary { max-width: 720px; margin: 35px 0 0; color: #aaa9a6; font: 17px/2 Georgia,"Songti SC",serif; }
+.theory-page-body { width: min(880px,86%); margin: 0 auto; padding: 100px 0 140px; }
+.mdx-content > h1 { margin: 0 0 24px; color: #eee3d3; font: 400 clamp(41px,5vw,65px)/1.15 Georgia,"Songti SC",serif; }
+.mdx-content > h2 { margin: 85px 0 25px; padding-top: 22px; border-top: 1px solid rgba(134,151,171,.15); color: #e4d8c7; font: 400 32px/1.4 Georgia,"Songti SC",serif; }
+.mdx-content > h3 { margin: 42px 0 18px; color: #d8c7aa; font: 400 23px/1.45 Georgia,"Songti SC",serif; }
+.mdx-content > p, .mdx-content > ul, .mdx-content > ol { color: #bbb8b2; font: 17px/2.12 Georgia,"Songti SC",serif; }
+.mdx-content li { margin: 8px 0; }
+.mdx-content strong { color: #e2d0b1; }
+.mdx-content > blockquote { margin: 48px 0; padding: 8px 0 8px 30px; border-left: 2px solid var(--gold); color: #ead6b4; font: 23px/1.8 Georgia,"Songti SC",serif; }
+.mdx-content > blockquote p { margin: 0; }
+.mdx-content hr { height: 1px; margin: 70px 0; border: 0; background: linear-gradient(90deg,rgba(213,168,95,.55),transparent); }
+.mdx-content pre { overflow-x: auto; padding: 25px; border: 1px solid rgba(142,159,181,.18); border-radius: 12px; background: #020812; color: #d1cabf; }
+.mdx-content code { font-family: "SFMono-Regular",Consolas,monospace; font-size: .88em; }
+.mdx-content :not(pre) > code { padding: 2px 6px; border: 1px solid rgba(213,168,95,.18); border-radius: 5px; background: rgba(213,168,95,.07); }
+.mdx-content table { width: 100%; margin: 45px 0; border-collapse: collapse; color: #bdb8af; font: 14px/1.6 Georgia,"Songti SC",serif; }
+.mdx-content th,.mdx-content td { padding: 16px; border: 1px solid rgba(142,159,181,.16); text-align: left; }
+.mdx-content th { color: #e1cfae; background: rgba(213,168,95,.07); }
+.mdx-content img { max-width: 100%; height: auto; border-radius: 12px; }
+.paper-pagination { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.paper-pagination > a { min-height: 210px; padding: 55px 7vw; display: flex; flex-direction: column; background: #030a13; transition: 180ms ease; }
+.paper-pagination > a + a { align-items: flex-end; border-left: 1px solid var(--line); text-align: right; }
+.paper-pagination > a:hover { background: #07131f; }
+.paper-pagination small { color: #737d89; font: 9px/1 Georgia,serif; letter-spacing: .15em; }
+.paper-pagination span { margin-top: 28px; color: var(--gold); font: 10px/1 Georgia,serif; }
+.paper-pagination strong { margin-top: 8px; color: #d9d2c6; font: 400 19px/1.4 Georgia,serif; }
+
+.theory-visual { width: calc(100% + 120px); margin: 80px -60px; padding: 34px; overflow: hidden; border: 1px solid rgba(213,168,95,.25); border-radius: 18px; background: radial-gradient(circle at 78% 13%,rgba(84,63,143,.22),transparent 29%),linear-gradient(145deg,rgba(6,18,32,.98),rgba(2,8,16,.98)); box-shadow: 0 28px 80px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.025); }
+.theory-visual figcaption { margin-bottom: 32px; display: flex; flex-direction: column; gap: 9px; }
+.theory-visual figcaption span { color: var(--gold); font: 9px/1 Georgia,serif; letter-spacing: .18em; }
+.theory-visual figcaption strong { color: #e7dccb; font: 400 24px/1.4 Georgia,"Songti SC",serif; }
+.visual-note { margin: 26px 0 0 !important; color: #7f8792 !important; font-size: 12px !important; }
+.framework-stack { display: flex; flex-direction: column; gap: 9px; }
+.framework-layer { min-height: 72px; padding: 14px 20px; display: grid; grid-template-columns: 34px 1fr auto; gap: 16px; align-items: center; border: 1px solid rgba(151,165,185,.15); background: rgba(5,15,27,.8); }
+.framework-layer::before { content:""; width: 1px; height: 10px; position: absolute; left: 50%; margin-top: -82px; background: rgba(213,168,95,.4); }
+.framework-layer:first-child { border-color: rgba(226,180,99,.55); background: linear-gradient(90deg,rgba(213,168,95,.15),rgba(32,25,70,.18)); box-shadow: inset 3px 0 #d5a85f; }
+.framework-layer > span { color: #8d806f; font: 9px/1 Georgia,serif; }
+.framework-layer div { display: flex; flex-direction: column; gap: 5px; }
+.framework-layer strong { color: #ddd5c9; font: 400 16px/1 Georgia,serif; }
+.framework-layer small,.framework-layer em { color: #858b94; font: 11px/1.3 Georgia,"Songti SC",serif; font-style: normal; }
+.equation-expression { display: grid; grid-template-columns: 135px 28px 1fr 28px 90px; gap: 18px; align-items: center; }
+.equation-name { color: #ecd7b4; font: 400 27px/1.2 Georgia,serif; }
+.equation-expression > b { color: var(--gold); font: 400 25px Georgia,serif; }
+.equation-selves { padding: 20px; display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; border: 1px solid rgba(152,164,182,.17); border-radius: 12px; }
+.equation-selves span { display: flex; justify-content: space-between; color: #b9b8b6; font: 12px/1.5 Georgia,serif; }
+.equation-selves i { margin-left: 8px; color: #806d50; font-style: normal; }
+.equation-time { width: 78px; height: 78px; display: grid; place-items: center; align-content: center; border: 1px solid rgba(226,180,99,.55); border-radius: 50%; color: #e4bd79; font: 12px/1 Georgia,serif; box-shadow: 0 0 30px rgba(213,168,95,.1); }
+.equation-time small { margin-top: 7px; color: #8d8273; }
+.evolution-track { display: grid; grid-template-columns: repeat(4,1fr); position: relative; }
+.evolution-track::before { content:""; height: 1px; position: absolute; top: 31px; left: 10%; right: 10%; background: linear-gradient(90deg,#4d5869,#d5a85f); }
+.evolution-stage { position: relative; z-index: 1; padding: 0 16px; display: flex; flex-direction: column; text-align: center; }
+.evolution-stage > span { width: 62px; height: 62px; margin: 0 auto 22px; display: grid; place-items: center; border: 1px solid #77664d; border-radius: 50%; background: #07111d; color: #d8b16f; font: 10px Georgia,serif; }
+.evolution-stage time { color: #81796f; font: 9px Georgia,serif; letter-spacing: .12em; }
+.evolution-stage strong { margin-top: 9px; color: #ddd3c4; font: 400 16px Georgia,"Songti SC",serif; }
+.evolution-stage small { margin-top: 8px; color: #777f89; line-height: 1.5; }
+.graph-flow { display: grid; grid-template-columns: repeat(5,1fr); gap: 20px; }
+.graph-node { min-height: 128px; position: relative; padding: 20px 14px; display: flex; flex-direction: column; justify-content: center; border: 1px solid rgba(152,164,182,.18); border-radius: 50%; text-align: center; }
+.graph-node:not(:last-child)::after { content:"→"; position: absolute; right: -19px; color: #a38252; }
+.graph-node span { color: #796f62; font: 8px Georgia,serif; }
+.graph-node strong { margin-top: 9px; color: #e0d5c5; font: 400 14px Georgia,serif; }
+.graph-node small { margin-top: 5px; color: #848992; }
+.dna-orbit { width: 590px; height: 590px; max-width: 100%; position: relative; margin: 20px auto; border: 1px solid rgba(213,168,95,.13); border-radius: 50%; background: repeating-radial-gradient(circle,transparent 0 88px,rgba(152,164,182,.08) 89px 90px); }
+.dna-core { width: 122px; height: 122px; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); display: grid; place-items: center; align-content: center; border: 1px solid rgba(226,180,99,.55); border-radius: 50%; background: radial-gradient(circle,rgba(213,168,95,.18),#07111d 66%); box-shadow: 0 0 45px rgba(213,168,95,.12); }
+.dna-core strong { color: #e5bd78; font: 15px Georgia,serif; letter-spacing: .13em; }
+.dna-core small { margin-top: 6px; color: #878079; font: 8px Georgia,serif; }
+.dna-dimension { --angle: calc(var(--index) * 51.428deg - 90deg); width: 132px; height: 54px; position: absolute; top: calc(50% + sin(var(--angle)) * 235px); left: calc(50% + cos(var(--angle)) * 235px); transform: translate(-50%,-50%); display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid rgba(151,165,185,.17); border-radius: 99px; background: #07111d; }
+.dna-dimension span { color: #8d7553; font: 8px Georgia,serif; }
+.dna-dimension strong { color: #cbc5bc; font: 400 11px Georgia,serif; }
+.principle-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.principle-card { min-height: 210px; padding: 22px; border: 1px solid rgba(151,165,185,.15); background: rgba(4,14,25,.76); }
+.principle-card > span { color: #8e7653; font: 9px Georgia,serif; }
+.principle-card > strong { min-height: 40px; margin-top: 25px; display: block; color: #d9c8ac; font: 400 14px/1.45 Georgia,serif; }
+.principle-card h4 { margin: 14px 0 0; color: #e7dfd4; font: 400 18px Georgia,"Songti SC",serif; }
+.principle-card p { margin: 12px 0 0 !important; color: #7e858f !important; font-size: 12px !important; line-height: 1.6 !important; }
+.life-timeline ol { margin: 0; padding: 0; list-style: none; border-left: 1px solid rgba(213,168,95,.25); }
+.life-timeline li { position: relative; padding: 12px 0 32px 35px; display: grid; grid-template-columns: 36px 110px 1fr; gap: 10px; }
+.life-timeline li::before { content:""; width: 9px; height: 9px; position: absolute; left: -5px; top: 17px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 12px rgba(213,168,95,.45); }
+.life-timeline li span,.life-timeline time { color: #8e7a5d; font: 9px Georgia,serif; }
+.life-timeline li strong { color: #d9d1c5; font: 400 15px Georgia,"Songti SC",serif; }
+.life-timeline li p { grid-column: 3; margin: 0 !important; color: #7d858f !important; font-size: 12px !important; }
+
+@media (max-width: 1040px) {
+  .research-grid { grid-template-columns: 1fr; }
+  .theory-visual { width: 100%; margin-left: 0; margin-right: 0; }
+  .equation-expression { grid-template-columns: 1fr; text-align: center; }
+  .equation-expression > b { transform: rotate(90deg); }
+  .equation-time { margin: auto; }
+  .graph-flow { grid-template-columns: 1fr; }
+  .graph-node { min-height: 80px; border-radius: 12px; }
+  .graph-node:not(:last-child)::after { right: 50%; bottom: -22px; transform: rotate(90deg); }
+}
+
+@media (max-width: 760px) {
+  .research-index { padding: 80px 7vw; }
+  .research-card { min-height: 290px; }
+  .theory-page-header { min-height: 610px; padding: 175px 7vw 75px; }
+  .theory-page-header h1 { font-size: 48px; }
+  .theory-page-body { width: 86%; padding-top: 70px; }
+  .mdx-content > h2 { margin-top: 65px; font-size: 28px; }
+  .mdx-content > p,.mdx-content > ul,.mdx-content > ol { font-size: 16px; }
+  .theory-visual { padding: 23px 17px; }
+  .framework-layer { grid-template-columns: 25px 1fr; }
+  .framework-layer em { display: none; }
+  .evolution-track { grid-template-columns: 1fr; gap: 22px; }
+  .evolution-track::before { width: 1px; height: auto; inset: 20px auto 20px 31px; }
+  .evolution-stage { min-height: 70px; padding-left: 84px; align-items: flex-start; text-align: left; }
+  .evolution-stage > span { position: absolute; left: 0; margin: 0; }
+  .principle-grid { grid-template-columns: 1fr; }
+  .principle-card { min-height: 185px; }
+  .dna-orbit { height: auto; padding: 135px 0 0; border: 0; background: none; }
+  .dna-core { top: 60px; }
+  .dna-dimension { width: 100%; height: 48px; position: static; margin: 8px 0; transform: none; }
+  .paper-pagination { grid-template-columns: 1fr; }
+  .paper-pagination > a + a { align-items: flex-start; border-top: 1px solid var(--line); border-left: 0; text-align: left; }
+  .life-timeline li { grid-template-columns: 28px 1fr; }
+  .life-timeline li strong,.life-timeline li p { grid-column: 2; }
+}
