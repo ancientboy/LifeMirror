@@ -20,6 +20,8 @@ The Liuyao Tool accepts six bottom-up three-coin tosses. It deterministically re
 
 Knowledge Retrieval resolves the corresponding KNOWLEDGE-003 entries before the Reflection Runtime is called. Traditional interpretation remains separate from AI reflection.
 
+The enhanced contract returns `classical`, `symbolic`, `reflectionMapping`, exact `movingLines`, and a deterministic `readingRule`. The classical branch contains complete judgment, Great Image, line text and Small Image data. The Reflection Runtime cannot supply missing classical content.
+
 The Reflection Runtime returns four structured fields:
 
 - Observation
@@ -27,4 +29,12 @@ The Reflection Runtime returns four structured fields:
 - Reflection Question
 - Action Suggestion
 
-Generated drafts remain unpersisted until explicit user save. A signed, short-lived draft token binds the generated reflection to its authenticated owner. Saving creates one `reflection_events` record; Pattern generation is outside this phase.
+Runtime input is:
+
+```text
+Hexagram + Traditional Interpretation + User Question + visible Personal Memory
+```
+
+Personal Memory is optional evidence. The prompt forbids converting tentative inference into a user fact and requires the Insight to explain why the supplied symbol may relate to the present question rather than forecast the future.
+
+Generated drafts remain unpersisted until explicit user save. A signed, short-lived draft token binds the generated reflection to its authenticated owner. Saving creates one `reflection_events` record and the PHASE-003 processor derives Event and Reflection Memory. Pattern Memory still requires repeated independent evidence.

@@ -13,9 +13,12 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
     REFLECTION_TOKEN_SECRET: "integration-reflection-secret-at-least-32-chars",
   });
   const database = createDatabase(config.DATABASE_URL);
+  const runtimeInputs: Array<Record<string, unknown>> = [];
   const llm: LlmProvider = {
     name: "integration-fixture",
-    async generate() {
+    async generate(request) {
+      const userMessage = request.messages.find((message) => message.role === "user");
+      runtimeInputs.push(JSON.parse(userMessage?.content ?? "{}") as Record<string, unknown>);
       return {
         text: JSON.stringify({
           observation: "你正在一个新阶段的起点观察自己的准备程度。",
@@ -51,6 +54,9 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
     assert.equal(calculation.statusCode, 200);
     assert.equal(calculation.json().hexagram.originalHexagram.number, 1);
     assert.equal(calculation.json().knowledge.original.name, "乾");
+    assert.equal(calculation.json().knowledge.original.classical.judgment, "元亨利贞。");
+    assert.equal(calculation.json().knowledge.original.classical.lines.length, 7);
+    assert.equal(calculation.json().knowledge.source, "KNOWLEDGE-003");
 
     const generated = await app.inject({
       method: "POST",
@@ -60,6 +66,7 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
     });
     assert.equal(generated.statusCode, 200);
     assert.ok(generated.json().draftToken);
+    assert.deepEqual((runtimeInputs[0].personalContext as { recentEvents: unknown[] }).recentEvents, []);
 
     const beforeSave = await app.inject({
       method: "GET",
@@ -104,6 +111,7 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
       headers: { cookie },
       payload: { question: "新的工作方向里，我该先验证什么？", tosses },
     });
+    assert.equal((runtimeInputs[1].personalContext as { recentEvents: unknown[] }).recentEvents.length, 1);
     const secondSaved = await app.inject({
       method: "POST",
       url: "/api/v1/daily-mirror/reflections/save",

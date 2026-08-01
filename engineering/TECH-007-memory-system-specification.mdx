@@ -43,6 +43,8 @@ Reflection Memory
 
 The processor is idempotent per source event and version. User-corrected fields survive reprocessing.
 
+Event Memory classification uses only the user-authored question and deterministic event facts. AI-generated observation or insight is stored separately as Reflection Memory and cannot introduce an event fact or Pattern topic. Both the legacy flat KNOWLEDGE-003 snapshot and the enhanced nested schema remain processable.
+
 ## Pattern Contract
 
 A Pattern Memory is created only when the same topic or symbolic concept has at least two independent source events. It contains:
@@ -58,6 +60,8 @@ Patterns are observations, not personality labels. Deleting a pattern creates an
 ## Retrieval Contract
 
 Retrieval uses only visible Event and Reflection Memory owned by the authenticated user. It can filter by title, topic, summary, insight or concepts. Responses explicitly identify personal reflection usage and `trainingData: false`.
+
+The Daily Mirror Runtime may retrieve up to five visible recent Event memories and five evidence-backed Patterns as optional reflection context. Hidden records are excluded. The Runtime must treat context as evidence rather than certainty and may not convert an inference into a user fact.
 
 ## Dashboard Preparation
 

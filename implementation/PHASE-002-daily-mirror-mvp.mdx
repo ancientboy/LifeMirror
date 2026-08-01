@@ -42,3 +42,17 @@ GET  /api/v1/daily-mirror/reflections
 ```
 
 Reflection drafts are signed and expire after 30 minutes. Personal questions are not persisted until the user explicitly saves the reflection.
+
+## Correctness Enhancement 0.7.1
+
+The result experience now uses five explicit pages:
+
+```text
+Your Hexagram
+→ Traditional Interpretation
+→ Life Mirror Reflection
+→ Reflection Question
+→ Save to Memory
+```
+
+KNOWLEDGE-003 now supplies complete classical judgments, Images and line texts. The UI labels the Knowledge System Symbolic Layer separately from the Runtime + LLM Mirror Layer.

@@ -10,6 +10,7 @@ import type { ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
 import type { CoinToss } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
+import { retrievePersonalReflectionContext } from "../memory/reflection-context.js";
 
 const coinSchema = z.union([z.literal(2), z.literal(3)]);
 const tossSchema = z.tuple([coinSchema, coinSchema, coinSchema]);
@@ -57,6 +58,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       const tosses = parsed.data.tosses as CoinToss[];
       const hexagram = calculateLiuyao(tosses);
       const knowledge = retrieveLiuyaoKnowledge(hexagram);
+      const userContext = await retrievePersonalReflectionContext(dependencies.database, user.id);
       let generated;
       try {
         generated = await generateMirrorReflection({
@@ -64,6 +66,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
           question: parsed.data.question,
           hexagram,
           knowledge,
+          userContext,
         });
       } catch (error) {
         request.log.error({ err: error }, "reflection generation failed");

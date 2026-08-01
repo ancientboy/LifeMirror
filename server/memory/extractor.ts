@@ -17,15 +17,17 @@ export function classifyMemoryTopic(text: string): { key: string; title: string 
 }
 
 export function extractMemory(source: MemorySourceEvent): ExtractedMemory {
-  const topic = classifyMemoryTopic([
-    source.question,
-    source.reflection.observation,
-    source.reflection.insight,
-  ].join(" "));
+  // Event Memory is grounded only in user-authored input. LLM reflection remains
+  // available in Reflection Memory but cannot supply evidence about what occurred.
+  const topic = classifyMemoryTopic(source.question);
+  const legacyKnowledge = source.knowledge_context as unknown as {
+    original: { symbolic?: { keywords?: string[] }; symbolicConcepts?: string[] };
+    changed: { symbolic?: { keywords?: string[] }; symbolicConcepts?: string[] };
+  };
   const concepts = Array.from(new Set([
     topic.key,
-    ...source.knowledge_context.original.symbolicConcepts,
-    ...source.knowledge_context.changed.symbolicConcepts,
+    ...(legacyKnowledge.original.symbolic?.keywords ?? legacyKnowledge.original.symbolicConcepts ?? []),
+    ...(legacyKnowledge.changed.symbolic?.keywords ?? legacyKnowledge.changed.symbolicConcepts ?? []),
   ].map((value) => value.trim()).filter(Boolean))).slice(0, 12);
 
   return {

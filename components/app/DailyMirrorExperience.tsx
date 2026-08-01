@@ -4,26 +4,17 @@ import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, Eye, 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
+import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
 import { calculateLiuyao } from "@/server/tools/liuyao/engine";
+import type { LiuyaoResult } from "@/server/tools/liuyao/types";
 import { MemoryControls } from "./MemoryControls";
 import styles from "./DailyMirrorExperience.module.css";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
-type Stage = "home" | "question" | "cast" | "reveal" | "reflection" | "memory";
-type Hexagram = {
-  method: "three_coins";
-  lines: Array<{ position: number; coins: Toss; value: 6 | 7 | 8 | 9; polarity: "yin" | "yang"; moving: boolean; changedPolarity: "yin" | "yang" }>;
-  movingLines: number[];
-  originalHexagram: { number: number; name: string; symbol: string; upperTrigram: { name: string; nature: string }; lowerTrigram: { name: string; nature: string } };
-  changedHexagram: { number: number; name: string; symbol: string; upperTrigram: { name: string; nature: string }; lowerTrigram: { name: string; nature: string } };
-};
-type Knowledge = {
-  framing: string;
-  original: { meaning: string; traditionalInterpretation: string; symbolicConcepts: string[]; reflectionPrompt: string };
-  changed: { meaning: string; traditionalInterpretation: string; symbolicConcepts: string[]; reflectionPrompt: string };
-  movingLineMeanings: string[];
-};
+type Stage = "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
+type Hexagram = LiuyaoResult;
+type Knowledge = LiuyaoKnowledgeContext;
 type Reflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
 type ReflectionResponse = { question: string; hexagram: Hexagram; knowledge: Knowledge; reflection: Reflection; draftToken: string; expiresAt: string };
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection; savedAt: string };
@@ -79,10 +70,10 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     ? `第 ${hexagram.movingLines.join("、")} 爻的变化提示，当前处境并非静止不动。`
     : "没有动爻，提示你先把注意力放回当前处境本身。";
   const reflection: Reflection = {
-    observation: `当你带着“${question.trim()}”进入镜像，${hexagram.originalHexagram.name}卦把注意力带向“${knowledge.original.meaning}”。${movingContext}`,
-    insight: `${knowledge.original.traditionalInterpretation} 从${hexagram.originalHexagram.name}走向${hexagram.changedHexagram.name}，也许重要的不是立即得到结论，而是看见你正在如何回应变化。`,
-    reflectionQuestion: knowledge.original.reflectionPrompt,
-    actionSuggestion: `今天先围绕“${knowledge.original.symbolicConcepts[0]}”完成一个可逆的小行动，并记录行动前后的真实感受。`,
+    observation: `当你带着“${question.trim()}”进入镜像，${hexagram.originalHexagram.name}卦把注意力带向“${knowledge.original.symbolic.meaning}”。${movingContext}`,
+    insight: `${knowledge.original.symbolic.interpretation} 从${hexagram.originalHexagram.name}走向${hexagram.changedHexagram.name}，这组象征与你的问题可能相关，因为它把注意力从“立即得到结论”转向“看见自己正在如何回应变化”。`,
+    reflectionQuestion: knowledge.original.reflectionMapping.prompt,
+    actionSuggestion: `今天先围绕“${knowledge.original.symbolic.keywords[0]}”完成一个可逆的小行动，并记录行动前后的真实感受。`,
   };
   return {
     question: question.trim(),
@@ -133,7 +124,7 @@ export function DailyMirrorExperience() {
       });
   }, [loadHistory]);
 
-  const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, reveal: 3, reflection: 4, memory: 0 })[stage], [stage]);
+  const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, hexagram: 3, traditional: 4, mirror: 5, reflectionQuestion: 6, save: 7, memory: 0 })[stage], [stage]);
 
   async function authenticate(event: React.FormEvent) {
     event.preventDefault();
@@ -197,7 +188,7 @@ export function DailyMirrorExperience() {
       const result = authState === "guest" && hexagram && knowledge
         ? createGuestReflection(question, hexagram, knowledge)
         : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses }) });
-      setReflectionResult(result); setStage("reflection");
+      setReflectionResult(result); setStage("mirror");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
   }
@@ -262,7 +253,7 @@ export function DailyMirrorExperience() {
         <div className={styles.headerActions}><span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
-      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "反思"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
+      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "传统解释", "镜像解读", "反思问题", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
 
       {stage === "home" && (
         <section className={styles.homeScreen}>
@@ -296,40 +287,82 @@ export function DailyMirrorExperience() {
             <button className={styles.castButton} onClick={castLine} disabled={casting || busy || tosses.length === 6}>{casting ? <CircleNotch className={styles.spin} /> : tosses.length === 6 ? <Check /> : <><span>投</span><small>第 {tosses.length + 1} 次</small></>}</button>
             <p>{tosses.length} / 6 爻已形成</p>
             {error && <div className={styles.error} role="alert">{error}</div>}
-            {hexagram && <button className={styles.primaryButton} onClick={() => setStage("reveal")}>揭示卦象 <Eye /></button>}
+            {hexagram && <button className={styles.primaryButton} onClick={() => setStage("hexagram")}>揭示卦象 <Eye /></button>}
           </div>
         </section>
       )}
 
-      {stage === "reveal" && hexagram && (
+      {stage === "hexagram" && hexagram && knowledge && (
         <section className={styles.resultScreen}>
           <button className={styles.backButton} onClick={() => setStage("cast")}><ArrowLeft /> 返回</button>
-          <div className={styles.resultHeader}><span>03 · TRADITIONAL INTERPRETATION</span><h1>今日卦象</h1><p>这是传统象征知识的结构化呈现，不是对未来的确定性判断。</p></div>
+          <div className={styles.resultHeader}><span>03 · YOUR HEXAGRAM</span><h1>你的卦象</h1><p>先看清本卦、动爻与变卦，再进入传统解释。</p></div>
           <div className={styles.hexagramReveal}>
             <article><span className={styles.hexSymbol}>{hexagram.originalHexagram.symbol}</span><small>本卦 · 第 {hexagram.originalHexagram.number} 卦</small><h2>{hexagram.originalHexagram.name}</h2><p>{hexagram.originalHexagram.upperTrigram.nature}上 · {hexagram.originalHexagram.lowerTrigram.nature}下</p></article>
             <div className={styles.revealLines}>{[...hexagram.lines].reverse().map((line) => <div key={line.position}><small>{lineNames[line.position - 1]}</small><LineGlyph polarity={line.polarity} moving={line.moving} /></div>)}</div>
             <div className={styles.changeArrow}><span>{hexagram.movingLines.length ? `${hexagram.movingLines.join("、")} 爻动` : "无动爻"}</span><ArrowRight /></div>
             <article><span className={styles.hexSymbol}>{hexagram.changedHexagram.symbol}</span><small>变卦 · 第 {hexagram.changedHexagram.number} 卦</small><h2>{hexagram.changedHexagram.name}</h2><p>{hexagram.changedHexagram.upperTrigram.nature}上 · {hexagram.changedHexagram.lowerTrigram.nature}下</p></article>
           </div>
-          <div className={styles.traditionalCard}><span>KNOWLEDGE-003 · SYMBOLIC LAYER</span><h2>{knowledge?.original.meaning}</h2><p>{knowledge?.original.traditionalInterpretation}</p>{knowledge && <div className={styles.keywordRow}>{knowledge.original.symbolicConcepts.map((item) => <i key={item}>{item}</i>)}</div>}{knowledge?.movingLineMeanings.map((meaning) => <small key={meaning}>{meaning}</small>)}</div>
-          {error && <div className={styles.error} role="alert">{error}</div>}
-          <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <CircleNotch className={styles.spin} /> : <><Sparkle /> 生成我的镜像反思</>}</button>
+          <div className={styles.hexagramSummary}>
+            <article><small>本卦象征</small><h2>{knowledge.original.symbolic.meaning}</h2><p>{knowledge.original.symbolic.interpretation}</p></article>
+            <article><small>变卦象征</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p></article>
+          </div>
+          <button className={styles.primaryButton} onClick={() => setStage("traditional")}>阅读六爻传统解释 <ArrowRight /></button>
         </section>
       )}
 
-      {stage === "reflection" && reflectionResult && (
+      {stage === "traditional" && hexagram && knowledge && (
+        <section className={styles.resultScreen}>
+          <button className={styles.backButton} onClick={() => setStage("hexagram")}><ArrowLeft /> 返回卦象</button>
+          <div className={styles.resultHeader}><span>04 · SYMBOLIC LAYER</span><h1>六爻传统解释</h1><p>以下卦辞、象辞与爻辞由 KNOWLEDGE-003 检索，不由模型生成。</p></div>
+          <div className={styles.layerBadge}><span>知识系统</span><b>解释卦象</b><small>CLASSICAL KNOWLEDGE</small></div>
+          <div className={styles.classicalGrid}>
+            <article className={styles.classicalPrimary}><small>本卦 · {knowledge.original.name}</small><h2>{knowledge.original.symbolic.meaning}</h2><p>{knowledge.original.symbolic.interpretation}</p><div className={styles.keywordRow}>{knowledge.original.symbolic.keywords.map((item) => <i key={item}>{item}</i>)}</div></article>
+            <article><small>卦辞 · JUDGMENT</small><blockquote>{knowledge.original.classical.judgment}</blockquote></article>
+            <article><small>大象 · IMAGE</small><blockquote>{knowledge.original.classical.image}</blockquote></article>
+          </div>
+          <section className={styles.movingSection}>
+            <header><span>动爻</span><h2>{knowledge.movingLines.length ? `${knowledge.movingLines.length} 条变化线索` : "此卦无动爻"}</h2><p>{knowledge.readingRule.summary}</p></header>
+            {knowledge.movingLines.length > 0 ? <div className={styles.movingList}>{knowledge.movingLines.map((line) => <article key={line.position}><small>第 {line.position} 爻 · {line.name}</small><h3>{line.text}</h3><p>{line.image}</p><span>{line.positionMeaning}</span></article>)}</div> : <div className={styles.stillLineNote}>六爻皆静，本次以本卦卦辞与大象作为主要传统参照。</div>}
+          </section>
+          <details className={styles.allLines}><summary>查看本卦全部六爻原文</summary><div>{knowledge.original.classical.lines.filter((line) => line.id <= 6).map((line) => <article className={hexagram.movingLines.includes(line.id) ? styles.activeLine : ""} key={line.id}><small>{line.name}</small><p>{line.text}</p><span>{line.image}</span></article>)}</div></details>
+          <section className={styles.changedMeaning}><span className={styles.hexSymbol}>{hexagram.changedHexagram.symbol}</span><div><small>变卦 · 第 {knowledge.changed.number} 卦 · {knowledge.changed.name}</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p><blockquote><b>卦辞</b>{knowledge.changed.classical.judgment}</blockquote><blockquote><b>大象</b>{knowledge.changed.classical.image}</blockquote></div></section>
+          <div className={styles.readingFocus}><small>本次传统判读顺序</small>{knowledge.readingRule.focus.map((item) => <p key={`${item.hexagram}-${item.label}`}><b>{item.label}</b>{item.text}</p>)}</div>
+          {error && <div className={styles.error} role="alert">{error}</div>}
+          <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <CircleNotch className={styles.spin} /> : <><Sparkle /> 进入 Life Mirror 镜像解读</>}</button>
+        </section>
+      )}
+
+      {stage === "mirror" && reflectionResult && (
         <section className={styles.reflectionScreen}>
-          <div className={styles.reflectionHero}><span>04 · MIRROR REFLECTION</span><h1>镜子不替你回答，<br />它帮助你看见。</h1><p>基于你的问题、卦象结构与 KNOWLEDGE-003 生成。</p></div>
+          <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回传统解释</button>
+          <div className={styles.reflectionHero}><span>05 · MIRROR LAYER</span><h1>Life Mirror 镜像解读</h1><p>现在才把传统象征与你的问题和个人上下文连接起来。</p></div>
+          <div className={styles.layerBadge}><span>Runtime + LLM</span><b>连接你的处境</b><small>PERSONAL REFLECTION</small></div>
           <div className={styles.reflectionGrid}>
             <article><small>OBSERVATION · 观察</small><p>{reflectionResult.reflection.observation}</p></article>
-            <article className={styles.insightCard}><small>INSIGHT · 洞见</small><p>{reflectionResult.reflection.insight}</p></article>
-            <article><small>REFLECTION QUESTION · 反思问题</small><p>{reflectionResult.reflection.reflectionQuestion}</p></article>
-            <article><small>NEXT ACTION · 下一步</small><p>{reflectionResult.reflection.actionSuggestion}</p></article>
+            <article className={styles.insightCard}><small>INSIGHT · 为什么可能相关</small><p>{reflectionResult.reflection.insight}</p></article>
           </div>
           <div className={styles.sourceNote}><Sparkle /><span><b>这不是预测或命令</b><small>{reflectionResult.knowledge.framing} 最终意义由你的真实经验决定。</small></span></div>
+          <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("reflectionQuestion")}>查看反思问题如何生成 <ArrowRight /></button></div>
+        </section>
+      )}
+
+      {stage === "reflectionQuestion" && reflectionResult && (
+        <section className={styles.reflectionScreen}>
+          <button className={styles.backButton} onClick={() => setStage("mirror")}><ArrowLeft /> 返回镜像解读</button>
+          <div className={styles.reflectionHero}><span>06 · REFLECTION QUESTION</span><h1>把解释带回你的经验。</h1><p>这个问题来自前面的传统象征、你的提问和镜像观察，不是突然出现的建议。</p></div>
+          <article className={styles.questionFocus}><small>给你的反思问题</small><h2>{reflectionResult.reflection.reflectionQuestion}</h2><div><b>它为何出现</b><p>{reflectionResult.reflection.insight}</p></div><div><b>一个可逆的小行动</b><p>{reflectionResult.reflection.actionSuggestion}</p></div></article>
+          <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("save")}>继续保存这次镜像 <ArrowRight /></button></div>
+        </section>
+      )}
+
+      {stage === "save" && reflectionResult && (
+        <section className={styles.reflectionScreen}>
+          <button className={styles.backButton} onClick={() => setStage("reflectionQuestion")}><ArrowLeft /> 返回反思问题</button>
+          <div className={styles.reflectionHero}><span>07 · PERSONAL MEMORY</span><h1>保存到你的长期镜像。</h1><p>保存后，问题成为 Event Memory，镜像解读成为 Reflection Memory；Pattern 只会在多次独立证据重复出现后更新。</p></div>
+          <article className={styles.saveSummary}><small>本次镜像</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</p><blockquote>{reflectionResult.reflection.insight}</blockquote></article>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存这次反思</>}</button></div>
-          {saved && <p className={styles.savedNote}>Reflection Event 已保存，并进入你的长期记忆。</p>}
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存 Event 与 Reflection Memory</>}</button></div>
+          {saved && <p className={styles.savedNote}>已保存。没有把未经支持的 AI 假设写入 Pattern Memory。</p>}
         </section>
       )}
 

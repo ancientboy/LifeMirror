@@ -3,7 +3,7 @@ id: KNOWLEDGE-003
 slug: liuyao-knowledge-pack-specification
 title: Liuyao Knowledge Pack Specification
 subtitle: 六爻象征知识包规范
-version: "1.0"
+version: "1.1"
 date: August 2026
 category: SYMBOLIC KNOWLEDGE
 status: published
@@ -287,6 +287,41 @@ Life Mirror 不输出：
 - 象征解释
 - 反思视角
 - 决策辅助问题
+
+---
+
+# 11. Runtime Knowledge Contract
+
+Version 1.1 makes the separation executable rather than conceptual.
+
+## Classical Knowledge
+
+The versioned pack contains:
+
+- 64 King Wen hexagrams
+- 64 hexagram judgments (卦辞)
+- 64 Great Image texts (大象)
+- 386 line texts, including 用九 and 用六
+- 386 Small Image texts (小象)
+- deterministic moving-line reading rules
+
+These fields are retrieved from KNOWLEDGE-003 and are never authored by the LLM.
+
+## Symbolic and Reflection Mapping
+
+Modern symbolic summaries, keywords and reflection prompts are stored under separate `symbolic` and `reflectionMapping` objects. They may guide reflection, but they must never be presented as classical quotations.
+
+```text
+classical.judgment / classical.image / classical.lines
+                            ≠
+symbolic.meaning / reflectionMapping.prompt
+```
+
+## Retrieval Output
+
+Each calculation retrieves only the matching original and changed hexagrams, exact moving-line texts and one deterministic `readingRule`. The rule determines which classical text receives attention; it does not predict an outcome.
+
+The corpus is normalized from public-domain Zhouyi and Image-text witnesses. Automated tests verify every expected judgment, Image and line record before release.
 
 ---
 

@@ -19,8 +19,8 @@ test("extracts Event and Reflection Memory while preserving the source", () => {
       changedHexagram: { name: "坤" },
     },
     knowledge_context: {
-      original: { symbolicConcepts: ["创造", "行动"] },
-      changed: { symbolicConcepts: ["承载", "行动"] },
+      original: { symbolic: { keywords: ["创造", "行动"] } },
+      changed: { symbolic: { keywords: ["承载", "行动"] } },
     },
     reflection: {
       observation: "你正在观察新的起点。",
@@ -29,11 +29,32 @@ test("extracts Event and Reflection Memory while preserving the source", () => {
       actionSuggestion: "完成一次访谈。",
     },
     saved_at: new Date("2026-08-01T00:00:00Z"),
-  } as MemorySourceEvent;
+  } as unknown as MemorySourceEvent;
 
   const memory = extractMemory(source);
   assert.equal(memory.event.topic, "career");
   assert.equal(memory.event.triggerText, source.question);
   assert.deepEqual(memory.reflection.concepts, ["career", "创造", "行动", "承载"]);
   assert.equal(memory.reflection.insight, source.reflection.insight);
+});
+
+test("does not promote an unsupported AI assumption into Event or Pattern evidence", () => {
+  const source = {
+    id: "11111111-1111-4111-8111-111111111111",
+    user_id: "22222222-2222-4222-8222-222222222222",
+    question: "我想理解此刻的感受。",
+    hexagram_result: { originalHexagram: { name: "乾" }, changedHexagram: { name: "坤" } },
+    knowledge_context: {
+      original: { symbolic: { keywords: ["创造"] } },
+      changed: { symbolic: { keywords: ["承载"] } },
+    },
+    reflection: {
+      observation: "你可能正在考虑换工作。",
+      insight: "职业方向可能需要变化。",
+      reflectionQuestion: "你真正感受到什么？",
+      actionSuggestion: "记录感受。",
+    },
+    saved_at: new Date("2026-08-01T00:00:00Z"),
+  } as unknown as MemorySourceEvent;
+  assert.equal(extractMemory(source).event.topic, "emotion");
 });

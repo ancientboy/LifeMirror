@@ -207,6 +207,8 @@ Evidence-backed Pattern Memory
 
 Pattern Memory requires at least two independent saved events. It does not update Mirror DNA. Users can inspect, correct, hide, delete and export their memory. Personal memory is database-constrained as ineligible for model training.
 
+Version 0.7.1 adds the Daily Mirror correctness sequence: Your Hexagram → Traditional Interpretation → Mirror Reflection → Reflection Question → Save. KNOWLEDGE-003 now carries complete classical judgment, Image and line-text data, structurally separated from modern reflection mapping. Existing PHASE-003 memory data remains compatible.
+
 ## Local Setup
 
 Requirements:

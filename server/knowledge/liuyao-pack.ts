@@ -1,10 +1,17 @@
+import { ZHOUYI_CLASSICS, type ClassicalHexagram } from "./zhouyi-classics.js";
+
 export type HexagramKnowledge = {
   number: number;
   name: string;
-  meaning: string;
-  traditionalInterpretation: string;
-  symbolicConcepts: string[];
-  reflectionPrompt: string;
+  classical: ClassicalHexagram;
+  symbolic: {
+    meaning: string;
+    interpretation: string;
+    keywords: string[];
+  };
+  reflectionMapping: {
+    prompt: string;
+  };
 };
 
 const entries: Array<[number, string, string, string, string[], string]> = [
@@ -74,7 +81,17 @@ const entries: Array<[number, string, string, string, string[], string]> = [
   [64,"未济","尚未完成与转化边缘","未济象征临近完成但仍在变化，宜辨清顺序并谨慎跨越最后阶段。",["未完成","过渡","可能性"],"在真正跨越之前，还有哪个条件没有准备好？"],
 ];
 
-export const LIUYAO_KNOWLEDGE = new Map<number, HexagramKnowledge>(entries.map(([number, name, meaning, traditionalInterpretation, symbolicConcepts, reflectionPrompt]) => [number, { number, name, meaning, traditionalInterpretation, symbolicConcepts, reflectionPrompt }]));
+export const LIUYAO_KNOWLEDGE = new Map<number, HexagramKnowledge>(entries.map(([number, name, meaning, traditionalInterpretation, symbolicConcepts, reflectionPrompt]) => {
+  const classical = ZHOUYI_CLASSICS.get(number);
+  if (!classical) throw new Error(`Missing classical knowledge for hexagram ${number}`);
+  return [number, {
+    number,
+    name,
+    classical,
+    symbolic: { meaning, interpretation: traditionalInterpretation, keywords: symbolicConcepts },
+    reflectionMapping: { prompt: reflectionPrompt },
+  }];
+}));
 
 export const LINE_POSITION_MEANINGS = [
   "初爻：事情的起点、基础与最初动机。",

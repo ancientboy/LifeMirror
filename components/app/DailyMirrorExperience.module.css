@@ -95,8 +95,8 @@
 .spin { animation: spin 800ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.progress { max-width: 620px; position: relative; z-index: 2; margin: 28px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); }
-.progress::before { content: ""; height: 1px; position: absolute; top: 15px; left: 12.5%; right: 12.5%; background: rgba(49,95,87,.15); }
+.progress { max-width: 920px; position: relative; z-index: 2; margin: 28px auto 0; display: grid; grid-template-columns: repeat(7, 1fr); }
+.progress::before { content: ""; height: 1px; position: absolute; top: 15px; left: 7%; right: 7%; background: rgba(49,95,87,.15); }
 .progress span { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #929b98; font-size: 9px; letter-spacing: .08em; }
 .progress i { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid rgba(49,95,87,.17); border-radius: 50%; background: #e9ece6; font-style: normal; }
 .progress i svg { width: 13px; height: 13px; }
@@ -194,6 +194,49 @@
 .traditionalCard > small { margin-top: 13px; display: block; color: var(--muted); font: 11px/1.6 Georgia, serif; }
 .keywordRow { margin-top: 19px; display: flex; gap: 8px; }
 .keywordRow i { padding: 7px 11px; border: 1px solid rgba(180,138,77,.25); border-radius: 99px; color: #8c6939; font: 10px/1 Georgia, serif; }
+.hexagramSummary { max-width: 920px; margin: 55px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.hexagramSummary article { padding: 28px; border: 1px solid rgba(49,95,87,.13); border-radius: 17px; background: rgba(250,249,245,.62); }
+.hexagramSummary small, .classicalGrid small, .movingSection header > span, .changedMeaning small, .readingFocus > small, .questionFocus > small, .saveSummary > small { color: var(--gold); font-size: 9px; letter-spacing: .14em; }
+.hexagramSummary h2 { margin: 14px 0 8px; font: 400 23px/1.4 Georgia, "Songti SC", serif; }
+.hexagramSummary p { margin: 0; color: var(--muted); font: 13px/1.8 Georgia, "Songti SC", serif; }
+.layerBadge { max-width: 820px; margin: 42px auto 0; padding: 13px 18px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; border: 1px solid rgba(180,138,77,.2); border-radius: 99px; background: rgba(180,138,77,.06); }
+.layerBadge span { color: var(--gold); font-size: 9px; letter-spacing: .12em; }
+.layerBadge b { color: var(--ink); font: 400 12px Georgia, serif; }
+.layerBadge small { color: var(--muted); font-size: 8px; letter-spacing: .12em; }
+.classicalGrid { max-width: 920px; margin: 20px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 13px; }
+.classicalGrid article { padding: 30px; border: 1px solid rgba(49,95,87,.13); border-radius: 17px; background: rgba(250,249,245,.62); }
+.classicalGrid .classicalPrimary { grid-row: 1/3; color: #f7f3e9; background: var(--jade-dark); }
+.classicalPrimary h2 { margin: 18px 0 12px; font: 400 29px/1.35 Georgia, "Songti SC", serif; }
+.classicalPrimary p { color: rgba(247,243,233,.76); font: 14px/1.9 Georgia, "Songti SC", serif; }
+.classicalPrimary .keywordRow i { color: #ead2a8; border-color: rgba(234,210,168,.25); }
+.classicalGrid blockquote { margin: 18px 0 0; color: var(--ink); font: 19px/1.8 Georgia, "Songti SC", serif; }
+.movingSection { max-width: 920px; margin: 55px auto 0; }
+.movingSection header { padding-bottom: 20px; border-bottom: 1px solid rgba(49,95,87,.14); }
+.movingSection h2 { margin: 11px 0 7px; font: 400 29px/1.35 Georgia, "Songti SC", serif; }
+.movingSection header p { margin: 0; color: var(--muted); font: 12px/1.7 Georgia, "Songti SC", serif; }
+.movingList { margin-top: 16px; display: grid; gap: 12px; }
+.movingList article { padding: 25px 28px; border-left: 2px solid var(--gold); background: rgba(250,249,245,.64); }
+.movingList small { color: var(--gold); font-size: 9px; }
+.movingList h3 { margin: 12px 0 8px; font: 400 21px/1.7 Georgia, "Songti SC", serif; }
+.movingList p, .movingList span { color: var(--muted); font: 12px/1.75 Georgia, "Songti SC", serif; }
+.movingList span { margin-top: 10px; display: block; color: #7c8784; }
+.stillLineNote { margin-top: 16px; padding: 25px; color: var(--muted); border: 1px solid rgba(49,95,87,.12); border-radius: 14px; font: 13px/1.8 Georgia, "Songti SC", serif; }
+.allLines { max-width: 920px; margin: 20px auto 0; padding: 20px 24px; border: 1px solid rgba(49,95,87,.13); border-radius: 15px; background: rgba(255,255,255,.3); }
+.allLines summary { color: var(--jade); font: 13px Georgia, "Songti SC", serif; cursor: pointer; }
+.allLines > div { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.allLines article { padding: 18px; border-radius: 11px; background: rgba(49,95,87,.045); }
+.allLines article.activeLine { outline: 1px solid rgba(180,138,77,.45); background: rgba(180,138,77,.08); }
+.allLines small { color: var(--gold); font-size: 9px; }
+.allLines p { margin: 8px 0; font: 15px/1.6 Georgia, "Songti SC", serif; }
+.allLines span { color: var(--muted); font: 10px/1.6 Georgia, "Songti SC", serif; }
+.changedMeaning { max-width: 920px; margin: 20px auto 0; padding: 32px; display: grid; grid-template-columns: 150px 1fr; align-items: start; gap: 28px; border: 1px solid rgba(49,95,87,.13); border-radius: 18px; background: rgba(250,249,245,.62); }
+.changedMeaning h2 { margin: 13px 0 8px; font: 400 27px/1.4 Georgia, "Songti SC", serif; }
+.changedMeaning p { color: var(--muted); font: 13px/1.8 Georgia, "Songti SC", serif; }
+.changedMeaning blockquote { margin: 12px 0 0; padding: 13px 16px; color: var(--muted); background: rgba(49,95,87,.05); font: 13px/1.7 Georgia, "Songti SC", serif; }
+.changedMeaning blockquote b { margin-right: 10px; color: var(--gold); font-size: 9px; }
+.readingFocus { max-width: 920px; margin: 20px auto 0; padding: 25px 28px; border-radius: 15px; color: #f7f3e9; background: var(--jade-dark); }
+.readingFocus p { margin: 13px 0 0; font: 14px/1.7 Georgia, "Songti SC", serif; }
+.readingFocus p b { margin-right: 12px; color: #dfbf86; font-weight: 400; }
 .resultScreen > .primaryButton { margin: 38px auto 0; display: flex; }
 .resultScreen > .error { max-width: 820px; margin-left: auto; margin-right: auto; }
 
@@ -206,6 +249,12 @@
 .reflectionGrid .insightCard { color: #f7f3e9; background: var(--jade-dark); }
 .reflectionGrid small { color: var(--gold); font-size: 9px; letter-spacing: .14em; }
 .reflectionGrid p { margin: 35px 0 0; font: 20px/1.75 Georgia, "Songti SC", serif; }
+.questionFocus, .saveSummary { max-width: 800px; margin: 50px auto 0; padding: 38px; border: 1px solid rgba(49,95,87,.14); border-radius: 20px; background: rgba(250,249,245,.67); }
+.questionFocus h2, .saveSummary h2 { margin: 18px 0 28px; font: 400 clamp(28px, 4vw, 43px)/1.55 Georgia, "Songti SC", serif; }
+.questionFocus > div { margin-top: 13px; padding: 20px; border-radius: 13px; background: rgba(49,95,87,.055); }
+.questionFocus b { color: var(--gold); font: 400 10px Georgia, serif; letter-spacing: .08em; }
+.questionFocus p, .saveSummary p, .saveSummary blockquote { margin: 9px 0 0; color: var(--muted); font: 14px/1.8 Georgia, "Songti SC", serif; }
+.saveSummary blockquote { margin-top: 24px; padding: 20px; border-left: 2px solid var(--gold); background: rgba(180,138,77,.06); }
 .sourceNote { margin-top: 20px; padding: 20px 24px; display: flex; align-items: center; gap: 15px; border-radius: 13px; background: rgba(49,95,87,.07); }
 .sourceNote > svg { width: 21px; height: 21px; color: var(--jade); }
 .sourceNote span { display: flex; flex-direction: column; gap: 5px; }
@@ -234,8 +283,8 @@
   .authIntro h1 { font-size: 43px; }
   .authIntro > span { font-size: 13px; }
   .authCard { padding: 30px 24px; }
-  .progress { margin: 20px 18px 0; }
-  .progress span { font-size: 8px; }
+  .progress { margin: 20px 18px 0; justify-content: flex-start; overflow-x: auto; }
+  .progress span { flex: 0 0 auto; font-size: 8px; }
   .homeScreen { min-height: calc(100vh - 68px); display: flex; flex-direction: column; align-items: stretch; padding: 54px 20px 70px; }
   .homeCopy h1 { font-size: 53px; }
   .homeCopy > span { font-size: 13px; }
@@ -269,6 +318,13 @@
   .changeArrow { grid-column: 2; grid-row: 2; }
   .changeArrow svg { transform: rotate(90deg); }
   .traditionalCard { margin-top: 43px; padding: 28px 23px; }
+  .hexagramSummary, .classicalGrid, .allLines > div { grid-template-columns: 1fr; }
+  .classicalGrid .classicalPrimary { grid-row: auto; }
+  .layerBadge { grid-template-columns: 1fr auto; border-radius: 16px; }
+  .layerBadge small { grid-column: 1/3; }
+  .changedMeaning { grid-template-columns: 1fr; padding: 25px 21px; }
+  .changedMeaning > .hexSymbol { font-size: 62px; }
+  .questionFocus, .saveSummary { padding: 27px 22px; }
   .reflectionGrid { grid-template-columns: 1fr; }
   .reflectionGrid article { min-height: 190px; }
   .reflectionActions { flex-direction: column-reverse; }

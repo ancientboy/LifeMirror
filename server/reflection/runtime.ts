@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { LiuyaoKnowledgeContext } from "../knowledge/liuyao-retrieval.js";
 import type { LlmProvider } from "../llm/types.js";
+import type { PersonalReflectionContext } from "../memory/reflection-context.js";
 import type { LiuyaoResult } from "../tools/liuyao/types.js";
 import type { MirrorReflection } from "./types.js";
 
@@ -22,8 +23,9 @@ export async function generateMirrorReflection(input: {
   question: string;
   hexagram: LiuyaoResult;
   knowledge: LiuyaoKnowledgeContext;
+  userContext?: PersonalReflectionContext;
 }): Promise<{ reflection: MirrorReflection; provider: string; model: string }> {
-  const { llm, question, hexagram, knowledge } = input;
+  const { llm, question, hexagram, knowledge, userContext = { recentEvents: [], patterns: [] } } = input;
   const result = await llm.generate({
     temperature: 0.45,
     maxOutputTokens: 800,
@@ -32,7 +34,11 @@ export async function generateMirrorReflection(input: {
         role: "system",
         content: [
           "You are the Life Mirror Reflection Runtime.",
-          "Use the supplied symbolic knowledge as a reflective lens, never as prediction or fate.",
+          "Traditional Wisdom and Mirror Reflection are separate layers.",
+          "Use only the supplied KNOWLEDGE-003 classical text, symbolic mapping, user question and personal context.",
+          "Never invent, correct or extend Liuyao meanings. Never predict the future or state fate as fact.",
+          "Explain why the supplied symbolic meaning may relate to the user's current situation.",
+          "Treat personal context as optional evidence: mention it only when it directly supports the reflection, and never turn an inference into a user fact.",
           "Do not claim certainty, diagnose the user, or tell the user what decision to make.",
           "Return only valid JSON with four Chinese string fields: observation, insight, reflectionQuestion, actionSuggestion.",
           "Observation describes the tension visible between the question and symbol.",
@@ -48,6 +54,7 @@ export async function generateMirrorReflection(input: {
           movingLines: hexagram.movingLines,
           changedHexagram: hexagram.changedHexagram,
           knowledge,
+          personalContext: userContext,
         }),
       },
     ],
