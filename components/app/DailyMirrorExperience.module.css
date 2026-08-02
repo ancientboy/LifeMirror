@@ -137,6 +137,7 @@
 
 .stepScreen, .resultScreen, .reflectionScreen { max-width: 1160px; min-height: calc(100vh - 150px); position: relative; z-index: 1; margin: auto; padding: 60px 38px 110px; }
 .backButton { display: flex; align-items: center; gap: 8px; padding: 6px 0; border: 0; color: var(--muted) !important; background: transparent; font-size: 11px !important; cursor: pointer; }
+.backButton:disabled { opacity: .42; cursor: not-allowed; }
 .backButton svg { width: 16px; height: 16px; }
 .stepIntro { max-width: 700px; margin-top: 54px; }
 .stepIntro h1 { font-size: clamp(40px, 4.5vw, 65px); }
@@ -151,10 +152,28 @@
 
 .castScreen { max-width: 1280px; }
 .castWorkspace { min-height: 500px; position: relative; margin-top: 45px; display: grid; grid-template-columns: 1fr 180px 1fr; grid-template-rows: 1fr auto auto; align-items: center; gap: 25px 50px; padding: 50px; border: 1px solid rgba(49,95,87,.13); border-radius: 28px; background: rgba(245,244,238,.52); }
-.coinStage { display: flex; justify-content: center; gap: 22px; }
-.coinStage > span { width: clamp(72px, 8vw, 106px); aspect-ratio: 1; display: grid; place-items: center; border: 2px solid #ad854b; border-radius: 50%; color: #856430; background: radial-gradient(circle at 34% 29%, #f3dca4, #b88e4c 72%); box-shadow: inset 0 0 0 6px rgba(100,70,26,.12), 0 15px 25px rgba(83,66,39,.15); font: 28px Georgia, "Songti SC", serif; }
-.coinCasting { animation: coinCast 680ms cubic-bezier(.2,.8,.2,1); }
-@keyframes coinCast { 0% { transform: translateY(0) rotateY(0); } 45% { transform: translateY(-70px) rotateY(540deg) scale(.88); } 100% { transform: translateY(0) rotateY(1080deg); } }
+.ritualStage { width: min(390px, 100%); height: 350px; position: relative; grid-column: 1; grid-row: 1/3; justify-self: center; perspective: 900px; isolation: isolate; }
+.shellGlow { width: 270px; height: 74px; position: absolute; z-index: 0; left: 50%; bottom: 31px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(55,119,105,.2), transparent 72%); filter: blur(8px); }
+.shellImage { width: 350px; max-width: 94%; position: absolute; z-index: 2; left: 50%; top: 21px; transform: translateX(-50%); transform-origin: 50% 82%; filter: drop-shadow(0 22px 24px rgba(35,65,58,.16)); will-change: transform; }
+.ritualStage[data-phase="shaking"] .shellImage { animation: shellShake 700ms cubic-bezier(.36,.07,.19,.97) both; }
+.ritualStage[data-phase="tilting"] .shellImage, .ritualStage[data-phase="falling"] .shellImage { transform: translateX(-50%) translateY(-7px) rotateX(-11deg) rotate(-2deg); transition: transform 280ms ease-out; }
+.ritualStage[data-phase="settling"] .shellImage { transform: translateX(-50%); transition: transform 320ms ease-out; }
+@keyframes shellShake { 0%, 100% { transform: translateX(-50%); } 16% { transform: translateX(calc(-50% - 13px)) translateY(-4px) rotate(-2.2deg); } 34% { transform: translateX(calc(-50% + 12px)) translateY(2px) rotate(2deg); } 52% { transform: translateX(calc(-50% - 9px)) translateY(-5px) rotate(-1.5deg); } 70% { transform: translateX(calc(-50% + 7px)) translateY(1px) rotate(1deg); } }
+.ritualCoins { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.ritualCoin { --coin-start-x: 0px; --coin-mid-x: 0px; --coin-end-x: 0px; --coin-turn: 0deg; width: 66px; aspect-ratio: 1; position: absolute; left: 50%; top: 257px; display: grid; place-items: center; border: 2px solid #b68845; border-radius: 50%; color: #765423; background: radial-gradient(circle at 34% 28%, #f1d89a 0 14%, #c59a50 48%, #987035 100%); box-shadow: inset 0 0 0 5px rgba(102,70,28,.13), 0 11px 18px rgba(63,54,34,.17); transform: translateX(calc(-50% + var(--coin-end-x))) rotate(var(--coin-turn)); transform-style: preserve-3d; will-change: transform, opacity; }
+.ritualCoin::before { content: ""; width: 16px; aspect-ratio: 1; position: absolute; border: 2px solid rgba(92,61,24,.58); border-radius: 2px; background: rgba(86,61,31,.2); transform: rotate(3deg); }
+.ritualCoin i { position: absolute; inset: 8px; border: 1px solid rgba(100,68,26,.28); border-radius: 50%; }
+.ritualCoin b { position: relative; z-index: 1; padding: 2px 4px; color: #684817; background: rgba(229,194,119,.78); font: 600 15px/1 Georgia, "Songti SC", serif; opacity: 0; transition: opacity 130ms ease; }
+.ritualCoin.coinFaceVisible b { opacity: 1; }
+.ritualCoin.coinInside, .ritualCoin.coinShaking, .ritualCoin.coinTilting { z-index: 1; opacity: .92; transform: translateX(calc(-50% + var(--coin-start-x))) translateY(-44px) scale(.61) rotate(var(--coin-turn)); }
+.ritualCoin.coinShaking { animation: coinRattle 620ms ease-in-out both; }
+.ritualCoin.coinTilting { transition: transform 250ms ease-out; }
+.ritualCoin.coinFalling { z-index: 3; animation: coinFall 720ms cubic-bezier(.17,.67,.24,1) both; }
+.ritualCoin.coinSettling { z-index: 3; animation: coinSettle 330ms cubic-bezier(.22,.72,.24,1) both; }
+@keyframes coinRattle { 0%, 100% { transform: translateX(calc(-50% + var(--coin-start-x))) translateY(-44px) scale(.61) rotate(var(--coin-turn)); } 35% { transform: translateX(calc(-50% + var(--coin-start-x) - 8px)) translateY(-53px) scale(.61) rotate(calc(var(--coin-turn) - 16deg)); } 68% { transform: translateX(calc(-50% + var(--coin-start-x) + 7px)) translateY(-39px) scale(.61) rotate(calc(var(--coin-turn) + 18deg)); } }
+@keyframes coinFall { 0% { opacity: .92; transform: translateX(calc(-50% + var(--coin-start-x))) translateY(-47px) rotateX(0deg) rotateZ(var(--coin-turn)) scale(.62); } 47% { opacity: 1; transform: translateX(calc(-50% + var(--coin-mid-x))) translateY(-5px) rotateX(510deg) rotateZ(calc(var(--coin-turn) + 36deg)) scale(.9); } 78% { transform: translateX(calc(-50% + var(--coin-end-x))) translateY(14px) rotateX(890deg) rotateZ(var(--coin-turn)) scale(1); } 100% { opacity: 1; transform: translateX(calc(-50% + var(--coin-end-x))) translateY(0) rotateX(1080deg) rotateZ(var(--coin-turn)) scale(1); } }
+@keyframes coinSettle { 0% { transform: translateX(calc(-50% + var(--coin-end-x))) translateY(0) rotate(var(--coin-turn)); } 45% { transform: translateX(calc(-50% + var(--coin-end-x))) translateY(-9px) rotate(calc(var(--coin-turn) + 4deg)); } 100% { transform: translateX(calc(-50% + var(--coin-end-x))) translateY(0) rotate(var(--coin-turn)); } }
+.skipAnimation { position: absolute; z-index: 5; right: 4px; top: 8px; padding: 7px 10px; border: 1px solid rgba(49,95,87,.14); border-radius: 99px; color: var(--muted); background: rgba(250,249,245,.82); font-size: 9px; cursor: pointer; }
 .lineStack { grid-column: 3; grid-row: 1/3; display: flex; flex-direction: column; gap: 17px; }
 .lineStack > div, .revealLines > div { display: grid; grid-template-columns: 42px 150px; align-items: center; gap: 18px; opacity: .4; transition: opacity 300ms ease; }
 .lineStack > .lineReady { opacity: 1; }
@@ -166,13 +185,13 @@
 .lineGlyph.yang i:last-child { display: none; }
 .lineGlyph.yin i { width: 43%; }
 .lineGlyph.moving i { background: var(--gold); box-shadow: 0 0 13px rgba(180,138,77,.24); }
-.castButton { width: 132px; aspect-ratio: 1; justify-self: center; display: grid; place-items: center; align-content: center; gap: 7px; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; color: #fff !important; background: var(--jade-dark); box-shadow: 0 18px 38px rgba(25,59,54,.22); cursor: pointer; }
-.castButton > span { font: 31px Georgia, serif; }
+.castButton { min-width: 148px; min-height: 70px; padding: 14px 22px; justify-self: center; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; color: #fff !important; background: var(--jade-dark); box-shadow: 0 18px 38px rgba(25,59,54,.22); cursor: pointer; }
+.castButton > span { font: 18px Georgia, "Songti SC", serif; }
 .castButton > small { font-size: 9px; letter-spacing: .12em; }
 .castButton > svg { width: 25px; height: 25px; }
 .castButton:disabled { opacity: .52; }
 .castWorkspace > p { grid-column: 2; margin: 0; color: var(--muted); font-size: 10px; text-align: center; }
-.castWorkspace > .primaryButton, .castWorkspace > .error { grid-column: 1/4; justify-self: center; }
+.castWorkspace > .primaryButton, .castWorkspace > .secondaryButton, .castWorkspace > .error { grid-column: 1/4; justify-self: center; }
 
 .resultHeader { margin: 52px auto 0; text-align: center; }
 .resultHeader h1 { margin: 0; font: 400 clamp(48px, 5vw, 70px)/1.2 Georgia, "Songti SC", serif; }
@@ -262,9 +281,28 @@
 .shareCard blockquote { max-width: 690px; margin: 18px 0 17px; font: 400 clamp(23px, 3vw, 34px)/1.6 Georgia, "Songti SC", serif; }
 .shareCard span { color: rgba(247,243,233,.62); font-size: 10px; letter-spacing: .1em; }
 .shareCard button { flex: 0 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(216,186,111,.35); border-radius: 99px; color: #f1d8a6; background: rgba(255,255,255,.05); cursor: pointer; }
+.shareCard button:disabled { opacity: .55; cursor: wait; }
 .shareCard button svg { width: 17px; height: 17px; }
 .shareStatus { margin: 10px 4px 0; display: flex; justify-content: flex-end; align-items: center; gap: 6px; color: var(--jade); font-size: 10px; }
 .shareStatus svg { width: 14px; height: 14px; }
+.sharePreviewBackdrop { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(6,26,25,.72); backdrop-filter: blur(14px); animation: previewFade 180ms ease-out; }
+.sharePreview { width: min(960px, 100%); max-height: calc(100dvh - 48px); padding: 24px; display: grid; grid-template-columns: minmax(260px, 430px) 1fr; grid-template-rows: auto 1fr auto; gap: 20px 28px; overflow: auto; border: 1px solid rgba(216,186,111,.26); border-radius: 25px; color: #f7f3e9; background: linear-gradient(145deg, #153f39, #0a2928 68%, #071f20); box-shadow: 0 30px 100px rgba(0,0,0,.36); animation: previewRise 220ms cubic-bezier(.22,.78,.31,1); }
+.sharePreview > header { grid-column: 1/3; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.sharePreview > header small { color: #d8ba6f; font-size: 9px; letter-spacing: .17em; }
+.sharePreview > header h2 { margin: 9px 0 0; font: 400 24px/1.45 Georgia, "Songti SC", serif; }
+.sharePreview > header button { width: 38px; aspect-ratio: 1; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.13); border-radius: 50%; color: #f7f3e9; background: rgba(255,255,255,.05); cursor: pointer; }
+.sharePreview > header svg { width: 17px; height: 17px; }
+.sharePreviewImage { min-height: 0; grid-row: 2/4; display: grid; place-items: center; padding: 8px; border-radius: 18px; background: rgba(255,255,255,.045); }
+.sharePreviewImage img { width: auto; max-width: 100%; max-height: min(68dvh, 675px); aspect-ratio: 4/5; display: block; object-fit: contain; border-radius: 10px; box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+.shareFallback { align-self: end; margin: 0; padding: 15px 16px; border: 1px solid rgba(216,186,111,.2); border-radius: 13px; color: rgba(247,243,233,.78); background: rgba(216,186,111,.07); font: 12px/1.7 Georgia, "Songti SC", serif; }
+.sharePreviewActions { align-self: end; display: grid; gap: 10px; }
+.sharePreviewActions button { min-height: 48px; padding: 12px 17px; display: flex; align-items: center; justify-content: center; gap: 9px; border-radius: 999px; font: 12px Georgia, "Songti SC", serif; cursor: pointer; }
+.sharePreviewActions svg { width: 18px; height: 18px; }
+.shareFriendButton { border: 1px solid rgba(255,255,255,.2); color: #0e3531; background: #f4efe3; }
+.saveImageButton { border: 1px solid rgba(216,186,111,.42); color: #f1d8a6; background: rgba(216,186,111,.1); }
+.returnButton { border: 0; color: rgba(247,243,233,.68); background: transparent; }
+@keyframes previewFade { from { opacity: 0; } }
+@keyframes previewRise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
 .shiguangLoading { max-width: 820px; min-height: 112px; margin: 30px auto 0; padding: 16px 22px 16px 16px; display: grid; grid-template-columns: 78px 1fr auto; align-items: center; gap: 18px; overflow: hidden; border: 1px solid rgba(180,138,77,.2); border-radius: 20px; background: rgba(250,249,245,.76); box-shadow: 0 18px 55px rgba(39,58,53,.08); }
 .shiguangLoading img { width: 78px; height: 80px; object-fit: cover; object-position: 50% 26%; border-radius: 15px; }
 .shiguangLoading span { display: flex; flex-direction: column; gap: 8px; }
@@ -322,14 +360,16 @@
   .questionMeta span:last-child { display: none; }
   .suggestions { display: grid; }
   .castWorkspace { display: flex; flex-direction: column; margin-top: 35px; padding: 35px 18px; }
-  .coinStage { gap: 10px; }
-  .coinStage > span { width: 75px; font-size: 21px; }
+  .ritualStage { width: 100%; height: 315px; order: 1; }
+  .shellImage { width: 315px; top: 16px; }
+  .ritualCoin { width: 58px; top: 226px; }
+  .skipAnimation { right: 0; top: 0; }
   .lineStack { width: 230px; order: 2; }
   .lineStack > div { grid-template-columns: 37px 160px; }
   .lineGlyph, .linePlaceholder { width: 160px; }
-  .castButton { width: 110px; order: 1; }
-  .castWorkspace > p { order: 3; }
-  .castWorkspace > .primaryButton, .castWorkspace > .error { order: 4; }
+  .castButton { min-width: 152px; min-height: 64px; order: 3; }
+  .castWorkspace > p { order: 4; }
+  .castWorkspace > .primaryButton, .castWorkspace > .secondaryButton, .castWorkspace > .error { order: 5; }
   .resultHeader { margin-top: 38px; }
   .hexagramReveal { grid-template-columns: 1fr 1fr; gap: 30px 9px; }
   .hexagramReveal article { grid-row: 1; }
@@ -354,6 +394,15 @@
   .shareCard { padding: 27px 22px; flex-direction: column; align-items: stretch; }
   .shareCard > img { width: 150px; height: 200px; right: -15px; opacity: .28; }
   .shareCard button { align-self: flex-start; }
+  .sharePreviewBackdrop { align-items: end; padding: 0; }
+  .sharePreview { width: 100%; max-height: 96dvh; padding: 17px 18px max(18px, env(safe-area-inset-bottom)); grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; gap: 14px; border-radius: 24px 24px 0 0; }
+  .sharePreview > header { grid-column: 1; }
+  .sharePreview > header h2 { font-size: 19px; }
+  .sharePreviewImage { grid-row: auto; padding: 6px; }
+  .sharePreviewImage img { max-height: 55dvh; }
+  .shareFallback { font-size: 11px; }
+  .sharePreviewActions { grid-template-columns: 1fr 1fr; }
+  .sharePreviewActions .returnButton { grid-column: 1/3; }
   .shiguangLoading { grid-template-columns: 62px 1fr; padding: 13px; }
   .shiguangLoading img { width: 62px; height: 68px; }
   .shiguangLoading > svg { display: none; }
@@ -364,6 +413,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .coinCasting, .spin { animation-duration: 1ms; }
+  .shellImage, .ritualCoin, .sharePreviewBackdrop, .sharePreview, .spin { animation-duration: 1ms !important; transition-duration: 1ms !important; }
   .primaryButton, .heroButton { transition: none; }
 }

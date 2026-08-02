@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, LockKey, ShareNetwork, SignOut, Sparkle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, LockKey, ShareNetwork, SignOut, Sparkle, X } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
 import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
 import { calculateLiuyao } from "@/server/tools/liuyao/engine";
@@ -12,6 +12,9 @@ import styles from "./DailyMirrorExperience.module.css";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
+type CastingPhase = "idle" | "shaking" | "tilting" | "falling" | "settling";
+type PendingCast = { token: number; toss: Toss; previousTosses: Toss[] };
+type ShareArtifact = { blob: Blob; file: File; url: string; canNativeShare: boolean };
 type Stage = "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
 type Hexagram = LiuyaoResult;
 type Knowledge = LiuyaoKnowledgeContext;
@@ -32,6 +35,13 @@ const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
 const lineNames = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"];
+const castingPhaseClass: Record<CastingPhase, string> = {
+  idle: "",
+  shaking: styles.coinShaking,
+  tilting: styles.coinTilting,
+  falling: styles.coinFalling,
+  settling: styles.coinSettling,
+};
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
 function loadCanvasImage(src: string): Promise<HTMLImageElement | null> {
@@ -134,10 +144,22 @@ export function DailyMirrorExperience() {
   const [reflectionResult, setReflectionResult] = useState<ReflectionResponse | null>(null);
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [busy, setBusy] = useState(false);
-  const [casting, setCasting] = useState(false);
+  const [castingPhase, setCastingPhase] = useState<CastingPhase>("idle");
+  const [pendingToss, setPendingToss] = useState<Toss | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [shareStatus, setShareStatus] = useState("");
+  const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
+  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
+  const [shareGenerating, setShareGenerating] = useState(false);
+  const [shareFallback, setShareFallback] = useState("");
+  const pendingCastRef = useRef<PendingCast | null>(null);
+  const castTokenRef = useRef(0);
+  const castTimersRef = useRef<number[]>([]);
+  const shareArtifactRef = useRef<ShareArtifact | null>(null);
+  const shareGeneratingRef = useRef(false);
+  const casting = castingPhase !== "idle";
 
   const loadHistory = useCallback(async () => {
     const data = await api<{ events: HistoryEvent[] }>("/api/v1/daily-mirror/reflections");
@@ -156,6 +178,33 @@ export function DailyMirrorExperience() {
         }
       });
   }, [loadHistory]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  useEffect(() => () => {
+    castTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    shareArtifactRef.current && URL.revokeObjectURL(shareArtifactRef.current.url);
+  }, []);
+
+  useEffect(() => {
+    if (!sharePreviewOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSharePreviewOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sharePreviewOpen]);
 
   const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, hexagram: 3, traditional: 4, mirror: 5, reflectionQuestion: 6, save: 7, memory: 0 })[stage], [stage]);
 
@@ -187,16 +236,47 @@ export function DailyMirrorExperience() {
     setAuthState("guest");
   }
 
+  function clearCastTimers() {
+    castTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    castTimersRef.current = [];
+  }
+
+  function releaseShareArtifact() {
+    if (shareArtifactRef.current) URL.revokeObjectURL(shareArtifactRef.current.url);
+    shareArtifactRef.current = null;
+    setShareArtifact(null);
+    setSharePreviewOpen(false);
+    setShareFallback("");
+  }
+
   function startMirror() {
+    clearCastTimers();
+    pendingCastRef.current = null;
+    setPendingToss(null);
+    setCastingPhase("idle");
+    releaseShareArtifact();
     setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
   }
 
-  async function shareReflectionCard() {
-    if (!reflectionResult) return;
+  async function generateShareCard() {
+    if (!reflectionResult || shareGeneratingRef.current) return;
+    if (shareArtifactRef.current) {
+      setSharePreviewOpen(true);
+      return;
+    }
+    shareGeneratingRef.current = true;
+    setShareGenerating(true);
+    setShareStatus("");
+    setShareFallback("");
     const canvas = document.createElement("canvas");
     canvas.width = 1080; canvas.height = 1350;
     const context = canvas.getContext("2d");
-    if (!context) return;
+    if (!context) {
+      shareGeneratingRef.current = false;
+      setShareGenerating(false);
+      setShareStatus("暂时无法生成分享卡，请稍后再试");
+      return;
+    }
     const gradient = context.createLinearGradient(0, 0, 1080, 1350);
     gradient.addColorStop(0, "#153f39"); gradient.addColorStop(0.58, "#0f302d"); gradient.addColorStop(1, "#081f20");
     context.fillStyle = gradient; context.fillRect(0, 0, 1080, 1350);
@@ -234,46 +314,120 @@ export function DailyMirrorExperience() {
     if (reminderLine) reminderLines.push(reminderLine);
     reminderLines.slice(0, 2).forEach((item, index) => context.fillText(item, 90, 1150 + index * 42));
     context.fillStyle = "rgba(245,239,226,.7)"; context.font = "25px sans-serif"; context.fillText("Life Mirror · 人生镜像", 90, 1285);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) return;
-    const file = new File([blob], "life-mirror-reflection.png", { type: "image/png" });
     try {
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: "我的 Life Mirror 镜像", text: reflectionResult.reflection.shareableReflection, files: [file] });
-        setShareStatus("分享卡已准备好");
-      } else {
-        const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-        anchor.href = url; anchor.download = file.name; anchor.click(); URL.revokeObjectURL(url);
-        setShareStatus("分享卡已下载");
-      }
-    } catch (cause) {
-      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("share_card_blob_failed");
+      const file = new File([blob], "life-mirror-reflection.png", { type: "image/png" });
+      const artifact: ShareArtifact = {
+        blob,
+        file,
+        url: URL.createObjectURL(blob),
+        canNativeShare: typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }),
+      };
+      shareArtifactRef.current = artifact;
+      setShareArtifact(artifact);
+      setSharePreviewOpen(true);
+      setShareStatus("分享卡已生成，可以先预览再分享或保存");
+    } catch {
       setShareStatus("暂时无法生成分享卡，请稍后重试");
+    } finally {
+      shareGeneratingRef.current = false;
+      setShareGenerating(false);
     }
   }
 
-  async function castLine() {
-    if (casting || tosses.length >= 6) return;
-    setCasting(true); setError("");
-    const nextToss = createToss();
-    await new Promise((resolve) => window.setTimeout(resolve, 680));
-    const next = [...tosses, nextToss];
-    setTosses(next); setCasting(false);
-    if (next.length === 6) {
-      setBusy(true);
-      try {
-        let result: { hexagram: Hexagram; knowledge: Knowledge };
-        if (authState === "guest") {
-          const localHexagram = calculateLiuyao(next);
-          result = { hexagram: localHexagram, knowledge: retrieveLiuyaoKnowledge(localHexagram) };
-        } else {
-          result = await api<{ hexagram: Hexagram; knowledge: Knowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
-        }
-        setHexagram(result.hexagram);
-        setKnowledge(result.knowledge);
-      } catch (cause) { setError(readableError(cause)); }
-      finally { setBusy(false); }
+  async function shareWithFriends() {
+    if (!shareArtifact || !reflectionResult) return;
+    if (!shareArtifact.canNativeShare) {
+      setShareFallback("当前浏览器暂不支持直接分享图片。请先保存到相册，再从微信、信息或其他应用中发送给朋友。");
+      return;
     }
+    try {
+      await navigator.share({
+        title: "我的 Life Mirror 镜像",
+        text: reflectionResult.reflection.shareableReflection,
+        files: [shareArtifact.file],
+      });
+      setShareFallback("");
+      setShareStatus("已打开系统分享面板");
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      setShareFallback("系统分享没有完成。你也可以先保存到相册，再手动分享这张图片。");
+    }
+  }
+
+  function saveShareCard() {
+    if (!shareArtifact) return;
+    const anchor = document.createElement("a");
+    anchor.href = shareArtifact.url;
+    anchor.download = shareArtifact.file.name;
+    anchor.click();
+    setShareStatus("分享卡已保存");
+  }
+
+  async function calculateCompletedHexagram(next: Toss[]) {
+    if (next.length !== 6) return;
+    setBusy(true);
+    try {
+      let result: { hexagram: Hexagram; knowledge: Knowledge };
+      if (authState === "guest") {
+        const localHexagram = calculateLiuyao(next);
+        result = { hexagram: localHexagram, knowledge: retrieveLiuyaoKnowledge(localHexagram) };
+      } else {
+        result = await api<{ hexagram: Hexagram; knowledge: Knowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
+      }
+      setHexagram(result.hexagram);
+      setKnowledge(result.knowledge);
+    } catch (cause) { setError(readableError(cause)); }
+    finally { setBusy(false); }
+  }
+
+  function finishCast(token: number) {
+    const pending = pendingCastRef.current;
+    if (!pending || pending.token !== token) return;
+    clearCastTimers();
+    pendingCastRef.current = null;
+    const next = [...pending.previousTosses, pending.toss];
+    setTosses(next);
+    setPendingToss(null);
+    setCastingPhase("idle");
+    if (navigator.vibrate) navigator.vibrate(12);
+    void calculateCompletedHexagram(next);
+  }
+
+  function scheduleCastPhase(phase: CastingPhase, delay: number, token: number) {
+    const timer = window.setTimeout(() => {
+      if (pendingCastRef.current?.token === token) setCastingPhase(phase);
+    }, delay);
+    castTimersRef.current.push(timer);
+  }
+
+  function castLine() {
+    if (pendingCastRef.current || busy || tosses.length >= 6) return;
+    setError("");
+    const token = ++castTokenRef.current;
+    const nextToss = createToss();
+    pendingCastRef.current = { token, toss: nextToss, previousTosses: [...tosses] };
+    setPendingToss(nextToss);
+    setCastingPhase("shaking");
+    if (navigator.vibrate) navigator.vibrate(8);
+
+    if (reducedMotion) {
+      const timer = window.setTimeout(() => finishCast(token), 80);
+      castTimersRef.current.push(timer);
+      return;
+    }
+
+    scheduleCastPhase("tilting", 700, token);
+    scheduleCastPhase("falling", 980, token);
+    scheduleCastPhase("settling", 1900, token);
+    const timer = window.setTimeout(() => finishCast(token), 2280);
+    castTimersRef.current.push(timer);
+  }
+
+  function skipCastAnimation() {
+    const pending = pendingCastRef.current;
+    if (pending) finishCast(pending.token);
   }
 
   async function generateReflection() {
@@ -373,14 +527,35 @@ export function DailyMirrorExperience() {
 
       {stage === "cast" && (
         <section className={`${styles.stepScreen} ${styles.castScreen}`}>
-          <button className={styles.backButton} onClick={() => setStage("question")}><ArrowLeft /> 返回问题</button>
-          <div className={styles.stepIntro}><span>02 · LIUYAO INTERACTION</span><h1>安静片刻，完成六次投币。</h1><p>六爻由下至上形成。每一次触碰，都只是为思考提供一个新的观察角度。</p></div>
+          <button className={styles.backButton} disabled={casting} onClick={() => setStage("question")}><ArrowLeft /> 返回问题</button>
+          <div className={styles.stepIntro}><span>02 · LIUYAO INTERACTION</span><h1>把问题放在心里，<br />慢慢摇动龟壳。</h1><p>不必刻意控制结果，让三枚铜钱自然落下。六次结果仍由初爻至上爻、从下向上形成。</p></div>
           <div className={styles.castWorkspace}>
-            <div className={styles.coinStage}>{[0,1,2].map((index) => <span className={casting ? styles.coinCasting : ""} style={{ animationDelay: `${index * 90}ms` }} key={index}>{tosses.at(-1)?.[index] === 2 ? "字" : "背"}</span>)}</div>
+            <div className={styles.ritualStage} data-phase={castingPhase}>
+              <div className={styles.shellGlow} />
+              <img className={styles.shellImage} src={assetPath("/rituals/liuyao/shiguang-tortoise-shell.webp")} alt="用于六爻起卦的现代东方龟壳容器" />
+              <div className={styles.ritualCoins} aria-live="polite">
+                {[0, 1, 2].map((index) => {
+                  const displayedToss = pendingToss ?? tosses.at(-1);
+                  const showFace = castingPhase === "settling" || (!casting && Boolean(tosses.length));
+                  const coinValue = displayedToss?.[index];
+                  const coinStyle = {
+                    "--coin-index": index,
+                    "--coin-start-x": `${(index - 1) * 45}px`,
+                    "--coin-mid-x": `${(index - 1) * 55}px`,
+                    "--coin-end-x": `${(index - 1) * 88}px`,
+                    "--coin-turn": `${index % 2 === 0 ? -12 + index * 11 : 8}deg`,
+                    animationDelay: castingPhase === "falling" || castingPhase === "shaking" ? `${index * 105}ms` : "0ms",
+                  } as CSSProperties;
+                  return <span aria-label={showFace ? `第 ${index + 1} 枚铜钱，${coinValue === 2 ? "字面" : "背面"}` : undefined} className={`${styles.ritualCoin} ${castingPhaseClass[castingPhase]} ${showFace ? styles.coinFaceVisible : ""} ${!casting && tosses.length === 0 ? styles.coinInside : ""}`} style={coinStyle} key={index}><i />{showFace && <b>{coinValue === 2 ? "字" : "背"}</b>}</span>;
+                })}
+              </div>
+              {casting && <button type="button" className={styles.skipAnimation} onClick={skipCastAnimation}>跳过动画</button>}
+            </div>
             <div className={styles.lineStack}>{Array.from({ length: 6 }, (_, reverseIndex) => 5 - reverseIndex).map((index) => { const lineValue = tosses[index]?.reduce((sum, value) => sum + value, 0); const polarity = lineValue === 6 || lineValue === 8 ? "yin" : "yang"; return <div className={tosses[index] ? styles.lineReady : ""} key={index}><small>{lineNames[index]}</small>{tosses[index] ? <LineGlyph polarity={polarity} moving={lineValue === 6 || lineValue === 9} /> : <span className={styles.linePlaceholder} />}</div>; })}</div>
-            <button className={styles.castButton} onClick={castLine} disabled={casting || busy || tosses.length === 6}>{casting ? <CircleNotch className={styles.spin} /> : tosses.length === 6 ? <Check /> : <><span>投</span><small>第 {tosses.length + 1} 次</small></>}</button>
+            <button className={styles.castButton} onClick={castLine} disabled={casting || busy || tosses.length === 6}>{casting ? <><CircleNotch className={styles.spin} /><span>正在成爻…</span></> : tosses.length === 6 ? <><Check /><span>六爻已成</span></> : <><span>{tosses.length === 0 ? "开始摇卦" : "再摇一次"}</span><small>第 {tosses.length + 1} 次</small></>}</button>
             <p>{tosses.length} / 6 爻已形成</p>
             {error && <div className={styles.error} role="alert">{error}</div>}
+            {tosses.length === 6 && !hexagram && !busy && <button className={styles.secondaryButton} onClick={() => { setError(""); void calculateCompletedHexagram(tosses); }}>重新计算卦象</button>}
             {hexagram && <button className={styles.primaryButton} onClick={() => setStage("hexagram")}>揭示卦象 <Eye /></button>}
           </div>
         </section>
@@ -441,9 +616,9 @@ export function DailyMirrorExperience() {
           <article className={styles.shareCard}>
             <div><small>可分享的今日镜像</small><blockquote>“{reflectionResult.reflection.shareableReflection}”</blockquote><span>{reflectionResult.hexagram.originalHexagram.symbol} {reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.symbol} {reflectionResult.hexagram.changedHexagram.name}</span></div>
             <img src={assetPath("/characters/shiguang/shiguang-share.webp")} alt="" />
-            <button onClick={shareReflectionCard}><ShareNetwork /> 生成分享卡</button>
+            <button disabled={shareGenerating} onClick={generateShareCard}>{shareGenerating ? <><CircleNotch className={styles.spin} /> 正在生成…</> : shareArtifact ? <><Eye /> 查看分享卡</> : <><ShareNetwork /> 生成分享卡</>}</button>
           </article>
-          {shareStatus && <p className={styles.shareStatus}><DownloadSimple /> {shareStatus}</p>}
+          {shareStatus && <p className={styles.shareStatus}><Sparkle /> {shareStatus}</p>}
           <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
           <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("reflectionQuestion")}>查看反思问题如何生成 <ArrowRight /></button></div>
         </section>
@@ -467,6 +642,24 @@ export function DailyMirrorExperience() {
           <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存 Event 与 Reflection Memory</>}</button></div>
           {saved && <p className={styles.savedNote}>已保存。没有把未经支持的 AI 假设写入 Pattern Memory。</p>}
         </section>
+      )}
+
+      {sharePreviewOpen && shareArtifact && reflectionResult && (
+        <div className={styles.sharePreviewBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSharePreviewOpen(false); }}>
+          <section className={styles.sharePreview} role="dialog" aria-modal="true" aria-labelledby="share-preview-title">
+            <header>
+              <div><small>SHIGUANG · SHARE MIRROR</small><h2 id="share-preview-title">这是拾光为你留下的今日镜像。</h2></div>
+              <button type="button" onClick={() => setSharePreviewOpen(false)} aria-label="关闭分享卡预览"><X /></button>
+            </header>
+            <div className={styles.sharePreviewImage}><img src={shareArtifact.url} alt="实际生成的 1080 × 1350 Life Mirror 分享卡" /></div>
+            {shareFallback && <p className={styles.shareFallback} role="status">{shareFallback}</p>}
+            <div className={styles.sharePreviewActions}>
+              <button type="button" className={styles.shareFriendButton} onClick={shareWithFriends}><ShareNetwork /> 分享给朋友</button>
+              <button type="button" className={styles.saveImageButton} onClick={saveShareCard}><DownloadSimple /> 保存到相册</button>
+              <button type="button" className={styles.returnButton} onClick={() => setSharePreviewOpen(false)}><ArrowLeft /> 返回解读</button>
+            </div>
+          </section>
+        </div>
       )}
 
       <footer className={styles.appFooter}><span>SYMBOLIC REFLECTION + PERSONAL AI MIRROR</span><Link href="/data/personal-mirror-data-specification/">数据与隐私原则</Link></footer>
