@@ -538,6 +538,9 @@ export function DailyMirrorExperience() {
                   const displayedToss = pendingToss ?? tosses.at(-1);
                   const showFace = castingPhase === "settling" || (!casting && Boolean(tosses.length));
                   const coinValue = displayedToss?.[index];
+                  const coinFaceSrc = coinValue === 2
+                    ? assetPath("/rituals/liuyao/shiguang-coin-obverse.webp")
+                    : assetPath("/rituals/liuyao/shiguang-coin-reverse.webp");
                   const coinStyle = {
                     "--coin-index": index,
                     "--coin-start-x": `${(index - 1) * 45}px`,
@@ -546,7 +549,7 @@ export function DailyMirrorExperience() {
                     "--coin-turn": `${index % 2 === 0 ? -12 + index * 11 : 8}deg`,
                     animationDelay: castingPhase === "falling" || castingPhase === "shaking" ? `${index * 105}ms` : "0ms",
                   } as CSSProperties;
-                  return <span aria-label={showFace ? `第 ${index + 1} 枚铜钱，${coinValue === 2 ? "字面" : "背面"}` : undefined} className={`${styles.ritualCoin} ${castingPhaseClass[castingPhase]} ${showFace ? styles.coinFaceVisible : ""} ${!casting && tosses.length === 0 ? styles.coinInside : ""}`} style={coinStyle} key={index}><i />{showFace && <b>{coinValue === 2 ? "字" : "背"}</b>}</span>;
+                  return <span aria-label={showFace ? `第 ${index + 1} 枚铜钱，${coinValue === 2 ? "正面" : "反面"}` : undefined} className={`${styles.ritualCoin} ${castingPhaseClass[castingPhase]} ${showFace ? styles.coinFaceVisible : ""} ${!casting && tosses.length === 0 ? styles.coinInside : ""}`} style={coinStyle} key={index}>{coinValue && <img src={coinFaceSrc} alt="" aria-hidden="true" />}</span>;
                 })}
               </div>
               {casting && <button type="button" className={styles.skipAnimation} onClick={skipCastAnimation}>跳过动画</button>}

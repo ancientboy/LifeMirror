@@ -152,19 +152,17 @@
 
 .castScreen { max-width: 1280px; }
 .castWorkspace { min-height: 500px; position: relative; margin-top: 45px; display: grid; grid-template-columns: 1fr 180px 1fr; grid-template-rows: 1fr auto auto; align-items: center; gap: 25px 50px; padding: 50px; border: 1px solid rgba(49,95,87,.13); border-radius: 28px; background: rgba(245,244,238,.52); }
-.ritualStage { width: min(390px, 100%); height: 350px; position: relative; grid-column: 1; grid-row: 1/3; justify-self: center; perspective: 900px; isolation: isolate; }
-.shellGlow { width: 270px; height: 74px; position: absolute; z-index: 0; left: 50%; bottom: 31px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(55,119,105,.2), transparent 72%); filter: blur(8px); }
-.shellImage { width: 350px; max-width: 94%; position: absolute; z-index: 2; left: 50%; top: 21px; transform: translateX(-50%); transform-origin: 50% 82%; filter: drop-shadow(0 22px 24px rgba(35,65,58,.16)); will-change: transform; }
+.ritualStage { width: min(390px, 100%); height: 290px; position: relative; grid-column: 1; grid-row: 1/3; justify-self: center; perspective: 900px; isolation: isolate; }
+.shellGlow { width: 190px; height: 52px; position: absolute; z-index: 0; left: 50%; bottom: 28px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(55,119,105,.17), transparent 72%); filter: blur(8px); }
+.shellImage { width: 245px; max-width: 72%; position: absolute; z-index: 2; left: 50%; top: 24px; transform: translateX(-50%); transform-origin: 50% 82%; filter: drop-shadow(0 17px 19px rgba(35,65,58,.14)); will-change: transform; }
 .ritualStage[data-phase="shaking"] .shellImage { animation: shellShake 700ms cubic-bezier(.36,.07,.19,.97) both; }
 .ritualStage[data-phase="tilting"] .shellImage, .ritualStage[data-phase="falling"] .shellImage { transform: translateX(-50%) translateY(-7px) rotateX(-11deg) rotate(-2deg); transition: transform 280ms ease-out; }
 .ritualStage[data-phase="settling"] .shellImage { transform: translateX(-50%); transition: transform 320ms ease-out; }
 @keyframes shellShake { 0%, 100% { transform: translateX(-50%); } 16% { transform: translateX(calc(-50% - 13px)) translateY(-4px) rotate(-2.2deg); } 34% { transform: translateX(calc(-50% + 12px)) translateY(2px) rotate(2deg); } 52% { transform: translateX(calc(-50% - 9px)) translateY(-5px) rotate(-1.5deg); } 70% { transform: translateX(calc(-50% + 7px)) translateY(1px) rotate(1deg); } }
 .ritualCoins { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-.ritualCoin { --coin-start-x: 0px; --coin-mid-x: 0px; --coin-end-x: 0px; --coin-turn: 0deg; width: 66px; aspect-ratio: 1; position: absolute; left: 50%; top: 257px; display: grid; place-items: center; border: 2px solid #b68845; border-radius: 50%; color: #765423; background: radial-gradient(circle at 34% 28%, #f1d89a 0 14%, #c59a50 48%, #987035 100%); box-shadow: inset 0 0 0 5px rgba(102,70,28,.13), 0 11px 18px rgba(63,54,34,.17); transform: translateX(calc(-50% + var(--coin-end-x))) rotate(var(--coin-turn)); transform-style: preserve-3d; will-change: transform, opacity; }
-.ritualCoin::before { content: ""; width: 16px; aspect-ratio: 1; position: absolute; border: 2px solid rgba(92,61,24,.58); border-radius: 2px; background: rgba(86,61,31,.2); transform: rotate(3deg); }
-.ritualCoin i { position: absolute; inset: 8px; border: 1px solid rgba(100,68,26,.28); border-radius: 50%; }
-.ritualCoin b { position: relative; z-index: 1; padding: 2px 4px; color: #684817; background: rgba(229,194,119,.78); font: 600 15px/1 Georgia, "Songti SC", serif; opacity: 0; transition: opacity 130ms ease; }
-.ritualCoin.coinFaceVisible b { opacity: 1; }
+.ritualCoin { --coin-start-x: 0px; --coin-mid-x: 0px; --coin-end-x: 0px; --coin-turn: 0deg; width: 70px; aspect-ratio: 1; position: absolute; left: 50%; top: 205px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #d7b36d, #94703d 72%, #62492c); box-shadow: 0 11px 18px rgba(63,54,34,.17); transform: translateX(calc(-50% + var(--coin-end-x))) rotate(var(--coin-turn)); transform-style: preserve-3d; will-change: transform, opacity; }
+.ritualCoin img { width: 100%; height: 100%; display: block; object-fit: contain; opacity: 0; transform: translateZ(1px); transition: opacity 160ms ease; }
+.ritualCoin.coinFaceVisible img { opacity: 1; }
 .ritualCoin.coinInside, .ritualCoin.coinShaking, .ritualCoin.coinTilting { z-index: 1; opacity: .92; transform: translateX(calc(-50% + var(--coin-start-x))) translateY(-44px) scale(.61) rotate(var(--coin-turn)); }
 .ritualCoin.coinShaking { animation: coinRattle 620ms ease-in-out both; }
 .ritualCoin.coinTilting { transition: transform 250ms ease-out; }
@@ -360,9 +358,9 @@
   .questionMeta span:last-child { display: none; }
   .suggestions { display: grid; }
   .castWorkspace { display: flex; flex-direction: column; margin-top: 35px; padding: 35px 18px; }
-  .ritualStage { width: 100%; height: 315px; order: 1; }
-  .shellImage { width: 315px; top: 16px; }
-  .ritualCoin { width: 58px; top: 226px; }
+  .ritualStage { width: 100%; height: 250px; order: 1; }
+  .shellImage { width: 225px; max-width: 70%; top: 18px; }
+  .ritualCoin { width: 62px; top: 183px; }
   .skipAnimation { right: 0; top: 0; }
   .lineStack { width: 230px; order: 2; }
   .lineStack > div { grid-template-columns: 37px 160px; }
