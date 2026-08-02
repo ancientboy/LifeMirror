@@ -21,9 +21,9 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
       runtimeInputs.push(JSON.parse(userMessage?.content ?? "{}") as Record<string, unknown>);
       return {
         text: JSON.stringify({
-          shiguangSees: "我看到你正在认真确认，自己是否已经准备好进入新的工作方向。",
-          hexagramMeaning: "这一卦把注意力放在开始之前的条件与节奏。",
-          mirrorUnderstanding: "不确定并不等于不能前进，它也可能提示你需要更小的验证。",
+          traditionalJudgment: "仅按卦象象意，这个工作方向可以有条件地尝试。",
+          reasoningExplanation: "这一卦把注意力放在开始之前的条件与节奏。",
+          shiguangInterpretation: "不确定并不等于不能前进，它也可能提示你需要更小的验证。",
           reflectionQuestion: "哪个未知最值得先被验证？",
           practicalGuidance: "在本周完成一个可撤回的小实验。",
           shareableReflection: "不必一次决定整条路，先验证让下一步变得踏实的条件。",
@@ -99,7 +99,7 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
     assert.equal(history.json().events.length, 1);
     assert.equal(history.json().events[0].question, "我应该如何开始新的工作方向？");
     assert.equal(history.json().events[0].reflection.reflectionQuestion, "哪个未知最值得先被验证？");
-    assert.match(history.json().events[0].reflection.shiguangSees, /我看到你/);
+    assert.match(history.json().events[0].reflection.traditionalJudgment, /可以有条件地尝试/);
 
     const firstMemories = await app.inject({
       method: "GET",

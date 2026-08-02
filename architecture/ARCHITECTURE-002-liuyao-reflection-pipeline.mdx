@@ -37,7 +37,9 @@ There is one calculation entry: `server/tools/liuyao/calculateLiuyao`. KNOWLEDGE
 
 ## Response and Trace
 
-Shiguang returns exactly six fields that render as: 拾光看到、卦象告诉我们、拾光的理解、给你的提醒、留给你的问题, plus a private-safe share line.
+Runtime returns exactly six fields. The visible order is answer-first: `traditionalJudgment`（拾光先说）→ `reasoningExplanation`（这卦怎么看）→ `shiguangInterpretation`（拾光翻成人话）→ `practicalGuidance`（给你的建议）, plus a private-safe share line. `reflectionQuestion`（留给你的一个问题）is optional and is not part of the required completion path.
+
+The first field must begin with “先说结论：” or the lighter “先说结果：”, then directly answer the stated question with a bounded direction: 偏向可行、有条件可行、建议暂缓, or—when complete traditional context is unavailable—仅按卦象象意. The response may not replace the question with “你真正问的是……” or defer the answer in favor of self-growth. Users can save or start another reading immediately after practical advice; reflection requires a separate optional action.
 
 Every generated answer creates an audit trace:
 
@@ -50,7 +52,7 @@ Every generated answer creates an audit trace:
 }
 ```
 
-The trace is bound into signed draft v4 and stored in `reflection_events.explanation_trace` after explicit save. The result UI can show its non-sensitive basis under “为什么拾光这样说”. Saved traces are owner-scoped at `GET /api/v1/daily-mirror/reflections/:id/explanation-trace`.
+The trace is bound into signed draft v5 and stored in `reflection_events.explanation_trace` after explicit save. Drafts v1-v4 remain readable. The result UI can show its non-sensitive basis under “为什么拾光这样说”. Saved traces are owner-scoped at `GET /api/v1/daily-mirror/reflections/:id/explanation-trace`.
 
 ## Non-negotiable Boundaries
 
@@ -59,4 +61,6 @@ The trace is bound into signed draft v4 and stored in `reflection_events.explana
 - Reflection mappings are possibilities, not facts about the user.
 - Memory is optional evidence and cannot turn inference into biography.
 - LLM language cannot add divination conclusions.
+- The user's desire for an answer is valid and must be satisfied before reflection.
+- Shiguang may humanize a judgment but may not behave as a therapist or claim to be a fortune teller.
 - Timing remains a low-confidence traditional candidate, never a promise.

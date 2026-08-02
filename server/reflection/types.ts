@@ -3,6 +3,15 @@ import type { LiuyaoReflectionKnowledge } from "../knowledge/liuyao-reflection-m
 import type { CoinToss, LiuyaoAnalysisContext, LiuyaoResult } from "../tools/liuyao/types.js";
 
 export type MirrorReflection = {
+  traditionalJudgment: string;
+  reasoningExplanation: string;
+  shiguangInterpretation: string;
+  practicalGuidance: string;
+  reflectionQuestion: string;
+  shareableReflection: string;
+};
+
+export type PreviousMirrorReflection = {
   shiguangSees: string;
   hexagramMeaning: string;
   mirrorUnderstanding: string;
@@ -18,7 +27,7 @@ export type LegacyMirrorReflection = {
   actionSuggestion: string;
 };
 
-export type StoredMirrorReflection = MirrorReflection | LegacyMirrorReflection;
+export type StoredMirrorReflection = MirrorReflection | PreviousMirrorReflection | LegacyMirrorReflection;
 
 export type ExplanationTrace = {
   traditional_basis: string;
@@ -28,11 +37,21 @@ export type ExplanationTrace = {
 };
 
 export function normalizeMirrorReflection(reflection: StoredMirrorReflection): MirrorReflection {
-  if ("shiguangSees" in reflection) return reflection;
+  if ("traditionalJudgment" in reflection) return reflection;
+  if ("shiguangSees" in reflection) {
+    return {
+      traditionalJudgment: reflection.shiguangSees,
+      reasoningExplanation: reflection.hexagramMeaning,
+      shiguangInterpretation: reflection.mirrorUnderstanding,
+      practicalGuidance: reflection.practicalGuidance,
+      reflectionQuestion: reflection.reflectionQuestion,
+      shareableReflection: reflection.shareableReflection,
+    };
+  }
   return {
-    shiguangSees: reflection.observation,
-    hexagramMeaning: reflection.insight,
-    mirrorUnderstanding: reflection.insight,
+    traditionalJudgment: reflection.observation,
+    reasoningExplanation: reflection.insight,
+    shiguangInterpretation: reflection.insight,
     practicalGuidance: reflection.actionSuggestion,
     reflectionQuestion: reflection.reflectionQuestion,
     shareableReflection: reflection.insight,
@@ -40,7 +59,7 @@ export function normalizeMirrorReflection(reflection: StoredMirrorReflection): M
 }
 
 export type ReflectionDraftPayload = {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   runtimeId: string;
   userId: string;
   question: string;

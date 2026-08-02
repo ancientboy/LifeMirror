@@ -45,6 +45,11 @@ test("Reflection v4 drafts bind mapping and explanation trace", () => {
   assert.equal(opened.explanationTrace?.reflection_mapping, "mapping");
 });
 
+test("Answer-first v5 reflection drafts remain sealed and readable", () => {
+  const token = sealReflectionDraft({ ...payload, version: 5 }, secret);
+  assert.equal(openReflectionDraft(token, secret).version, 5);
+});
+
 test("expired reflection drafts cannot be saved", () => {
   const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
   assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);

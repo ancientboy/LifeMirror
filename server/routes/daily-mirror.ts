@@ -87,7 +87,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
 
       const now = new Date();
       const payload: ReflectionDraftPayload = {
-        version: 4,
+        version: 5,
         runtimeId: randomUUID(),
         userId: user.id,
         question: parsed.data.question,
@@ -136,7 +136,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       JSON.stringify(recalculated.structure) !== JSON.stringify(draft.hexagram.structure) ||
       JSON.stringify(recalculated.analysis) !== JSON.stringify(draft.hexagram.analysis)
     );
-    const reflectionKnowledgeMismatch = draft.version === 4 && JSON.stringify(
+    const reflectionKnowledgeMismatch = draft.version >= 4 && JSON.stringify(
       retrieveLiuyaoReflectionKnowledge(recalculated, retrieveLiuyaoKnowledge(recalculated)),
     ) !== JSON.stringify(draft.reflectionKnowledge);
     if (

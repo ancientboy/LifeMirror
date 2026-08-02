@@ -15,7 +15,7 @@ test("reflection runtime returns the Shiguang persona structure from provider JS
     async generate(request) {
       captured = request;
       return {
-        text: '```json\n{"shiguangSees":"我看到你正在认真权衡新的工作方向。","hexagramMeaning":"这一卦提醒你先辨认条件是否成熟。","mirrorUnderstanding":"你的犹豫也许不是退缩，而是在寻找一个能安心验证的起点。","practicalGuidance":"列出一个关键未知，并完成一次可撤回的小实验。","reflectionQuestion":"什么条件会让你更安心？","shareableReflection":"不必一次决定整条路，先验证让下一步变得踏实的条件。"}\n```',
+        text: '```json\n{"traditionalJudgment":"仅按卦象象意，这个方向可以尝试，但应先确认条件。","reasoningExplanation":"乾卦强调主动开始，本次无完整历法上下文，不补算旺衰。","shiguangInterpretation":"你可以尊重想前进的愿望，同时给自己一个可验证的起点。","practicalGuidance":"列出一个关键未知，并完成一次可撤回的小实验。","reflectionQuestion":"什么条件会让你更安心？","shareableReflection":"不必一次决定整条路，先验证让下一步变得踏实的条件。"}\n```',
         model: "fixture-model",
         provider: "fixture",
       };
@@ -30,13 +30,16 @@ test("reflection runtime returns the Shiguang persona structure from provider JS
     reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, retrieveLiuyaoKnowledge(hexagram)),
     userContext: { recentEvents: [{ title: "职业与方向", summary: "曾记录一个工作选择。", occurredAt: "2026-08-01T00:00:00.000Z" }], patterns: [] },
   });
-  assert.equal(result.reflection.shiguangSees, "我看到你正在认真权衡新的工作方向。");
+  assert.match(result.reflection.traditionalJudgment, /可以尝试/);
   assert.equal(result.reflection.practicalGuidance, "列出一个关键未知，并完成一次可撤回的小实验。");
   assert.equal(result.reflection.shareableReflection, "不必一次决定整条路，先验证让下一步变得踏实的条件。");
   assert.match(captured?.messages[0].content ?? "", /Never predict the future/);
   assert.match(captured?.messages[0].content ?? "", /You are Shiguang/);
-  assert.match(captured?.messages[0].content ?? "", /Avoid report language/);
+  assert.match(captured?.messages[0].content ?? "", /Avoid academic reports/);
+  assert.match(captured?.messages[0].content ?? "", /slightly playful when the question is light/);
   assert.match(captured?.messages[0].content ?? "", /immutable computed facts/);
+  assert.match(captured?.messages[0].content ?? "", /The user came for an answer/);
+  assert.match(captured?.messages[0].content ?? "", /Do not evade the question/);
   assert.match(captured?.messages[0].content ?? "", /must not infer the missing fields|never fill the missing fields/i);
   assert.match(captured?.messages[1].content ?? "", /曾记录一个工作选择/);
   assert.match(captured?.messages[1].content ?? "", /元亨利贞/);
