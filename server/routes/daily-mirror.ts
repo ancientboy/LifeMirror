@@ -9,6 +9,7 @@ import { generateMirrorReflection } from "../reflection/runtime.js";
 import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js";
 import { normalizeMirrorReflection, type ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
+import { resolveLiuyaoContext } from "../tools/liuyao/context-resolver.js";
 import type { CoinToss, LiuyaoAnalysisContext } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
 import { retrievePersonalReflectionContext } from "../memory/reflection-context.js";
@@ -16,18 +17,41 @@ import { retrievePersonalReflectionContext } from "../memory/reflection-context.
 const coinSchema = z.union([z.literal(2), z.literal(3)]);
 const tossSchema = z.tuple([coinSchema, coinSchema, coinSchema]);
 const tossesSchema = z.array(tossSchema).length(6);
+const topicSchema = z.enum(["self", "career", "wealth", "study", "relationship_male", "relationship_female", "health", "family", "children", "travel", "legal", "partnership"]);
+const usefulGodSchema = z.enum(["parents", "siblings", "offspring", "wealth", "officials", "shi", "ying"]);
+const scenarioSchema = z.enum(["job_search", "exam", "reconciliation", "investment"]);
+const scenarioFocusSchema = z.enum([
+  "job_interview", "job_offer", "job_start",
+  "exam_performance", "exam_score", "exam_admission",
+  "relationship_contact", "relationship_reconcile", "relationship_stability",
+  "investment_short_term", "investment_long_term",
+]);
 const analysisContextSchema = z.object({
-  topic: z.enum(["self", "career", "wealth", "study", "relationship_male", "relationship_female", "health", "family", "children", "travel", "legal", "partnership"]),
+  topic: topicSchema,
   monthBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
   dayStem: z.enum(["jia", "yi", "bing", "ding", "wu", "ji", "geng", "xin", "ren", "gui"]),
   dayBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
+  intents: z.array(z.object({ id: z.string().min(1).max(80), label: z.string().min(1).max(80), topic: topicSchema, priority: z.number().int().min(1).max(10), usefulGod: usefulGodSchema.optional(), scenario: scenarioSchema.optional(), scenarioFocus: scenarioFocusSchema.optional() })).max(3).optional(),
+  tone: z.enum(["playful", "warm", "grounded", "careful"]).optional(),
+  timingScale: z.enum(["day", "month"]).optional(),
+  scenario: scenarioSchema.optional(),
+  scenarioFocus: scenarioFocusSchema.optional(),
+  calendarBoundary: z.boolean().optional(),
+  usefulGod: usefulGodSchema.optional(),
+  occurredAt: z.string().datetime().optional(),
+  timezone: z.string().trim().min(1).max(80).optional(),
 });
-const calculationSchema = z.object({ tosses: tossesSchema, analysisContext: analysisContextSchema.optional() });
+const automaticContextSchema = z.object({
+  question: z.string().trim().min(1).max(500).optional(),
+  occurredAt: z.string().datetime().optional(),
+  timezone: z.string().trim().min(1).max(80).optional(),
+});
+const calculationSchema = z.object({ tosses: tossesSchema, analysisContext: analysisContextSchema.optional() }).merge(automaticContextSchema);
 const reflectionSchema = z.object({
   question: z.string().trim().min(5).max(500),
   tosses: tossesSchema,
   analysisContext: analysisContextSchema.optional(),
-});
+}).merge(automaticContextSchema.omit({ question: true }));
 const saveSchema = z.object({ draftToken: z.string().min(20).max(32_000) });
 
 async function requireUser(
@@ -47,9 +71,15 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
   app.post("/api/v1/tools/liuyao/calculate", async (request, reply) => {
     const parsed = calculationSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_coin_tosses" });
-    const hexagram = calculateLiuyao(parsed.data.tosses as CoinToss[], parsed.data.analysisContext as LiuyaoAnalysisContext | undefined);
+    let analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
+    try {
+      analysisContext ??= parsed.data.question ? resolveLiuyaoContext({ question: parsed.data.question, occurredAt: parsed.data.occurredAt, timezone: parsed.data.timezone }) : undefined;
+    } catch {
+      return reply.code(400).send({ error: "invalid_divination_context" });
+    }
+    const hexagram = calculateLiuyao(parsed.data.tosses as CoinToss[], analysisContext);
     const knowledge = retrieveLiuyaoKnowledge(hexagram);
-    return { hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) };
+    return { hexagram, analysisContext, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) };
   });
 
   app.post(
@@ -65,7 +95,12 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       }
 
       const tosses = parsed.data.tosses as CoinToss[];
-      const analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
+      let analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
+      try {
+        analysisContext ??= resolveLiuyaoContext(parsed.data);
+      } catch {
+        return reply.code(400).send({ error: "invalid_divination_context" });
+      }
       const hexagram = calculateLiuyao(tosses, analysisContext);
       const knowledge = retrieveLiuyaoKnowledge(hexagram);
       const reflectionKnowledge = retrieveLiuyaoReflectionKnowledge(hexagram, knowledge);
@@ -87,7 +122,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
 
       const now = new Date();
       const payload: ReflectionDraftPayload = {
-        version: 5,
+        version: 6,
         runtimeId: randomUUID(),
         userId: user.id,
         question: parsed.data.question,
@@ -107,6 +142,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       return {
         question: payload.question,
         hexagram,
+        analysisContext,
         knowledge,
         reflectionKnowledge,
         reflection: normalizeMirrorReflection(payload.reflection),
@@ -132,11 +168,11 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     if (draft.userId !== user.id) return reply.code(403).send({ error: "reflection_owner_mismatch" });
 
     const recalculated = calculateLiuyao(draft.tosses, draft.analysisContext);
-    const extendedMismatch = draft.version >= 3 && (
+    const extendedMismatch = draft.version >= 6 && (
       JSON.stringify(recalculated.structure) !== JSON.stringify(draft.hexagram.structure) ||
       JSON.stringify(recalculated.analysis) !== JSON.stringify(draft.hexagram.analysis)
     );
-    const reflectionKnowledgeMismatch = draft.version >= 4 && JSON.stringify(
+    const reflectionKnowledgeMismatch = draft.version >= 6 && JSON.stringify(
       retrieveLiuyaoReflectionKnowledge(recalculated, retrieveLiuyaoKnowledge(recalculated)),
     ) !== JSON.stringify(draft.reflectionKnowledge);
     if (

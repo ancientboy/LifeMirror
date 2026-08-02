@@ -26,6 +26,11 @@ test("authenticated user can generate, explicitly save and revisit a reflection 
           shiguangInterpretation: "不确定并不等于不能前进，它也可能提示你需要更小的验证。",
           reflectionQuestion: "哪个未知最值得先被验证？",
           practicalGuidance: "在本周完成一个可撤回的小实验。",
+          evidenceCards: [
+            { title: "用神", technical: "官鬼为用", plain: "工作本身是这次判断的核心。", effect: "positive" },
+            { title: "时令", technical: "用神得月建作用", plain: "现实条件会直接影响推进力度。", effect: "mixed" },
+          ],
+          closing: { type: "reflection", text: "如果愿意，再看看哪个未知最值得确认。" },
           shareableReflection: "不必一次决定整条路，先验证让下一步变得踏实的条件。",
         }),
         provider: "integration-fixture",

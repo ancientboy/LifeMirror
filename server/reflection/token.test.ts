@@ -50,6 +50,11 @@ test("Answer-first v5 reflection drafts remain sealed and readable", () => {
   assert.equal(openReflectionDraft(token, secret).version, 5);
 });
 
+test("Scenario-aware v6 reflection drafts remain sealed and readable", () => {
+  const token = sealReflectionDraft({ ...payload, version: 6 }, secret);
+  assert.equal(openReflectionDraft(token, secret).version, 6);
+});
+
 test("expired reflection drafts cannot be saved", () => {
   const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
   assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);

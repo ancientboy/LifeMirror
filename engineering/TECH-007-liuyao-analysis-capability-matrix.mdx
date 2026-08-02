@@ -1,0 +1,63 @@
+# TECH-007 Liuyao Analysis Capability Matrix
+
+## Purpose
+
+This document is the Phase 2.5 acceptance boundary for the Liuyao interpretation upgrade. The deterministic TypeScript tool is authoritative at runtime; the historical `tools/liuyao/analysis.py` implementation is the migration reference. Shiguang may explain computed evidence but must never calculate or invent a rule.
+
+## Historical Python Migration
+
+| Python capability | TypeScript status | Notes |
+|---|---|---|
+| Topic-to-useful-god routing | Migrated and extended | Includes explicit Shi/Ying targets, multiple intents, category aliases and scenario focus. |
+| Monthly strength and day/month relations | Migrated and extended | Adds explicit evidence direction and strength. |
+| Multiple useful-god candidates | Migrated and extended | Auditable scoring includes motion, Shi, day/month support, void, break, combine and tomb. |
+| Hidden/flying spirit | Migrated and extended | Multiple hidden candidates are selected by day/month power; flying motion, void and month break are retained. |
+| Source/avoid/draining gods | Migrated and extended | Moving source and avoid gods include progress/retreat transformations. |
+| Return generation/control | Migrated | Also covers transformation void and month break. |
+| Progress/retreat | Migrated and extended | Uses the complete branch table rather than the four-pair prototype subset. |
+| Void, month break and day clash | Migrated and extended | Distinguishes clash-open, hidden movement and day break. |
+| Day tomb | Migrated and corrected | Wood→Wei, Fire→Xu, Earth/Water→Chen, Metal→Chou, matching the Python reference for Earth. |
+| Timing candidates | Migrated and extended | Produces reasoned day or solar-term-month observation windows, never promises. |
+| Overall tendency | Replaced by calibrated arbitration | Support and obstruction are scored separately; conflict, hidden-useful-god and high uncertainty lower confidence. |
+
+## Production Rule Coverage
+
+- Deterministic casting, 64 hexagrams, changed hexagram, palace stage, Shi/Ying, Najia, Six Relations, Six Spirits and void branches.
+- Useful-god selection, multiple-candidate scoring, hidden/flying spirit, source/avoid gods, return generation/control, progress/retreat, transformation void/break.
+- Month strength, day generation/control, month break, day clash, hidden movement, day break, day combine/binding, day tomb.
+- Six-combine, six-clash, three-harmony, punishment, self-punishment, harm, Fu-Yin-like repetition and Fan-Yin-like reversal.
+- Hexagram body, wandering/returning soul and single-moving/single-static focus as structural evidence only.
+- Five Six-Relation-on-Shi interpretations and Shi/use plus Shi/Ying pre/post-change relationships.
+- Hidden-spirit emergence, fill, clash-open, release-combine, meet-combine and meet-clash timing candidates.
+
+## Scenario Coverage
+
+| Scenario | Separately judged targets | Primary supporting factors |
+|---|---|---|
+| Job search | Interview, offer, start/probation | Shi/Ying employer relation; parents for résumé, notice and contract; officials as position. |
+| Exam | Performance, score/pass, admission | Parents as preparation/result; Shi for personal state; officials for evaluation/admission threshold. |
+| Relationship | Contact, reconciliation, stability | Ying movement for contact; Shi/Ying combine/clash and useful god for reconciliation; movement/repetition and post-change relation for stability. |
+| Investment | Short term, long term | Short term weights movement, return changes, void/break and competing wealth; long term weights month strength, source/avoid continuity and progress/retreat. |
+
+Health and investment always retain real-world safety limitations. Health uses Shi for the person and separately observes officials as illness pressure and offspring as relief; this intentionally deepens the Python prototype's single `offspring` target.
+
+## Judgment Quality Contract
+
+- Every verdict is scoped to one `intentId`; its decisive evidence IDs must share that scope.
+- Key evidence reserves space for every intent before filling remaining slots by weight.
+- Support and obstruction are accumulated separately. Material opposition produces `evidenceBalance: conflicted`, a mixed direction and lower confidence.
+- Hidden useful gods, weak evidence and high analysis uncertainty reduce confidence.
+- Evidence sorting has deterministic tie-breakers. Identical tosses and context must produce deep-equal results.
+- Shiguang must use the exact scenario label, state both sides of a conflict, and cannot transfer evidence between intents.
+
+## Deliberate Boundaries
+
+- The LLM does not calculate Liuyao or add terminology absent from Tool output.
+- Structural markers never decide success or failure by themselves.
+- Timing is a low-confidence observation window, not an event date.
+- Classical cold rules not represented by deterministic inputs and regression fixtures are outside Phase 2.5.
+- Medical, legal and investment outputs remain bounded by professional verification and real-world evidence.
+
+## Acceptance Tests
+
+The regression suite covers historical Python fixtures, all 64 structures, five Six-Relation-on-Shi states, multiple useful gods, hidden/flying spirit combinations, day/month state combinations, transformations, scenario focus, multi-intent isolation, conflict calibration and repeated-input determinism. Reflection tests enforce answer-first output, separate intent answers, faithful evidence cards, optional reflection and risk-specific limitations.

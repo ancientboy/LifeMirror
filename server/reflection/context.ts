@@ -5,7 +5,7 @@ import type { LiuyaoResult } from "../tools/liuyao/types.js";
 
 export type MirrorRuntimeContext = {
   userQuestion: string;
-  liuyaoTool: Pick<LiuyaoResult, "divination" | "structure" | "analysis" | "evidence">;
+  liuyaoTool: Pick<LiuyaoResult, "divination" | "structure" | "analysis" | "evidence" | "judgment">;
   classicalKnowledge: LiuyaoKnowledgeContext;
   reflectionKnowledge: LiuyaoReflectionKnowledge;
   personalContext: PersonalReflectionContext;
@@ -25,6 +25,7 @@ export function assembleMirrorRuntimeContext(input: {
       structure: input.hexagram.structure,
       analysis: input.hexagram.analysis,
       evidence: input.hexagram.evidence,
+      judgment: input.hexagram.judgment,
     },
     classicalKnowledge: input.knowledge,
     reflectionKnowledge: input.reflectionKnowledge,

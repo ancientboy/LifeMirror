@@ -7,7 +7,17 @@ export type MirrorReflection = {
   reasoningExplanation: string;
   shiguangInterpretation: string;
   practicalGuidance: string;
-  reflectionQuestion: string;
+  evidenceCards: Array<{
+    title: string;
+    technical: string;
+    plain: string;
+    effect: "positive" | "negative" | "mixed";
+  }>;
+  closing?: {
+    type: "banter" | "follow_up" | "observation" | "reflection";
+    text: string;
+  };
+  reflectionQuestion?: string;
   shareableReflection: string;
 };
 
@@ -37,13 +47,14 @@ export type ExplanationTrace = {
 };
 
 export function normalizeMirrorReflection(reflection: StoredMirrorReflection): MirrorReflection {
-  if ("traditionalJudgment" in reflection) return reflection;
+  if ("traditionalJudgment" in reflection) return { ...reflection, evidenceCards: reflection.evidenceCards ?? [] };
   if ("shiguangSees" in reflection) {
     return {
       traditionalJudgment: reflection.shiguangSees,
       reasoningExplanation: reflection.hexagramMeaning,
       shiguangInterpretation: reflection.mirrorUnderstanding,
       practicalGuidance: reflection.practicalGuidance,
+      evidenceCards: [],
       reflectionQuestion: reflection.reflectionQuestion,
       shareableReflection: reflection.shareableReflection,
     };
@@ -53,13 +64,14 @@ export function normalizeMirrorReflection(reflection: StoredMirrorReflection): M
     reasoningExplanation: reflection.insight,
     shiguangInterpretation: reflection.insight,
     practicalGuidance: reflection.actionSuggestion,
+    evidenceCards: [],
     reflectionQuestion: reflection.reflectionQuestion,
     shareableReflection: reflection.insight,
   };
 }
 
 export type ReflectionDraftPayload = {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   runtimeId: string;
   userId: string;
   question: string;

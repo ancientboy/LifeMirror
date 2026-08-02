@@ -1,5 +1,5 @@
 import type { LiuyaoKnowledgeContext } from "./liuyao-retrieval.js";
-import type { LiuyaoResult, SixRelation } from "../tools/liuyao/types.js";
+import type { LiuyaoResult, LiuyaoUsefulGodTarget } from "../tools/liuyao/types.js";
 
 export type ReflectionMapping = {
   id: string;
@@ -16,7 +16,7 @@ export type LiuyaoReflectionKnowledge = {
   mappings: ReflectionMapping[];
 };
 
-const RELATION_REFLECTION: Record<SixRelation | "shi", Omit<ReflectionMapping, "id" | "basis" | "confidence">> = {
+const RELATION_REFLECTION: Record<LiuyaoUsefulGodTarget, Omit<ReflectionMapping, "id" | "basis" | "confidence">> = {
   officials: {
     traditionalConcept: "官鬼为用",
     humanMeaning: "责任、压力、规则或外部要求成为当前问题的核心变量。",
@@ -46,6 +46,11 @@ const RELATION_REFLECTION: Record<SixRelation | "shi", Omit<ReflectionMapping, "
     traditionalConcept: "世爻为用",
     humanMeaning: "你的立场、状态与可承担程度，是这次判断的核心。",
     userFacingReflection: "暂时放下别人期待后，你自己的真实意愿和承受力分别是什么？",
+  },
+  ying: {
+    traditionalConcept: "应爻为用",
+    humanMeaning: "对方、合作对象或外部回应，是这次判断的核心变量。",
+    userFacingReflection: "对方目前给出的实际回应，和你期待的回应之间有什么差距？",
   },
 };
 
