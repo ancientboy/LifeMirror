@@ -30,6 +30,12 @@ test("Shiguang v2 reflection drafts round-trip", () => {
   assert.equal(openReflectionDraft(token, secret).version, 2);
 });
 
+test("Liuyao v3 drafts bind deterministic traditional-analysis context", () => {
+  const analysisContext = { topic: "career", monthBranch: "wei", dayStem: "jia", dayBranch: "zi" } as const;
+  const token = sealReflectionDraft({ ...payload, version: 3, analysisContext }, secret);
+  assert.deepEqual(openReflectionDraft(token, secret).analysisContext, analysisContext);
+});
+
 test("expired reflection drafts cannot be saved", () => {
   const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
   assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);

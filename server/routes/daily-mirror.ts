@@ -8,17 +8,24 @@ import { generateMirrorReflection } from "../reflection/runtime.js";
 import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js";
 import { normalizeMirrorReflection, type ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
-import type { CoinToss } from "../tools/liuyao/types.js";
+import type { CoinToss, LiuyaoAnalysisContext } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
 import { retrievePersonalReflectionContext } from "../memory/reflection-context.js";
 
 const coinSchema = z.union([z.literal(2), z.literal(3)]);
 const tossSchema = z.tuple([coinSchema, coinSchema, coinSchema]);
 const tossesSchema = z.array(tossSchema).length(6);
-const calculationSchema = z.object({ tosses: tossesSchema });
+const analysisContextSchema = z.object({
+  topic: z.enum(["self", "career", "wealth", "study", "relationship_male", "relationship_female", "health", "family", "children", "travel", "legal", "partnership"]),
+  monthBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
+  dayStem: z.enum(["jia", "yi", "bing", "ding", "wu", "ji", "geng", "xin", "ren", "gui"]),
+  dayBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
+});
+const calculationSchema = z.object({ tosses: tossesSchema, analysisContext: analysisContextSchema.optional() });
 const reflectionSchema = z.object({
   question: z.string().trim().min(5).max(500),
   tosses: tossesSchema,
+  analysisContext: analysisContextSchema.optional(),
 });
 const saveSchema = z.object({ draftToken: z.string().min(20).max(32_000) });
 
@@ -39,7 +46,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
   app.post("/api/v1/tools/liuyao/calculate", async (request, reply) => {
     const parsed = calculationSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_coin_tosses" });
-    const hexagram = calculateLiuyao(parsed.data.tosses as CoinToss[]);
+    const hexagram = calculateLiuyao(parsed.data.tosses as CoinToss[], parsed.data.analysisContext as LiuyaoAnalysisContext | undefined);
     return { hexagram, knowledge: retrieveLiuyaoKnowledge(hexagram) };
   });
 
@@ -56,7 +63,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       }
 
       const tosses = parsed.data.tosses as CoinToss[];
-      const hexagram = calculateLiuyao(tosses);
+      const analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
+      const hexagram = calculateLiuyao(tosses, analysisContext);
       const knowledge = retrieveLiuyaoKnowledge(hexagram);
       const userContext = await retrievePersonalReflectionContext(dependencies.database, user.id);
       let generated;
@@ -75,11 +83,12 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
 
       const now = new Date();
       const payload: ReflectionDraftPayload = {
-        version: 2,
+        version: 3,
         runtimeId: randomUUID(),
         userId: user.id,
         question: parsed.data.question,
         tosses,
+        analysisContext,
         hexagram,
         knowledge,
         reflection: generated.reflection,
@@ -114,10 +123,15 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     }
     if (draft.userId !== user.id) return reply.code(403).send({ error: "reflection_owner_mismatch" });
 
-    const recalculated = calculateLiuyao(draft.tosses);
+    const recalculated = calculateLiuyao(draft.tosses, draft.analysisContext);
+    const extendedMismatch = draft.version === 3 && (
+      JSON.stringify(recalculated.structure) !== JSON.stringify(draft.hexagram.structure) ||
+      JSON.stringify(recalculated.analysis) !== JSON.stringify(draft.hexagram.analysis)
+    );
     if (
       recalculated.originalHexagram.number !== draft.hexagram.originalHexagram.number ||
-      recalculated.changedHexagram.number !== draft.hexagram.changedHexagram.number
+      recalculated.changedHexagram.number !== draft.hexagram.changedHexagram.number ||
+      extendedMismatch
     ) {
       return reply.code(400).send({ error: "reflection_draft_mismatch" });
     }

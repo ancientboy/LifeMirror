@@ -4,7 +4,7 @@
 Build the first Daily Mirror experience.
 
 ## Flow
-Question → Liuyao Tool → Traditional Interpretation → AI Reflection → Memory Save.
+Question → Liuyao Tool (Casting + Calculation + Traditional Analysis) → KNOWLEDGE-003 → Mirror Runtime → Shiguang Persona → Memory Save.
 
 ## MVP
 - Question input
@@ -16,9 +16,11 @@ Question → Liuyao Tool → Traditional Interpretation → AI Reflection → Me
 
 ## Runtime Contract
 
-The Liuyao Tool accepts six bottom-up three-coin tosses. It deterministically returns line values, moving lines, the original hexagram and the changed hexagram. The LLM never calculates these fields.
+The existing Liuyao Tool remains the only implementation and API entry. It accepts six bottom-up three-coin tosses plus optional explicit `analysisContext`. It deterministically returns line values, moving lines, original/changed hexagrams, palace, Shi/Ying, Najia, Six Relations, Five Elements, Six Spirits, void branches, useful-god selection, strength, generation/control relationships, hidden/flying spirit, timing candidates and rule evidence. The standalone Python prototype has been absorbed into the existing TypeScript tool and removed; no `v2` tool or duplicate endpoint exists.
 
-Knowledge Retrieval resolves the corresponding KNOWLEDGE-003 entries before the Reflection Runtime is called. Traditional interpretation remains separate from AI reflection.
+`analysisContext` contains `topic`, `monthBranch`, `dayStem` and `dayBranch`. Topic is an explicit user/runtime input and calendrical values must come from a deterministic calendar layer. The LLM never guesses them. If they are absent, the Tool returns a complete casting/structure result and `analysis.status = context_required`; downstream layers must not fabricate missing analysis.
+
+Knowledge Retrieval resolves the corresponding KNOWLEDGE-003 entries after computation and before the Reflection Runtime. It contributes classical text and meanings only; it neither recalculates nor mutates Tool facts. Traditional interpretation remains separate from Shiguang reflection.
 
 The enhanced contract returns `classical`, `symbolic`, `reflectionMapping`, exact `movingLines`, and a deterministic `readingRule`. The classical branch contains complete judgment, Great Image, line text and Small Image data. The Reflection Runtime cannot supply missing classical content.
 
@@ -34,8 +36,31 @@ The Shiguang Persona contract returns six structured fields:
 Runtime input is:
 
 ```text
-Hexagram + Traditional Interpretation + User Question + visible Personal Memory
+User Question
++ Liuyao Tool divination / structure / analysis / evidence
++ KNOWLEDGE-003 classical text and meanings
++ visible Personal Memory
 ```
+
+The Reflection prompt labels Tool analysis as immutable computed facts. It forbids recalculation, completion, contradiction or replacement. `context_required` is preserved as an absence of a traditional conclusion, not an invitation for the LLM to improvise one.
+
+## API Contract
+
+`POST /api/v1/tools/liuyao/calculate` keeps its existing path. Request bodies remain backward compatible:
+
+```json
+{
+  "tosses": [[2,3,3],[3,2,2],[2,2,2],[3,3,2],[2,3,2],[3,2,3]],
+  "analysisContext": {
+    "topic": "career",
+    "monthBranch": "wei",
+    "dayStem": "wu",
+    "dayBranch": "shen"
+  }
+}
+```
+
+The response keeps `hexagram` for current clients; that object now also contains `divination`, `structure`, `analysis` and `evidence`. `knowledge` remains a separate KNOWLEDGE-003 retrieval result. Reflection drafts bind the same analysis context and recalculate structure/analysis during save, preventing LLM or client tampering.
 
 Personal Memory is optional evidence. The prompt forbids converting tentative inference into a user fact and requires the Insight to explain why the supplied symbol may relate to the present question rather than forecast the future.
 

@@ -3,227 +3,122 @@ id: TOOL-001
 slug: liuyao-engine-specification
 title: Liuyao Engine Specification
 subtitle: 六爻计算引擎规范
-version: "1.0"
+version: "2.0"
 date: August 2026
 category: TOOL ARCHITECTURE
 status: published
-summary: 定义 Life Mirror 如何通过独立工具执行六爻计算，并将结构化结果交给知识系统与 Mirror Runtime。
+summary: 定义唯一 Liuyao Tool 如何执行起卦、装卦与传统规则分析，并将可追溯事实交给知识系统与 Mirror Runtime。
 ---
 
-# TOOL-001
+# TOOL-001 Liuyao Engine Specification
 
-# Liuyao Engine Specification
-
-## 六爻计算引擎规范
-
-**Life Mirror Institute · Tool Architecture Paper**
-
----
-
-## Abstract
-
-Life Mirror 将六爻作为 Symbolic Knowledge Framework 的第一个应用案例。
-
-六爻计算过程不由 LLM 生成，而由独立计算工具执行，保证计算结果可验证、可追踪。
-
-Liuyao Engine 负责：
-
-- 起卦
-- 六爻生成
-- 阴阳转换
-- 动爻识别
-- 本卦生成
-- 变卦生成
-- 结构化输出
-
-随后由 Knowledge Retrieval、Mirror Runtime 和 Reflection Engine 完成现代化个人解释。
-
----
-
-# 1. Architecture Position
+## Architecture Position
 
 ```text
 User Question
-
-↓
-
-TOOL-001
-Liuyao Engine
-
-↓
-
+  ↓
+Liuyao Tool
+(Casting + Calculation + Traditional Analysis)
+  ↓
 KNOWLEDGE-003
-Liuyao Knowledge Pack
-
-↓
-
-SYSTEM-004
+(Classical Texts + Explanations)
+  ↓
 Mirror Runtime
-
-↓
-
-AI Reflection
-
-↓
-
-Personal Mirror Memory
+(Context Assembly + Reflection)
+  ↓
+Shiguang Persona
+(Humanized Communication)
+  ↓
+User
 ```
 
----
+The existing Liuyao Tool is the only divination implementation in Life Mirror. A `v2` tool, parallel Python package, duplicate API or alternate calculation path is prohibited.
 
-# 2. Design Principles
+## Responsibility Boundary
 
-## Deterministic Calculation
+### Tool
 
-六爻计算必须：
+The Tool performs deterministic casting, calculation, traditional rule execution and structured analysis. It computes line values, hexagrams, palace, Shi/Ying, Najia, Six Relations, Five Elements, Six Spirits, void branches, useful-god selection, strength, generation/control relationships, hidden/flying spirit and heuristic timing.
 
-- 可重复
-- 可验证
-- 可追踪
+The Tool does not write emotional explanations, user advice, reflection text or Shiguang dialogue.
 
-不能由 LLM 自由生成卦象。
+### Knowledge
 
-## Separation of Calculation and Interpretation
+KNOWLEDGE-003 stores classical hexagram/line text, traditional explanations and rule meanings. It explains computed fields but never calculates an individual reading.
 
-工具负责计算。
+### Runtime and LLM
 
-知识系统负责传统解释。
+Mirror Runtime assembles the user question, visible personal context, Tool facts and retrieved knowledge. The LLM translates supplied material into Shiguang reflection. It must not calculate Liuyao, infer missing calculation inputs, invent classical meanings, or replace/contradict Tool analysis.
 
-AI 负责个人化反思。
-
----
-
-# 3. Divination Method
-
-第一版本采用：
-
-## Three Coins Method
-
-三枚铜钱起卦。
-
-一次完整起卦需要六次摇卦：
+## Engine Composition
 
 ```text
-第一次 → 初爻
-第二次 → 二爻
-第三次 → 三爻
-第四次 → 四爻
-第五次 → 五爻
-第六次 → 上爻
+Casting Module
+  ↓
+Calculation Module
+(hexagrams / palace / Shi-Ying / Najia / relations / spirits / void)
+  ↓
+Traditional Analysis Module
+(useful god / strength / generation-control / hidden-flying spirit / timing)
+  ↓
+Structured Output
 ```
 
-六个爻组成完整卦象。
+The production implementation lives under `server/tools/liuyao/`, retains the public `calculateLiuyao` entry and keeps the existing `/api/v1/tools/liuyao/calculate` endpoint.
 
----
+## Input Contract
 
-# 4. Calculation Flow
-
-```text
-Coin Toss
-
-↓
-
-Line Generation
-
-↓
-
-Moving Line Detection
-
-↓
-
-Original Hexagram
-
-↓
-
-Changed Hexagram
-
-↓
-
-Structured Result
-```
-
----
-
-# 5. Output Schema
+Six three-coin tosses are ordered bottom-up. Full traditional analysis additionally requires explicit deterministic context:
 
 ```json
 {
-  "question":"",
-  "method":"three_coins",
-  "original_hexagram":"",
-  "moving_lines":[],
-  "changed_hexagram":"",
-  "timestamp":""
+  "tosses": [[2,3,3],[3,2,2],[2,2,2],[3,3,2],[2,3,2],[3,2,3]],
+  "analysisContext": {
+    "topic": "career",
+    "monthBranch": "wei",
+    "dayStem": "wu",
+    "dayBranch": "shen"
+  }
 }
 ```
 
----
+`topic` comes from explicit user/runtime classification. Month branch and day pillar come from a deterministic calendar layer. The LLM never guesses them. Without this context, casting and structure still complete, while `analysis.status` becomes `context_required`.
 
-# 6. Knowledge Integration
-
-计算完成后调用 KNOWLEDGE-003。
-
-流程：
-
-```text
-Liuyao Result
-
-↓
-
-Traditional Interpretation
-
-↓
-
-Reflection Mapping
-
-↓
-
-Personal Context
-
-↓
-
-Mirror Reflection
-```
-
----
-
-# 7. Mirror Runtime Integration
-
-最终输入：
-
-- 用户问题
-- 六爻结果
-- 传统解释
-- Personal Mirror Context
-
-输出：
-
-不是预测，而是个人反思。
-
----
-
-# 8. Memory Update
-
-六爻结果可进入 Personal Mirror Memory：
+## Output Contract
 
 ```json
 {
-"type":"symbolic_reflection",
-"topic":"career",
-"pattern_signal":"transition"
+  "divination": {
+    "originalHexagram": {},
+    "changedHexagram": {},
+    "movingLines": []
+  },
+  "structure": {
+    "palace": "qian",
+    "palaceElement": "metal",
+    "shi": 6,
+    "ying": 3,
+    "sixRelations": [],
+    "elements": [],
+    "voidBranches": []
+  },
+  "analysis": {
+    "status": "complete",
+    "usefulGod": {},
+    "strength": {},
+    "relationships": [],
+    "hiddenSpirit": null,
+    "timing": {},
+    "tendency": "mixed",
+    "uncertainty": "high",
+    "missingContext": []
+  },
+  "evidence": []
 }
 ```
 
-用于长期理解用户模式。
+Legacy top-level fields remain temporarily available for current clients, but they reference the same calculation rather than a second engine.
 
----
+## Evidence and Safety
 
-# Conclusion
-
-Liuyao Engine 将传统六爻体系转化为 Life Mirror 可调用能力。
-
-工具计算象征。
-
-知识提供意义。
-
-AI 帮助用户理解自身。
+Every traditional conclusion is accompanied by a rule identifier, conclusion and confidence. Timing is explicitly heuristic and never a promise. Health, legal and financial reflections remain subject to higher-level safety policy. Signed Reflection drafts store the analysis context and recalculate the Tool result during save to detect tampering.

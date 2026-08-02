@@ -45,3 +45,42 @@ test("all 64 yin-yang structures map to 64 unique King Wen hexagrams", () => {
   }
   assert.equal(identities.size, 64);
 });
+
+test("existing tool now deterministically assembles palace, Shi/Ying, Najia, relations, spirits and void", () => {
+  const toss: CoinToss = [3, 2, 2];
+  const result = calculateLiuyao([toss, toss, toss, toss, toss, toss], {
+    topic: "career", monthBranch: "wei", dayStem: "jia", dayBranch: "zi",
+  });
+
+  assert.equal(result.structure.palace, "qian");
+  assert.equal(result.structure.palaceElement, "metal");
+  assert.equal(result.structure.shi, 6);
+  assert.equal(result.structure.ying, 3);
+  assert.deepEqual(result.structure.sixRelations, ["offspring", "wealth", "parents", "officials", "siblings", "parents"]);
+  assert.deepEqual(result.lines.map((line) => line.branch), ["zi", "yin", "chen", "wu", "shen", "xu"]);
+  assert.equal(result.lines[0].spirit, "azure_dragon");
+  assert.equal(result.lines[5].void, true);
+  assert.deepEqual(result.structure.voidBranches, ["xu", "hai"]);
+});
+
+test("traditional analysis selects useful god and emits traceable evidence without an LLM", () => {
+  const toss: CoinToss = [3, 2, 2];
+  const result = calculateLiuyao([toss, toss, toss, toss, toss, toss], {
+    topic: "career", monthBranch: "wei", dayStem: "jia", dayBranch: "zi",
+  });
+
+  assert.equal(result.analysis.status, "complete");
+  assert.deepEqual(result.analysis.usefulGod, { relation: "officials", line: 4, hidden: false, flyingLine: null });
+  assert.equal(result.analysis.strength?.level, "resting");
+  assert.ok(result.analysis.timing?.candidates.length);
+  assert.ok(result.evidence.some((item) => item.rule === "month_strength" && item.line === 4));
+});
+
+test("missing calendar/topic context never invites inferred traditional analysis", () => {
+  const toss: CoinToss = [3, 2, 2];
+  const result = calculateLiuyao([toss, toss, toss, toss, toss, toss]);
+  assert.equal(result.analysis.status, "context_required");
+  assert.equal(result.analysis.usefulGod, null);
+  assert.deepEqual(result.analysis.missingContext, ["topic", "monthBranch", "dayStem", "dayBranch"]);
+  assert.equal(result.lines.every((line) => line.spirit === null && line.void === null), true);
+});

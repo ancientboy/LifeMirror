@@ -1,5 +1,5 @@
 import type { LiuyaoResult } from "../tools/liuyao/types.js";
-import { LINE_POSITION_MEANINGS, LIUYAO_KNOWLEDGE } from "./liuyao-pack.js";
+import { LINE_POSITION_MEANINGS, LIUYAO_KNOWLEDGE, LIUYAO_RULE_MEANINGS } from "./liuyao-pack.js";
 
 export type ReadingFocus = {
   hexagram: "original" | "changed";
@@ -28,6 +28,7 @@ export type LiuyaoKnowledgeContext = {
     summary: string;
     focus: ReadingFocus[];
   };
+  ruleMeanings: typeof LIUYAO_RULE_MEANINGS;
 };
 
 function lineFocus(hexagram: "original" | "changed", knowledge: NonNullable<ReturnType<typeof LIUYAO_KNOWLEDGE.get>>, position: number): ReadingFocus {
@@ -75,5 +76,6 @@ export function retrieveLiuyaoKnowledge(result: LiuyaoResult): LiuyaoKnowledgeCo
       return { position, name: line.name, text: line.text, image: line.image, positionMeaning: LINE_POSITION_MEANINGS[position - 1] };
     }),
     readingRule: buildReadingRule(result, original, changed),
+    ruleMeanings: LIUYAO_RULE_MEANINGS,
   };
 }

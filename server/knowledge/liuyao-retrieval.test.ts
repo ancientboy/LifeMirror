@@ -34,6 +34,8 @@ test("retrieval keeps traditional meaning and reflection framing separate", () =
   assert.equal(result.readingRule.code, "six_moving_lines");
   assert.equal(result.original.symbolic.meaning, "主动创造与持续行动");
   assert.match(result.framing, /不是确定性预测/);
+  assert.equal(result.ruleMeanings.usefulGod.label, "用神");
+  assert.match(result.ruleMeanings.timing.boundary, /不承诺/);
 });
 
 test("moving-line retrieval returns the exact line text and image from KNOWLEDGE-003", () => {

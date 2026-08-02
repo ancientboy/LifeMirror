@@ -21,7 +21,7 @@ export function openReflectionDraft(token: string, secret: string): ReflectionDr
   }
 
   const payload = JSON.parse(Buffer.from(content, "base64url").toString("utf8")) as ReflectionDraftPayload;
-  if ((payload.version !== 1 && payload.version !== 2) || new Date(payload.expiresAt).getTime() <= Date.now()) {
+  if ((payload.version !== 1 && payload.version !== 2 && payload.version !== 3) || new Date(payload.expiresAt).getTime() <= Date.now()) {
     throw new Error("expired_reflection_token");
   }
   return payload;

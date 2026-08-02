@@ -14,6 +14,20 @@ export type HexagramKnowledge = {
   };
 };
 
+export const LIUYAO_RULE_MEANINGS = {
+  palace: { label: "卦宫", meaning: "八宫归属决定排盘所用的宫五行，是六亲映射的参照。", boundary: "知识层解释归属含义，不重算卦宫。" },
+  shiYing: { label: "世应", meaning: "世爻表示主体位置，应爻表示相对方或外部对应位置。", boundary: "具体爻位由工具确定。" },
+  najia: { label: "纳甲", meaning: "将天干地支依固定规则配置到六爻，作为五行与关系计算基础。", boundary: "知识层不为个案装卦。" },
+  sixRelations: { label: "六亲", meaning: "依据卦宫五行与各爻五行的生克关系形成父母、兄弟、子孙、妻财、官鬼。", boundary: "个案六亲只读取工具输出。" },
+  sixSpirits: { label: "六神", meaning: "六神按日干依序配置，用作传统象意的辅助线索。", boundary: "不得脱离其他证据单独定论。" },
+  voidBranches: { label: "旬空", meaning: "旬空标记当旬缺位地支，传统规则常视为尚未落实或作用受限。", boundary: "不等于现实事件必然落空。" },
+  usefulGod: { label: "用神", meaning: "用神是与所测主题对应的核心六亲或世爻。", boundary: "知识层不另取用神，不推翻工具选择。" },
+  strength: { label: "旺衰", meaning: "旺衰描述用神五行相对月建的时令强弱。", boundary: "它是规则因素，不是现实成功概率。" },
+  generationControl: { label: "生克", meaning: "五行生克用于描述月日、动爻与用神之间的支持、消耗或制约关系。", boundary: "不得扩写成无证据的现实因果。" },
+  hiddenFlyingSpirit: { label: "伏神飞神", meaning: "用神不上卦时，可在本宫首卦同位寻找伏神，并观察同位飞神关系。", boundary: "伏藏仅表示传统结构位置，不证明隐藏事实。" },
+  timing: { label: "应期", meaning: "应期根据出空、逢合、逢冲或伏神显现给出低置信候选。", boundary: "仅为启发式传统分析，不承诺日期或事件。" },
+} as const;
+
 const entries: Array<[number, string, string, string, string[], string]> = [
   [1,"乾","主动创造与持续行动","乾象征天行健，强调自强、开创与在正确节奏中不断前行。",["创造","行动","领导"],"你的主动性应当用在哪里，又需要怎样的节制？"],
   [2,"坤","承载、接纳与滋养","坤象征大地，以柔顺和承载成就万物，重视配合、耐心与基础。",["接纳","支持","耐心"],"此刻有什么需要你先承接，而不是立即推动？"],

@@ -34,8 +34,11 @@ test("reflection runtime returns the Shiguang persona structure from provider JS
   assert.match(captured?.messages[0].content ?? "", /Never predict the future/);
   assert.match(captured?.messages[0].content ?? "", /You are Shiguang/);
   assert.match(captured?.messages[0].content ?? "", /Avoid report language/);
+  assert.match(captured?.messages[0].content ?? "", /immutable computed facts/);
+  assert.match(captured?.messages[0].content ?? "", /must not infer the missing fields|never fill the missing fields/i);
   assert.match(captured?.messages[1].content ?? "", /曾记录一个工作选择/);
   assert.match(captured?.messages[1].content ?? "", /元亨利贞/);
+  assert.match(captured?.messages[1].content ?? "", /context_required/);
 });
 
 test("reflection runtime rejects the legacy analytical report shape", async () => {

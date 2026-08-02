@@ -3,7 +3,7 @@ id: KNOWLEDGE-003
 slug: liuyao-knowledge-pack-specification
 title: Liuyao Knowledge Pack Specification
 subtitle: 六爻象征知识包规范
-version: "1.1"
+version: "1.2"
 date: August 2026
 category: SYMBOLIC KNOWLEDGE
 status: published
@@ -71,19 +71,11 @@ AI Reflection
 ```text
 Liuyao Knowledge Pack
 
-├── Calculation Layer
-│
-│   起卦
-│   排盘
-│   变卦
-│
-├── Structural Layer
+├── Classical Text Layer
 │
 │   六十四卦
 │   八卦
 │   爻位
-│   六亲
-│   五行
 │
 ├── Traditional Interpretation Layer
 │
@@ -95,8 +87,13 @@ Liuyao Knowledge Pack
 │
 │   人生主题映射
 │
-└── Tool Interface Layer
+└── Rule Meaning Layer
+
+    卦宫 / 世应 / 纳甲 / 六亲 / 六神 / 旬空
+    用神 / 旺衰 / 生克 / 伏神飞神 / 应期 的概念解释
 ```
+
+Calculation tables and executable user-specific rules do not live in the Knowledge Pack. They belong to the single Liuyao Tool. KNOWLEDGE-003 explains what a computed field means and supplies classical witnesses; it never calculates a user's reading.
 
 ---
 
@@ -163,11 +160,16 @@ Liuyao Knowledge Pack
 - 阶段意义
 - 爻辞解释
 
-## Relationship Knowledge
+## Rule Meaning Knowledge
 
 - 六亲
 - 世应
 - 五行关系
+- 六神与旬空
+- 用神、旺衰、生克
+- 伏神飞神与应期的含义、适用条件和不确定性
+
+这些条目用于解释工具已经计算出的事实，不接受用户摇卦输入，也不产生个案结论。
 
 ---
 
@@ -228,26 +230,22 @@ User Question
 ↓
 
 Liuyao Tool
+(computes immutable facts)
 
 ↓
 
-Hexagram Result
+KNOWLEDGE-003
+(retrieves classical texts + rule meanings)
 
 ↓
 
-Traditional Knowledge Retrieval
+Mirror Runtime
+(assembles question + personal context)
 
 ↓
 
-Reflection Mapping
-
-↓
-
-Personal Context
-
-↓
-
-LLM Reflection
+Shiguang Persona
+(humanized reflection only)
 
 ↓
 
@@ -292,7 +290,7 @@ Life Mirror 不输出：
 
 # 11. Runtime Knowledge Contract
 
-Version 1.1 makes the separation executable rather than conceptual.
+Version 1.2 makes the separation executable rather than conceptual.
 
 ## Classical Knowledge
 
@@ -319,7 +317,18 @@ symbolic.meaning / reflectionMapping.prompt
 
 ## Retrieval Output
 
-Each calculation retrieves only the matching original and changed hexagrams, exact moving-line texts and one deterministic `readingRule`. The rule determines which classical text receives attention; it does not predict an outcome.
+Each calculation retrieves only the matching original and changed hexagrams, exact moving-line texts, rule-meaning records and one deterministic text-selection `readingRule`. The selection rule determines which classical text receives attention; executable 装卦/断卦 rules and their user-specific results stay in TOOL-001.
+
+## Tool-to-Knowledge Mapping
+
+| Tool field | KNOWLEDGE-003 supplies | Must not do |
+| --- | --- | --- |
+| `divination.originalHexagram` / `changedHexagram` | 卦名、卦辞、大象、爻辞、小象 | 重算卦象 |
+| `structure.palace` / `shi` / `ying` | 卦宫、世应概念说明 | 改写排盘位置 |
+| `lines[].relation` / `element` / `spirit` / `void` | 六亲、五行、六神、旬空的规则含义 | 判断某用户的六亲或旬空 |
+| `analysis.usefulGod` / `strength` / `relationships` | 用神、旺衰、生克的解释与适用边界 | 另取用神或重判旺衰 |
+| `analysis.hiddenSpirit` / `timing` | 伏神飞神、应期的传统含义与低置信提示 | 承诺事件或时间 |
+| `evidence[]` | 对应规则出处/释义 | 推翻工具证据 |
 
 The corpus is normalized from public-domain Zhouyi and Image-text witnesses. Automated tests verify every expected judgment, Image and line record before release.
 
@@ -333,12 +342,11 @@ Symbolic Knowledge Framework
 
 ↓
 
-KNOWLEDGE-003
-Liuyao Knowledge Pack
+Liuyao Tool
 
 ↓
 
-Liuyao Tool
+KNOWLEDGE-003 Liuyao Knowledge Pack
 
 ↓
 

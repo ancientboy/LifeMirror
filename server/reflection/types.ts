@@ -1,5 +1,5 @@
 import type { LiuyaoKnowledgeContext } from "../knowledge/liuyao-retrieval.js";
-import type { CoinToss, LiuyaoResult } from "../tools/liuyao/types.js";
+import type { CoinToss, LiuyaoAnalysisContext, LiuyaoResult } from "../tools/liuyao/types.js";
 
 export type MirrorReflection = {
   shiguangSees: string;
@@ -32,11 +32,12 @@ export function normalizeMirrorReflection(reflection: StoredMirrorReflection): M
 }
 
 export type ReflectionDraftPayload = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   runtimeId: string;
   userId: string;
   question: string;
   tosses: CoinToss[];
+  analysisContext?: LiuyaoAnalysisContext;
   hexagram: LiuyaoResult;
   knowledge: LiuyaoKnowledgeContext;
   reflection: StoredMirrorReflection;
