@@ -34,6 +34,8 @@ User
 
 The existing Liuyao Tool is the only divination implementation in Life Mirror. A `v2` tool, parallel Python package, duplicate API or alternate calculation path is prohibited.
 
+The Tool output is consumed by KNOWLEDGE-003 and KNOWLEDGE-004, but neither layer is part of this Tool. Fields named `humanMeaning`, `userFacingReflection`, Shiguang response text or advice must never be added to `LiuyaoResult`.
+
 ## Responsibility Boundary
 
 ### Tool
@@ -48,7 +50,9 @@ KNOWLEDGE-003 stores classical hexagram/line text, traditional explanations and 
 
 ### Runtime and LLM
 
-Mirror Runtime assembles the user question, visible personal context, Tool facts and retrieved knowledge. The LLM translates supplied material into Shiguang reflection. It must not calculate Liuyao, infer missing calculation inputs, invent classical meanings, or replace/contradict Tool analysis.
+Mirror Runtime assembles the user question, visible personal context, Tool facts, KNOWLEDGE-003 classical material and KNOWLEDGE-004 reflection mappings. The LLM translates supplied material into Shiguang reflection. It must not calculate Liuyao, infer missing calculation inputs, invent classical meanings, or replace/contradict Tool analysis.
+
+The runtime envelope is assembled by `server/reflection/context.ts`. The output is a six-field Shiguang response plus an explanation trace linking classical basis, Tool evidence, reflection mappings and final text.
 
 ## Engine Composition
 

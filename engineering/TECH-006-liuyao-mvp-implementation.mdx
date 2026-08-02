@@ -4,7 +4,7 @@
 Build the first Daily Mirror experience.
 
 ## Flow
-Question → Liuyao Tool (Casting + Calculation + Traditional Analysis) → KNOWLEDGE-003 → Mirror Runtime → Shiguang Persona → Memory Save.
+Question → Liuyao Tool (Casting + Calculation + Traditional Analysis) → KNOWLEDGE-003 → KNOWLEDGE-004 Reflection Mapping → Mirror Runtime → Shiguang Persona → Memory Save.
 
 ## MVP
 - Question input
@@ -39,10 +39,13 @@ Runtime input is:
 User Question
 + Liuyao Tool divination / structure / analysis / evidence
 + KNOWLEDGE-003 classical text and meanings
++ KNOWLEDGE-004 supported reflection mappings
 + visible Personal Memory
 ```
 
 The Reflection prompt labels Tool analysis as immutable computed facts. It forbids recalculation, completion, contradiction or replacement. `context_required` is preserved as an absence of a traditional conclusion, not an invitation for the LLM to improvise one.
+
+`assembleMirrorRuntimeContext` is the only LLM context assembly path. Reflection mappings contain provenance and confidence; they are candidates for compassionate translation, never facts about the user.
 
 ## API Contract
 
@@ -60,7 +63,9 @@ The Reflection prompt labels Tool analysis as immutable computed facts. It forbi
 }
 ```
 
-The response keeps `hexagram` for current clients; that object now also contains `divination`, `structure`, `analysis` and `evidence`. `knowledge` remains a separate KNOWLEDGE-003 retrieval result. Reflection drafts bind the same analysis context and recalculate structure/analysis during save, preventing LLM or client tampering.
+The response keeps `hexagram` for current clients; that object contains `divination`, `structure`, `analysis` and `evidence`. `knowledge` remains the separate KNOWLEDGE-003 retrieval result, while `reflectionKnowledge` is the separate KNOWLEDGE-004 bridge. Reflection drafts bind the same analysis context and recalculate structure, analysis and reflection mapping during save, preventing LLM or client tampering.
+
+Draft v4 also contains `explanationTrace`. On explicit save it is persisted to `reflection_events.explanation_trace`; v1-v3 tokens remain readable. The owner-scoped trace endpoint is `GET /api/v1/daily-mirror/reflections/:id/explanation-trace`.
 
 Personal Memory is optional evidence. The prompt forbids converting tentative inference into a user fact and requires the Insight to explain why the supplied symbol may relate to the present question rather than forecast the future.
 

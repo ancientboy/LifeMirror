@@ -1,0 +1,39 @@
+---
+title: Liuyao Reflection Mapping Layer
+id: KNOWLEDGE-004
+slug: liuyao-reflection-mapping
+subtitle: 六爻反思映射层规范
+version: "1.0"
+date: August 2026
+category: KNOWLEDGE
+status: published
+summary: 把有证据支持的传统概念映射为人类处境与反思问题，不参与起卦或断卦计算。
+---
+
+# KNOWLEDGE-004 Liuyao Reflection Mapping Layer
+
+## Purpose
+
+This narrow bridge translates a supported traditional concept into a human reflection candidate. It does not produce a reading and does not write the final Shiguang answer.
+
+| Traditional concept | Human reflection meaning | User-facing reflection candidate |
+| --- | --- | --- |
+| 官鬼为用 | 责任、压力、规则或外部要求是核心变量 | 这些责任是否仍在你愿意承受的范围内？ |
+| 妻财为用 | 资源、回报、投入产出或实际承诺是核心变量 | 你想确认的是价值，还是愿意投入多少？ |
+| 父母为用 | 信息、依据、学习或支持系统是核心变量 | 决定前还缺少哪项可靠信息或支持？ |
+| 子孙为用 | 成果、创造空间或减压能力是核心变量 | 哪个选择更能恢复行动空间？ |
+| 兄弟为用 | 同伴、竞争、资源分配或协作是核心变量 | 合作与竞争的边界是否说清？ |
+| 世爻为用 | 用户的立场、状态和承受力是核心变量 | 真实意愿与承受力分别是什么？ |
+| 用神旺 | 相关条件在当下规则中较有力量 | 哪项已有支持最值得转化为行动？ |
+| 用神囚 | 相关条件受到环境约束 | 真正限制行动的条件能否被验证或调整？ |
+| 用神伏藏 | 关键条件尚未直接显现 | 依赖的是事实，还是尚未验证的期待？ |
+
+Each mapping contains `id`, `traditionalConcept`, `humanMeaning`, `userFacingReflection`, `basis`, and `confidence`. Retrieval only emits a mapping when its basis exists in KNOWLEDGE-003 focus or Tool evidence. Shiguang must phrase mappings tentatively and connect them to the user's actual question.
+
+## Exclusions
+
+- no coin casting or hexagram generation
+- no useful-god selection or strength calculation
+- no prediction, fate judgment or hidden-fact claim
+- no generic psychological diagnosis
+- no final response generation

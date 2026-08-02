@@ -36,6 +36,15 @@ test("Liuyao v3 drafts bind deterministic traditional-analysis context", () => {
   assert.deepEqual(openReflectionDraft(token, secret).analysisContext, analysisContext);
 });
 
+test("Reflection v4 drafts bind mapping and explanation trace", () => {
+  const reflectionKnowledge = { source: "KNOWLEDGE-004", boundary: "test", mappings: [] } as const;
+  const explanationTrace = { traditional_basis: "卦辞", liuyao_factors: ["rule"], reflection_mapping: "mapping", final_response: {} };
+  const token = sealReflectionDraft({ ...payload, version: 4, reflectionKnowledge, explanationTrace } as unknown as ReflectionDraftPayload, secret);
+  const opened = openReflectionDraft(token, secret);
+  assert.equal(opened.reflectionKnowledge?.source, "KNOWLEDGE-004");
+  assert.equal(opened.explanationTrace?.reflection_mapping, "mapping");
+});
+
 test("expired reflection drafts cannot be saved", () => {
   const expired = { ...payload, expiresAt: new Date(Date.now() - 1_000).toISOString() };
   assert.throws(() => openReflectionDraft(sealReflectionDraft(expired, secret), secret), /expired_reflection_token/);

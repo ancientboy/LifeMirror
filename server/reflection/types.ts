@@ -1,4 +1,5 @@
 import type { LiuyaoKnowledgeContext } from "../knowledge/liuyao-retrieval.js";
+import type { LiuyaoReflectionKnowledge } from "../knowledge/liuyao-reflection-map.js";
 import type { CoinToss, LiuyaoAnalysisContext, LiuyaoResult } from "../tools/liuyao/types.js";
 
 export type MirrorReflection = {
@@ -19,6 +20,13 @@ export type LegacyMirrorReflection = {
 
 export type StoredMirrorReflection = MirrorReflection | LegacyMirrorReflection;
 
+export type ExplanationTrace = {
+  traditional_basis: string;
+  liuyao_factors: string[];
+  reflection_mapping: string;
+  final_response: MirrorReflection;
+};
+
 export function normalizeMirrorReflection(reflection: StoredMirrorReflection): MirrorReflection {
   if ("shiguangSees" in reflection) return reflection;
   return {
@@ -32,7 +40,7 @@ export function normalizeMirrorReflection(reflection: StoredMirrorReflection): M
 }
 
 export type ReflectionDraftPayload = {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   runtimeId: string;
   userId: string;
   question: string;
@@ -40,6 +48,8 @@ export type ReflectionDraftPayload = {
   analysisContext?: LiuyaoAnalysisContext;
   hexagram: LiuyaoResult;
   knowledge: LiuyaoKnowledgeContext;
+  reflectionKnowledge?: LiuyaoReflectionKnowledge;
+  explanationTrace?: ExplanationTrace;
   reflection: StoredMirrorReflection;
   provider: string;
   model: string;

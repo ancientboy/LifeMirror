@@ -4,6 +4,7 @@ import { z } from "zod";
 import { findUserBySession, type AuthenticatedUser } from "../auth/session.js";
 import type { AppDependencies } from "../app.js";
 import { retrieveLiuyaoKnowledge } from "../knowledge/liuyao-retrieval.js";
+import { retrieveLiuyaoReflectionKnowledge } from "../knowledge/liuyao-reflection-map.js";
 import { generateMirrorReflection } from "../reflection/runtime.js";
 import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js";
 import { normalizeMirrorReflection, type ReflectionDraftPayload } from "../reflection/types.js";
@@ -47,7 +48,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     const parsed = calculationSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_coin_tosses" });
     const hexagram = calculateLiuyao(parsed.data.tosses as CoinToss[], parsed.data.analysisContext as LiuyaoAnalysisContext | undefined);
-    return { hexagram, knowledge: retrieveLiuyaoKnowledge(hexagram) };
+    const knowledge = retrieveLiuyaoKnowledge(hexagram);
+    return { hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) };
   });
 
   app.post(
@@ -66,6 +68,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       const analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
       const hexagram = calculateLiuyao(tosses, analysisContext);
       const knowledge = retrieveLiuyaoKnowledge(hexagram);
+      const reflectionKnowledge = retrieveLiuyaoReflectionKnowledge(hexagram, knowledge);
       const userContext = await retrievePersonalReflectionContext(dependencies.database, user.id);
       let generated;
       try {
@@ -74,6 +77,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
           question: parsed.data.question,
           hexagram,
           knowledge,
+          reflectionKnowledge,
           userContext,
         });
       } catch (error) {
@@ -83,7 +87,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
 
       const now = new Date();
       const payload: ReflectionDraftPayload = {
-        version: 3,
+        version: 4,
         runtimeId: randomUUID(),
         userId: user.id,
         question: parsed.data.question,
@@ -91,6 +95,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         analysisContext,
         hexagram,
         knowledge,
+        reflectionKnowledge,
+        explanationTrace: generated.explanationTrace,
         reflection: generated.reflection,
         provider: generated.provider,
         model: generated.model,
@@ -102,7 +108,9 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         question: payload.question,
         hexagram,
         knowledge,
+        reflectionKnowledge,
         reflection: normalizeMirrorReflection(payload.reflection),
+        explanationTrace: generated.explanationTrace,
         draftToken: sealReflectionDraft(payload, dependencies.config.REFLECTION_TOKEN_SECRET),
         expiresAt: payload.expiresAt,
       };
@@ -124,14 +132,18 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     if (draft.userId !== user.id) return reply.code(403).send({ error: "reflection_owner_mismatch" });
 
     const recalculated = calculateLiuyao(draft.tosses, draft.analysisContext);
-    const extendedMismatch = draft.version === 3 && (
+    const extendedMismatch = draft.version >= 3 && (
       JSON.stringify(recalculated.structure) !== JSON.stringify(draft.hexagram.structure) ||
       JSON.stringify(recalculated.analysis) !== JSON.stringify(draft.hexagram.analysis)
     );
+    const reflectionKnowledgeMismatch = draft.version === 4 && JSON.stringify(
+      retrieveLiuyaoReflectionKnowledge(recalculated, retrieveLiuyaoKnowledge(recalculated)),
+    ) !== JSON.stringify(draft.reflectionKnowledge);
     if (
       recalculated.originalHexagram.number !== draft.hexagram.originalHexagram.number ||
       recalculated.changedHexagram.number !== draft.hexagram.changedHexagram.number ||
-      extendedMismatch
+      extendedMismatch ||
+      reflectionKnowledgeMismatch
     ) {
       return reply.code(400).send({ error: "reflection_draft_mismatch" });
     }
@@ -140,11 +152,11 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     const result = await dependencies.database.query<{ id: string; saved_at: Date }>(
       `INSERT INTO reflection_events (
         id, user_id, runtime_id, question, coin_tosses, hexagram_result,
-        knowledge_context, reflection, llm_provider, llm_model, generated_at
-      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9,$10,$11)
+        knowledge_context, reflection, explanation_trace, llm_provider, llm_model, generated_at
+      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12)
       ON CONFLICT (runtime_id) DO UPDATE SET runtime_id = EXCLUDED.runtime_id
       RETURNING id, saved_at`,
-      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), draft.provider, draft.model, draft.generatedAt],
+      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), JSON.stringify(draft.explanationTrace ?? null), draft.provider, draft.model, draft.generatedAt],
     );
     let memoryProcessing: "completed" | "retry_pending" = "completed";
     try {
@@ -184,5 +196,19 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         savedAt: row.saved_at.toISOString(),
       })),
     };
+  });
+
+  app.get("/api/v1/daily-mirror/reflections/:id/explanation-trace", async (request, reply) => {
+    const user = await requireUser(request, reply, dependencies);
+    if (!user) return;
+    const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_reflection_id" });
+    const result = await dependencies.database.query<{ explanation_trace: ReflectionDraftPayload["explanationTrace"] }>(
+      `SELECT explanation_trace FROM reflection_events WHERE id = $1 AND user_id = $2`,
+      [parsed.data.id, user.id],
+    );
+    if (!result.rows[0]) return reply.code(404).send({ error: "reflection_not_found" });
+    if (!result.rows[0].explanation_trace) return reply.code(404).send({ error: "explanation_trace_unavailable" });
+    return { explanationTrace: result.rows[0].explanation_trace };
   });
 }

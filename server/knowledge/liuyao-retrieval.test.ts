@@ -5,6 +5,7 @@ import type { CoinToss } from "../tools/liuyao/types.js";
 import { LIUYAO_KNOWLEDGE } from "./liuyao-pack.js";
 import { ZHOUYI_CLASSICS } from "./zhouyi-classics.js";
 import { retrieveLiuyaoKnowledge } from "./liuyao-retrieval.js";
+import { retrieveLiuyaoReflectionKnowledge } from "./liuyao-reflection-map.js";
 
 test("knowledge pack covers all 64 hexagrams", () => {
   assert.equal(LIUYAO_KNOWLEDGE.size, 64);
@@ -19,6 +20,25 @@ test("knowledge pack covers all 64 hexagrams", () => {
     lineCount += knowledge.classical.lines.length;
   }
   assert.equal(lineCount, 386);
+});
+
+test("reflection knowledge maps computed 官鬼旺 to human reflection without calculating", () => {
+  const oldYang: CoinToss = [3, 3, 3];
+  const hexagram = calculateLiuyao(Array(6).fill(oldYang), {
+    topic: "career",
+    monthBranch: "wu",
+    dayStem: "wu",
+    dayBranch: "shen",
+  });
+  const knowledge = retrieveLiuyaoKnowledge(hexagram);
+  const reflectionKnowledge = retrieveLiuyaoReflectionKnowledge(hexagram, knowledge);
+  assert.equal(reflectionKnowledge.source, "KNOWLEDGE-004");
+  assert.match(reflectionKnowledge.boundary, /不计算卦象/);
+  const officials = reflectionKnowledge.mappings.find((item) => item.id === "useful-god-officials");
+  assert.equal(officials?.traditionalConcept, "官鬼为用");
+  assert.match(officials?.humanMeaning ?? "", /责任、压力/);
+  assert.ok((officials?.basis.length ?? 0) > 0);
+  assert.ok(reflectionKnowledge.mappings.some((item) => item.id.startsWith("strength-")));
 });
 
 test("retrieval keeps traditional meaning and reflection framing separate", () => {

@@ -318,6 +318,12 @@
 .sourceNote span { display: flex; flex-direction: column; gap: 5px; }
 .sourceNote b { font: 400 12px Georgia, serif; }
 .sourceNote small { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.explanationTrace { margin-top: 14px; overflow: hidden; border: 1px solid rgba(49,95,87,.12); border-radius: 13px; background: rgba(255,255,255,.42); }
+.explanationTrace summary { padding: 17px 22px; color: var(--jade-dark); font: 400 12px Georgia,"Songti SC",serif; cursor: pointer; }
+.explanationTrace > div { margin: 0 20px; padding: 15px 2px; border-top: 1px solid rgba(49,95,87,.09); }
+.explanationTrace small { color: var(--gold); font: 400 9px Georgia,serif; letter-spacing: .1em; }
+.explanationTrace p, .explanationTrace ul { margin: 8px 0 0; color: var(--muted); font: 12px/1.75 Georgia,"Songti SC",serif; }
+.explanationTrace ul { padding-left: 18px; }
 .reflectionActions { margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; }
 .secondaryButton { border: 1px solid rgba(49,95,87,.2); color: var(--jade-dark); background: rgba(255,255,255,.4); }
 .savedNote { color: var(--jade); font-size: 10px; text-align: right; }

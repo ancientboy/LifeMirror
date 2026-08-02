@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { retrieveLiuyaoKnowledge } from "../knowledge/liuyao-retrieval.js";
+import { retrieveLiuyaoReflectionKnowledge } from "../knowledge/liuyao-reflection-map.js";
 import type { LlmProvider } from "../llm/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
 import type { CoinToss } from "../tools/liuyao/types.js";
@@ -26,6 +27,7 @@ test("reflection runtime returns the Shiguang persona structure from provider JS
     question: "我是否应该开始新的工作方向？",
     hexagram,
     knowledge: retrieveLiuyaoKnowledge(hexagram),
+    reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, retrieveLiuyaoKnowledge(hexagram)),
     userContext: { recentEvents: [{ title: "职业与方向", summary: "曾记录一个工作选择。", occurredAt: "2026-08-01T00:00:00.000Z" }], patterns: [] },
   });
   assert.equal(result.reflection.shiguangSees, "我看到你正在认真权衡新的工作方向。");
@@ -39,6 +41,9 @@ test("reflection runtime returns the Shiguang persona structure from provider JS
   assert.match(captured?.messages[1].content ?? "", /曾记录一个工作选择/);
   assert.match(captured?.messages[1].content ?? "", /元亨利贞/);
   assert.match(captured?.messages[1].content ?? "", /context_required/);
+  assert.match(captured?.messages[1].content ?? "", /reflectionKnowledge/);
+  assert.match(result.explanationTrace.traditional_basis, /乾卦/);
+  assert.deepEqual(result.explanationTrace.final_response, result.reflection);
 });
 
 test("reflection runtime rejects the legacy analytical report shape", async () => {
@@ -53,7 +58,8 @@ test("reflection runtime rejects the legacy analytical report shape", async () =
       };
     },
   };
-  await assert.rejects(() => generateMirrorReflection({ llm, question: "我应该如何理解这个选择？", hexagram, knowledge: retrieveLiuyaoKnowledge(hexagram) }));
+  const knowledge = retrieveLiuyaoKnowledge(hexagram);
+  await assert.rejects(() => generateMirrorReflection({ llm, question: "我应该如何理解这个选择？", hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) }));
 });
 
 test("reflection runtime rejects unstructured provider output", async () => {
@@ -62,5 +68,6 @@ test("reflection runtime rejects unstructured provider output", async () => {
     name: "fixture",
     async generate() { return { text: "not-json", model: "fixture-model", provider: "fixture" }; },
   };
-  await assert.rejects(() => generateMirrorReflection({ llm, question: "我应该如何理解这个选择？", hexagram, knowledge: retrieveLiuyaoKnowledge(hexagram) }));
+  const knowledge = retrieveLiuyaoKnowledge(hexagram);
+  await assert.rejects(() => generateMirrorReflection({ llm, question: "我应该如何理解这个选择？", hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) }));
 });

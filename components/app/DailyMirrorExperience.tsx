@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
 import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
+import { retrieveLiuyaoReflectionKnowledge, type LiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
 import { calculateLiuyao } from "@/server/tools/liuyao/engine";
 import type { LiuyaoResult } from "@/server/tools/liuyao/types";
 import { MemoryControls } from "./MemoryControls";
@@ -18,6 +19,7 @@ type ShareArtifact = { blob: Blob; file: File; url: string; canNativeShare: bool
 type Stage = "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
 type Hexagram = LiuyaoResult;
 type Knowledge = LiuyaoKnowledgeContext;
+type ReflectionKnowledge = LiuyaoReflectionKnowledge;
 type Reflection = {
   shiguangSees: string;
   hexagramMeaning: string;
@@ -27,7 +29,8 @@ type Reflection = {
   shareableReflection: string;
 };
 type LegacyReflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
-type ReflectionResponse = { question: string; hexagram: Hexagram; knowledge: Knowledge; reflection: Reflection; draftToken: string; expiresAt: string };
+type ExplanationTrace = { traditional_basis: string; liuyao_factors: string[]; reflection_mapping: string; final_response: Reflection };
+type ReflectionResponse = { question: string; hexagram: Hexagram; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; draftToken: string; expiresAt: string };
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection | LegacyReflection; savedAt: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
@@ -105,7 +108,7 @@ function normalizeReflection(reflection: Reflection | LegacyReflection): Reflect
   };
 }
 
-function createGuestReflection(question: string, hexagram: Hexagram, knowledge: Knowledge): ReflectionResponse {
+function createGuestReflection(question: string, hexagram: Hexagram, knowledge: Knowledge, reflectionKnowledge: ReflectionKnowledge): ReflectionResponse {
   const movingContext = hexagram.movingLines.length
     ? `第 ${hexagram.movingLines.join("、")} 爻的变化提示，当前处境并非静止不动。`
     : "没有动爻，提示你先把注意力放回当前处境本身。";
@@ -121,7 +124,14 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     question: question.trim(),
     hexagram,
     knowledge,
+    reflectionKnowledge,
     reflection,
+    explanationTrace: {
+      traditional_basis: knowledge.readingRule.focus.map((item) => `${item.label}: ${item.text}`).join("；"),
+      liuyao_factors: hexagram.evidence.map((item) => `${item.rule}: ${item.conclusion}`),
+      reflection_mapping: reflectionKnowledge.mappings.map((item) => `${item.traditionalConcept} → ${item.humanMeaning}`).join("；"),
+      final_response: reflection,
+    },
     draftToken: `guest-${crypto.randomUUID()}`,
     expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   };
@@ -141,6 +151,7 @@ export function DailyMirrorExperience() {
   const [tosses, setTosses] = useState<Toss[]>([]);
   const [hexagram, setHexagram] = useState<Hexagram | null>(null);
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
+  const [reflectionKnowledge, setReflectionKnowledge] = useState<ReflectionKnowledge | null>(null);
   const [reflectionResult, setReflectionResult] = useState<ReflectionResponse | null>(null);
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [busy, setBusy] = useState(false);
@@ -255,7 +266,7 @@ export function DailyMirrorExperience() {
     setPendingToss(null);
     setCastingPhase("idle");
     releaseShareArtifact();
-    setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
+    setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionKnowledge(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
   }
 
   async function generateShareCard() {
@@ -369,15 +380,17 @@ export function DailyMirrorExperience() {
     if (next.length !== 6) return;
     setBusy(true);
     try {
-      let result: { hexagram: Hexagram; knowledge: Knowledge };
+      let result: { hexagram: Hexagram; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge };
       if (authState === "guest") {
         const localHexagram = calculateLiuyao(next);
-        result = { hexagram: localHexagram, knowledge: retrieveLiuyaoKnowledge(localHexagram) };
+        const localKnowledge = retrieveLiuyaoKnowledge(localHexagram);
+        result = { hexagram: localHexagram, knowledge: localKnowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(localHexagram, localKnowledge) };
       } else {
-        result = await api<{ hexagram: Hexagram; knowledge: Knowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
+        result = await api<{ hexagram: Hexagram; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge }>("/api/v1/tools/liuyao/calculate", { method: "POST", body: JSON.stringify({ tosses: next }) });
       }
       setHexagram(result.hexagram);
       setKnowledge(result.knowledge);
+      setReflectionKnowledge(result.reflectionKnowledge);
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
   }
@@ -433,8 +446,8 @@ export function DailyMirrorExperience() {
   async function generateReflection() {
     setBusy(true); setError("");
     try {
-      const result = authState === "guest" && hexagram && knowledge
-        ? createGuestReflection(question, hexagram, knowledge)
+      const result = authState === "guest" && hexagram && knowledge && reflectionKnowledge
+        ? createGuestReflection(question, hexagram, knowledge, reflectionKnowledge)
         : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses }) });
       setReflectionResult(result); setStage("mirror");
     } catch (cause) { setError(readableError(cause)); }
@@ -611,10 +624,10 @@ export function DailyMirrorExperience() {
           <div className={styles.reflectionHero}><span>05 · SHIGUANG PERSONA</span><h1>拾光陪你读懂这一卦。</h1><p>传统解释已经说清卦意；现在，我们把它带回你真正关心的处境。</p></div>
           <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-avatar.webp")} alt="拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会替你预测结果，也不会只留下一段漂亮话。我们一起看看，这一卦对你眼前的问题究竟有什么用。</p></div></div>
           <div className={styles.personaFlow}>
-            <article className={styles.seesCard}><small>01 · 拾光看见</small><h2>先回应你真正关心的事</h2><p>{reflectionResult.reflection.shiguangSees}</p></article>
-            <article><small>02 · 这一卦在说什么</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.hexagramMeaning}</p></article>
-            <article className={styles.understandingCard}><small>03 · 放回你的处境</small><h2>它为什么可能与你有关</h2><p>{reflectionResult.reflection.mirrorUnderstanding}</p></article>
-            <article className={styles.guidanceCard}><small>04 · 接下来可以怎么做</small><h2>先走一小步，不急着押上全部</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
+            <article className={styles.seesCard}><small>01 · 拾光看到</small><h2>先回应你真正关心的事</h2><p>{reflectionResult.reflection.shiguangSees}</p></article>
+            <article><small>02 · 卦象告诉我们</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.hexagramMeaning}</p></article>
+            <article className={styles.understandingCard}><small>03 · 拾光的理解</small><h2>把传统含义放回你的处境</h2><p>{reflectionResult.reflection.mirrorUnderstanding}</p></article>
+            <article className={styles.guidanceCard}><small>04 · 给你的提醒</small><h2>先走一小步，不急着押上全部</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
           </div>
           <article className={styles.shareCard}>
             <div><small>可分享的今日镜像</small><blockquote>“{reflectionResult.reflection.shareableReflection}”</blockquote><span>{reflectionResult.hexagram.originalHexagram.symbol} {reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.symbol} {reflectionResult.hexagram.changedHexagram.name}</span></div>
@@ -623,6 +636,12 @@ export function DailyMirrorExperience() {
           </article>
           {shareStatus && <p className={styles.shareStatus}><Sparkle /> {shareStatus}</p>}
           <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
+          <details className={styles.explanationTrace}>
+            <summary>为什么拾光这样说</summary>
+            <div><small>传统依据</small><p>{reflectionResult.explanationTrace.traditional_basis}</p></div>
+            <div><small>反思映射</small><p>{reflectionResult.explanationTrace.reflection_mapping}</p></div>
+            {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>六爻规则证据</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          </details>
           <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("reflectionQuestion")}>查看反思问题如何生成 <ArrowRight /></button></div>
         </section>
       )}
@@ -631,7 +650,7 @@ export function DailyMirrorExperience() {
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("mirror")}><ArrowLeft /> 返回镜像解读</button>
           <div className={styles.reflectionHero}><span>06 · REFLECTION QUESTION</span><h1>把解释带回你的经验。</h1><p>这个问题来自前面的传统象征、你的提问和镜像观察，不是突然出现的建议。</p></div>
-          <article className={styles.questionFocus}><small>拾光想问你</small><h2>{reflectionResult.reflection.reflectionQuestion}</h2><div><b>它为何出现</b><p>{reflectionResult.reflection.mirrorUnderstanding}</p></div><div><b>现在可以做的事</b><p>{reflectionResult.reflection.practicalGuidance}</p></div></article>
+          <article className={styles.questionFocus}><small>05 · 留给你的问题</small><h2>{reflectionResult.reflection.reflectionQuestion}</h2><div><b>它为何出现</b><p>{reflectionResult.reflection.mirrorUnderstanding}</p></div><div><b>现在可以做的事</b><p>{reflectionResult.reflection.practicalGuidance}</p></div></article>
           <div className={styles.reflectionActions}><button className={styles.primaryButton} onClick={() => setStage("save")}>继续保存这次镜像 <ArrowRight /></button></div>
         </section>
       )}
