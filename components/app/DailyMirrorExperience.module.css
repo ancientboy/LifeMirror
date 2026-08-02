@@ -144,11 +144,27 @@
 .stepIntro p, .resultHeader p, .reflectionHero p { max-width: 650px; margin: 23px 0 0; color: var(--muted); font: 14px/1.9 Georgia, "Songti SC", serif; }
 .questionCard { max-width: 820px; margin-top: 52px; padding: 37px; border: 1px solid rgba(49,95,87,.14); border-radius: 22px; background: rgba(250,249,245,.68); box-shadow: 0 25px 65px rgba(39,58,53,.08); }
 .questionCard > label { color: var(--jade); font: 11px/1 Georgia, serif; letter-spacing: .08em; }
+.topicPicker { margin: 0 0 30px; padding: 0 0 26px; border: 0; border-bottom: 1px solid rgba(49,95,87,.1); }
+.topicPicker legend { margin-bottom: 14px; color: var(--jade); font: 11px/1 Georgia, "Songti SC", serif; letter-spacing: .08em; }
+.topicPicker > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.topicPicker button { padding: 9px 14px; border: 1px solid rgba(49,95,87,.16); border-radius: 99px; color: var(--muted); background: rgba(255,255,255,.46); font-size: 11px; cursor: pointer; }
+.topicPicker button.selectedTopic { color: #fbf8ef; border-color: var(--jade); background: var(--jade); box-shadow: 0 7px 18px rgba(25,59,54,.15); }
+.topicPicker small { margin-top: 12px; display: block; color: #8c9592; font-size: 9px; }
 .questionCard textarea { width: 100%; min-height: 150px; margin-top: 18px; padding: 0; resize: vertical; border: 0; color: var(--ink); background: transparent; font: 25px/1.7 Georgia, "Songti SC", serif; }
 .questionCard textarea::placeholder { color: #acb2ae; }
 .questionMeta { display: flex; justify-content: space-between; padding-top: 15px; border-top: 1px solid rgba(49,95,87,.1); color: #8c9592; font-size: 9px; }
 .suggestions { margin: 25px 0 28px; display: flex; flex-wrap: wrap; gap: 8px; }
 .suggestions button { padding: 9px 13px; border: 1px solid rgba(49,95,87,.14); border-radius: 99px; color: var(--muted); background: rgba(255,255,255,.4); font-size: 10px; cursor: pointer; }
+.intentClarification { margin: 0 0 24px; padding: 22px; border: 1px solid rgba(180,138,77,.25); border-radius: 15px; background: rgba(180,138,77,.07); }
+.intentClarification > small { color: var(--gold); font-size: 9px; letter-spacing: .12em; }
+.intentClarification h2 { margin: 10px 0 15px; font: 400 20px/1.55 Georgia, "Songti SC", serif; }
+.intentClarification > div { display: grid; gap: 8px; }
+.intentClarification button { padding: 12px 15px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(49,95,87,.14); border-radius: 10px; color: var(--jade-dark); background: rgba(255,255,255,.65); font: 12px Georgia, "Songti SC", serif; cursor: pointer; }
+.intentClarification button svg { width: 16px; height: 16px; }
+.intentSummary { max-width: 820px; margin: 24px auto 0; padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; border: 1px solid rgba(180,138,77,.2); border-radius: 14px; background: rgba(250,249,245,.66); }
+.intentSummary small { color: var(--gold); font-size: 9px; letter-spacing: .1em; }
+.intentSummary b { color: var(--ink); font: 400 15px Georgia, "Songti SC", serif; }
+.intentSummary span { width: 100%; color: var(--muted); font-size: 9px; }
 
 .castScreen { max-width: 1280px; }
 .castWorkspace { min-height: 500px; position: relative; margin-top: 45px; display: grid; grid-template-columns: 1fr 180px 1fr; grid-template-rows: 1fr auto auto; align-items: center; gap: 25px 50px; padding: 50px; border: 1px solid rgba(49,95,87,.13); border-radius: 28px; background: rgba(245,244,238,.52); }
@@ -371,6 +387,7 @@
   .stepIntro h1 { font-size: 39px; }
   .questionCard { margin-top: 35px; padding: 25px 20px; }
   .questionCard textarea { min-height: 175px; font-size: 21px; }
+  .topicPicker > div { display: grid; grid-template-columns: repeat(2, 1fr); }
   .questionMeta span:last-child { display: none; }
   .suggestions { display: grid; }
   .castWorkspace { display: flex; flex-direction: column; margin-top: 35px; padding: 35px 18px; }

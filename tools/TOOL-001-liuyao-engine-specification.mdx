@@ -86,7 +86,7 @@ Six three-coin tosses are ordered bottom-up. Full traditional analysis additiona
 }
 ```
 
-`topic` comes from explicit user/runtime classification. Month branch and day pillar come from a deterministic calendar layer. The LLM never guesses them. Without this context, casting and structure still complete, while `analysis.status` becomes `context_required`.
+`topic` comes from the confirmed intent-understanding layer: a broad user hint, deterministic classification, and a schema-bound LLM fallback only when semantics remain unclear. That LLM may classify topic, scenario, stage and real-world subject role, but it cannot choose a useful god or line. Deterministic code performs that mapping. Material stage ambiguity is confirmed by the user before casting. Month branch and day pillar come from a deterministic calendar layer at casting completion; the LLM never guesses them. Without this context, casting and structure still complete, while `analysis.status` becomes `context_required`.
 
 ## Output Contract
 

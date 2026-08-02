@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyLiuyaoIntents, resolveLiuyaoContext, sexagenaryDay, solarTermMonthBranch } from "./context-resolver.js";
+import { classifyLiuyaoIntents, createIntentSelection, resolveLiuyaoContext, sexagenaryDay, solarTermMonthBranch } from "./context-resolver.js";
 
 test("calendar context deterministically resolves a known Jia-Zi day", () => {
   assert.deepEqual(sexagenaryDay(new Date("2019-01-27T12:00:00.000Z"), "UTC"), {
@@ -93,4 +93,25 @@ test("historical Python category aliases keep their intended useful-god families
   assert.equal(classifyLiuyaoIntents("我的宠物能顺利恢复吗？")[0].topic, "children");
   assert.equal(classifyLiuyaoIntents("这个同事竞争会不会影响我？")[0].usefulGod, "siblings");
   assert.equal(classifyLiuyaoIntents("这次出行平安吗？")[0].topic, "travel");
+});
+
+test("a confirmed semantic selection is preserved while calendar context is resolved later", () => {
+  const selection = createIntentSelection({
+    question: "看看以后怎么样",
+    topicHint: "relationship",
+    intents: [{ id: "self-1", label: "关系能否稳定", topic: "self", priority: 1, usefulGod: "ying", scenario: "reconciliation", scenarioFocus: "relationship_stability" }],
+    source: "user_confirmed",
+    confidence: 1,
+  });
+  const context = resolveLiuyaoContext({
+    question: "看看以后怎么样",
+    intentSelection: selection,
+    occurredAt: "2019-01-27T12:00:00.000Z",
+    timezone: "UTC",
+  });
+
+  assert.equal(context.scenarioFocus, "relationship_stability");
+  assert.equal(context.intentResolution?.source, "user_confirmed");
+  assert.equal(context.dayStem, "jia");
+  assert.equal(context.dayBranch, "zi");
 });

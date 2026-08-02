@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
 import type { LiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
-import type { LiuyaoAnalysisContext, LiuyaoResult } from "@/server/tools/liuyao/types";
+import type { LiuyaoAnalysisContext, LiuyaoIntentSelection, LiuyaoResult, LiuyaoTopicHint } from "@/server/tools/liuyao/types";
 import { MemoryControls } from "./MemoryControls";
 import styles from "./DailyMirrorExperience.module.css";
 
@@ -32,12 +32,27 @@ type PreviousReflection = { shiguangSees: string; hexagramMeaning: string; mirro
 type LegacyReflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
 type ExplanationTrace = { traditional_basis: string; liuyao_factors: string[]; reflection_mapping: string; final_response: Reflection };
 type ReflectionResponse = { question: string; hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; draftToken: string; expiresAt: string };
+type IntentResolution = {
+  status: "resolved" | "confirmation_required";
+  source: LiuyaoIntentSelection["resolution"]["source"];
+  confidence: number;
+  summary: string;
+  selection?: LiuyaoIntentSelection;
+  clarification?: { question: string; options: Array<{ id: string; label: string; selection: LiuyaoIntentSelection }> };
+};
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection | PreviousReflection | LegacyReflection; savedAt: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
 const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
+const topicOptions: Array<{ value: LiuyaoTopicHint; label: string }> = [
+  { value: "career", label: "工作" }, { value: "wealth", label: "财运" },
+  { value: "study", label: "考试学习" }, { value: "relationship", label: "感情" },
+  { value: "health", label: "健康" }, { value: "family", label: "家庭" },
+  { value: "travel", label: "出行日常" }, { value: "partnership", label: "合作" },
+  { value: "legal", label: "争议法律" }, { value: "other", label: "其他" },
+];
 const lineNames = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"];
 const branchNames = { zi: "子", chou: "丑", yin: "寅", mao: "卯", chen: "辰", si: "巳", wu: "午", wei: "未", shen: "申", you: "酉", xu: "戌", hai: "亥" } as const;
 const castingPhaseClass: Record<CastingPhase, string> = {
@@ -77,6 +92,7 @@ function readableError(error: unknown): string {
     invalid_credentials: "请输入有效邮箱，密码至少 12 位。",
     reflection_runtime_unavailable: "AI Reflection 服务尚未配置，请稍后再试。",
     reflection_generation_failed: "这次反思生成没有完成，请重新尝试。",
+    invalid_intent_input: "请先选一个方向，并把问题写具体一点。",
     Failed_to_fetch: "暂时无法连接 Life Mirror Runtime。",
   };
   return messages[code] ?? (code === "Failed to fetch" ? messages.Failed_to_fetch : "暂时无法完成操作，请稍后再试。");
@@ -173,6 +189,9 @@ export function DailyMirrorExperience() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [question, setQuestion] = useState("");
+  const [topicHint, setTopicHint] = useState<LiuyaoTopicHint | "">("");
+  const [intentSelection, setIntentSelection] = useState<LiuyaoIntentSelection | null>(null);
+  const [intentClarification, setIntentClarification] = useState<IntentResolution["clarification"] | null>(null);
   const [tosses, setTosses] = useState<Toss[]>([]);
   const [hexagram, setHexagram] = useState<Hexagram | null>(null);
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
@@ -292,7 +311,33 @@ export function DailyMirrorExperience() {
     setPendingToss(null);
     setCastingPhase("idle");
     releaseShareArtifact();
-    setQuestion(""); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionKnowledge(null); setAnalysisContext(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
+    setQuestion(""); setTopicHint(""); setIntentSelection(null); setIntentClarification(null); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionKnowledge(null); setAnalysisContext(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
+  }
+
+  async function resolveIntentAndContinue() {
+    if (question.trim().length < 5 || !topicHint) return;
+    setBusy(true); setError(""); setIntentClarification(null);
+    try {
+      const resolution = await api<IntentResolution>("/api/v1/tools/liuyao/resolve-intent", {
+        method: "POST",
+        body: JSON.stringify({ question, topicHint }),
+      });
+      if (resolution.status === "confirmation_required" && resolution.clarification) {
+        setIntentClarification(resolution.clarification);
+        return;
+      }
+      if (!resolution.selection) throw new Error("invalid_intent_resolution");
+      setIntentSelection(resolution.selection);
+      setStage("cast");
+    } catch (cause) { setError(readableError(cause)); }
+    finally { setBusy(false); }
+  }
+
+  function confirmIntent(selection: LiuyaoIntentSelection) {
+    setIntentSelection(selection);
+    setIntentClarification(null);
+    setError("");
+    setStage("cast");
   }
 
   async function generateShareCard() {
@@ -411,6 +456,7 @@ export function DailyMirrorExperience() {
         body: JSON.stringify({
           tosses: next,
           question,
+          intentSelection,
           occurredAt: new Date().toISOString(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
@@ -561,8 +607,17 @@ export function DailyMirrorExperience() {
       {stage === "question" && (
         <section className={styles.stepScreen}>
           <button className={styles.backButton} onClick={() => setStage("home")}><ArrowLeft /> 返回</button>
-          <div className={styles.stepIntro}><span>01 · QUESTION</span><h1>把注意力放在一个<br />真正重要的问题上。</h1><p>尽量询问自己的处境、选择与感受，而不是要求一个确定的未来。</p></div>
-          <div className={styles.questionCard}><label htmlFor="mirror-question">此刻，我想探索的是</label><textarea id="mirror-question" maxLength={500} value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="写下你正在思考的问题……" autoFocus /><div className={styles.questionMeta}><span>{question.length} / 500</span><span>内容只在你请求反思或保存时发送</span></div><div className={styles.suggestions}>{suggestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div><button className={styles.primaryButton} disabled={question.trim().length < 5} onClick={() => setStage("cast")}>带着问题进入 <ArrowRight /></button></div>
+          <div className={styles.stepIntro}><span>01 · QUESTION</span><h1>先说清楚，<br />这次到底想问什么。</h1><p>方向由你选择，具体目标由系统理解；有歧义时会先请你确认。</p></div>
+          <div className={styles.questionCard}>
+            <fieldset className={styles.topicPicker}><legend>先选一个最接近的方向</legend><div>{topicOptions.map((item) => <button type="button" aria-pressed={topicHint === item.value} className={topicHint === item.value ? styles.selectedTopic : ""} key={item.value} onClick={() => { setTopicHint(item.value); setIntentSelection(null); setIntentClarification(null); }}>{item.label}</button>)}</div><small>这只是理解提示，不会直接决定卦的结果。</small></fieldset>
+            <label htmlFor="mirror-question">此刻，我想探索的是</label>
+            <textarea id="mirror-question" maxLength={500} value={question} onChange={(event) => { setQuestion(event.target.value); setIntentSelection(null); setIntentClarification(null); }} placeholder="例如：这次面试能不能拿到 offer？" autoFocus />
+            <div className={styles.questionMeta}><span>{question.length} / 500</span><span>问题会先结构化，再进入断卦</span></div>
+            <div className={styles.suggestions}>{suggestions.map((item) => <button type="button" key={item} onClick={() => { setQuestion(item); setIntentSelection(null); setIntentClarification(null); }}>{item}</button>)}</div>
+            {intentClarification && <section className={styles.intentClarification} aria-live="polite"><small>还需要你确认一下</small><h2>{intentClarification.question}</h2><div>{intentClarification.options.map((option) => <button type="button" key={option.id} onClick={() => confirmIntent(option.selection)}>{option.label}<ArrowRight /></button>)}</div></section>}
+            {error && <div className={styles.error} role="alert">{error}</div>}
+            <button className={styles.primaryButton} disabled={busy || question.trim().length < 5 || !topicHint} onClick={resolveIntentAndContinue}>{busy ? <><CircleNotch className={styles.spin} /> 正在理解你的问题…</> : <>确认问题方向 <ArrowRight /></>}</button>
+          </div>
         </section>
       )}
 
@@ -570,6 +625,7 @@ export function DailyMirrorExperience() {
         <section className={`${styles.stepScreen} ${styles.castScreen}`}>
           <button className={styles.backButton} disabled={casting} onClick={() => setStage("question")}><ArrowLeft /> 返回问题</button>
           <div className={styles.stepIntro}><span>02 · LIUYAO INTERACTION</span><h1>把问题放在心里，<br />慢慢摇动龟壳。</h1><p>不必刻意控制结果，让三枚铜钱自然落下。六次结果仍由初爻至上爻、从下向上形成。</p></div>
+          {intentSelection && <div className={styles.intentSummary}><small>本次判断目标</small><b>{intentSelection.intents.map((intent) => intent.label).join("；")}</b><span>理解置信度 {Math.round(intentSelection.resolution.confidence * 100)}% · 只用于选取断卦规则，不参与吉凶计分</span></div>}
           <div className={styles.castWorkspace}>
             <div className={styles.ritualStage} data-phase={castingPhase}>
               <div className={styles.shellGlow} />

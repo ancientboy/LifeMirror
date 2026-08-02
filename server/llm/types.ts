@@ -9,6 +9,12 @@ export type LlmGenerateRequest = {
   messages: LlmMessage[];
   temperature?: number;
   maxOutputTokens?: number;
+  responseFormat?: {
+    name: string;
+    description?: string;
+    schema: Record<string, unknown>;
+    strict?: boolean;
+  };
 };
 
 export type LlmGenerateResult = {

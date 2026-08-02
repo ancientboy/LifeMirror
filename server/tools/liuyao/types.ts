@@ -15,6 +15,10 @@ export type LiuyaoScenarioFocus =
   | "relationship_contact" | "relationship_reconcile" | "relationship_stability"
   | "investment_short_term" | "investment_long_term";
 
+export type LiuyaoTopicHint =
+  | "career" | "wealth" | "study" | "relationship" | "health"
+  | "family" | "travel" | "legal" | "partnership" | "other";
+
 export type LiuyaoIntent = {
   id: string;
   label: string;
@@ -23,6 +27,21 @@ export type LiuyaoIntent = {
   usefulGod?: LiuyaoUsefulGodTarget;
   scenario?: LiuyaoScenario;
   scenarioFocus?: LiuyaoScenarioFocus;
+};
+
+export type LiuyaoIntentSelection = {
+  intents: LiuyaoIntent[];
+  topic: LiuyaoTopic;
+  usefulGod?: LiuyaoUsefulGodTarget;
+  tone: LiuyaoTone;
+  timingScale: LiuyaoTimingScale;
+  scenario?: LiuyaoScenario;
+  scenarioFocus?: LiuyaoScenarioFocus;
+  resolution: {
+    source: "deterministic" | "llm" | "fallback" | "user_confirmed";
+    confidence: number;
+    topicHint?: LiuyaoTopicHint;
+  };
 };
 
 export type CoinToss = readonly [CoinValue, CoinValue, CoinValue];
@@ -77,6 +96,7 @@ export type LiuyaoAnalysisContext = {
   timingScale?: LiuyaoTimingScale;
   scenario?: LiuyaoScenario;
   scenarioFocus?: LiuyaoScenarioFocus;
+  intentResolution?: LiuyaoIntentSelection["resolution"];
 };
 
 export type LiuyaoEvidence = {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AppConfig } from "../config.js";
 import { createLlmProvider } from "./provider.js";
+import { OpenAiCompatibleProvider } from "./providers/openai-compatible.js";
 
 const baseConfig: AppConfig = {
   NODE_ENV: "test",
@@ -31,4 +32,32 @@ test("configured provider is selected behind the shared interface", () => {
     LLM_MODEL: "test-model",
   });
   assert.equal(provider.name, "openai-compatible");
+});
+
+test("openai-compatible provider serializes strict JSON Schema output requests", async (context) => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ model: "test-model", choices: [{ message: { content: "{}" } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+
+  const provider = new OpenAiCompatibleProvider({ apiKey: "test-key", baseUrl: "https://api.openai.com/v1", model: "test-model" });
+  await provider.generate({
+    messages: [{ role: "user", content: "classify" }],
+    responseFormat: { name: "intent", schema: { type: "object", properties: {}, additionalProperties: false }, strict: true },
+  });
+
+  assert.deepEqual(requestBody?.response_format, {
+    type: "json_schema",
+    json_schema: {
+      name: "intent",
+      schema: { type: "object", properties: {}, additionalProperties: false },
+      strict: true,
+    },
+  });
 });

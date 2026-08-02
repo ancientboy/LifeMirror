@@ -30,6 +30,17 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         messages: request.messages,
         temperature: request.temperature,
         max_tokens: request.maxOutputTokens,
+        ...(request.responseFormat ? {
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: request.responseFormat.name,
+              description: request.responseFormat.description,
+              schema: request.responseFormat.schema,
+              strict: request.responseFormat.strict ?? true,
+            },
+          },
+        } : {}),
       }),
       signal: AbortSignal.timeout(45_000),
     });

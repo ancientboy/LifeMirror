@@ -14,6 +14,10 @@ Life Mirror does not ask an LLM to explain a hexagram from memory. The single de
 ```text
 User Question
   ↓
+Topic Hint + Deterministic Intent Classifier
+  ↓ only when unclear
+Schema-bound LLM Intent Classifier → User Confirmation when material
+  ↓
 Liuyao Tool — casting, calculation, traditional analysis, evidence
   ↓
 KNOWLEDGE-003 — classical text and rule meanings
@@ -30,6 +34,14 @@ User
 ```
 
 There is one calculation entry: `server/tools/liuyao/calculateLiuyao`. KNOWLEDGE-004 is not a second interpretation engine. It consumes computed facts and retrieved meanings; it cannot cast, select a useful god, judge strength, or invent classical meaning.
+
+## Question Understanding Boundary
+
+Before casting, the UI collects one broad `topicHint` and the natural-language question. `server/tools/liuyao/intent-understanding.ts` first runs deterministic classification. Clear inputs proceed without an LLM. Low-confidence, conflicting or multi-stage inputs may use the configured provider with a strict JSON Schema that contains only real-world semantics: topic, scenario, scenario focus and subject role.
+
+The intent LLM cannot choose a useful god, line, date or result. Deterministic code maps the returned subject role to `shi`, `ying` or a six-relation target. If a distinction would change the rule family—such as interview versus offer, contact versus reconciliation, or short-term versus long-term investment—the flow stops before casting and asks the user to confirm. Invalid provider output falls back to deterministic classification; known stage ambiguity still produces deterministic confirmation options when the provider is unavailable.
+
+The confirmed `intentSelection` is not yet a calendar context. Month branch and day pillar are resolved only after the sixth toss, using that casting timestamp. `analysisContext.intentResolution` retains source and confidence for audit but never contributes to favorable or unfavorable scoring.
 
 ## Runtime Envelope
 
@@ -52,7 +64,7 @@ Every generated answer creates an audit trace:
 }
 ```
 
-The trace is bound into signed draft v5 and stored in `reflection_events.explanation_trace` after explicit save. Drafts v1-v4 remain readable. The result UI can show its non-sensitive basis under “为什么拾光这样说”. Saved traces are owner-scoped at `GET /api/v1/daily-mirror/reflections/:id/explanation-trace`.
+The trace is bound into the current signed draft and stored in `reflection_events.explanation_trace` after explicit save. Historical draft versions remain readable. The result UI can show its non-sensitive basis under “为什么拾光这样说”. Saved traces are owner-scoped at `GET /api/v1/daily-mirror/reflections/:id/explanation-trace`.
 
 ## Non-negotiable Boundaries
 
@@ -61,6 +73,7 @@ The trace is bound into signed draft v5 and stored in `reflection_events.explana
 - Reflection mappings are possibilities, not facts about the user.
 - Memory is optional evidence and cannot turn inference into biography.
 - LLM language cannot add divination conclusions.
+- Intent classification cannot choose traditional targets or contribute to verdict scoring.
 - The user's desire for an answer is valid and must be satisfied before reflection.
 - Shiguang may humanize a judgment but may not behave as a therapist or claim to be a fortune teller.
 - Timing remains a low-confidence traditional candidate, never a promise.

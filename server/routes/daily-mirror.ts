@@ -10,7 +10,8 @@ import { openReflectionDraft, sealReflectionDraft } from "../reflection/token.js
 import { normalizeMirrorReflection, type ReflectionDraftPayload } from "../reflection/types.js";
 import { calculateLiuyao } from "../tools/liuyao/engine.js";
 import { resolveLiuyaoContext } from "../tools/liuyao/context-resolver.js";
-import type { CoinToss, LiuyaoAnalysisContext } from "../tools/liuyao/types.js";
+import { understandLiuyaoIntent } from "../tools/liuyao/intent-understanding.js";
+import type { CoinToss, LiuyaoAnalysisContext, LiuyaoIntentSelection } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
 import { retrievePersonalReflectionContext } from "../memory/reflection-context.js";
 
@@ -26,12 +27,36 @@ const scenarioFocusSchema = z.enum([
   "relationship_contact", "relationship_reconcile", "relationship_stability",
   "investment_short_term", "investment_long_term",
 ]);
+const topicHintSchema = z.enum(["career", "wealth", "study", "relationship", "health", "family", "travel", "legal", "partnership", "other"]);
+const intentSchema = z.object({
+  id: z.string().min(1).max(80),
+  label: z.string().min(1).max(80),
+  topic: topicSchema,
+  priority: z.number().int().min(1).max(10),
+  usefulGod: usefulGodSchema.optional(),
+  scenario: scenarioSchema.optional(),
+  scenarioFocus: scenarioFocusSchema.optional(),
+});
+const intentSelectionSchema = z.object({
+  intents: z.array(intentSchema).min(1).max(3),
+  topic: topicSchema,
+  usefulGod: usefulGodSchema.optional(),
+  tone: z.enum(["playful", "warm", "grounded", "careful"]),
+  timingScale: z.enum(["day", "month"]),
+  scenario: scenarioSchema.optional(),
+  scenarioFocus: scenarioFocusSchema.optional(),
+  resolution: z.object({
+    source: z.enum(["deterministic", "llm", "fallback", "user_confirmed"]),
+    confidence: z.number().min(0).max(1),
+    topicHint: topicHintSchema.optional(),
+  }),
+});
 const analysisContextSchema = z.object({
   topic: topicSchema,
   monthBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
   dayStem: z.enum(["jia", "yi", "bing", "ding", "wu", "ji", "geng", "xin", "ren", "gui"]),
   dayBranch: z.enum(["zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"]),
-  intents: z.array(z.object({ id: z.string().min(1).max(80), label: z.string().min(1).max(80), topic: topicSchema, priority: z.number().int().min(1).max(10), usefulGod: usefulGodSchema.optional(), scenario: scenarioSchema.optional(), scenarioFocus: scenarioFocusSchema.optional() })).max(3).optional(),
+  intents: z.array(intentSchema).max(3).optional(),
   tone: z.enum(["playful", "warm", "grounded", "careful"]).optional(),
   timingScale: z.enum(["day", "month"]).optional(),
   scenario: scenarioSchema.optional(),
@@ -40,13 +65,18 @@ const analysisContextSchema = z.object({
   usefulGod: usefulGodSchema.optional(),
   occurredAt: z.string().datetime().optional(),
   timezone: z.string().trim().min(1).max(80).optional(),
+  intentResolution: intentSelectionSchema.shape.resolution.optional(),
 });
 const automaticContextSchema = z.object({
   question: z.string().trim().min(1).max(500).optional(),
   occurredAt: z.string().datetime().optional(),
   timezone: z.string().trim().min(1).max(80).optional(),
 });
-const calculationSchema = z.object({ tosses: tossesSchema, analysisContext: analysisContextSchema.optional() }).merge(automaticContextSchema);
+const intentResolutionRequestSchema = z.object({
+  question: z.string().trim().min(5).max(500),
+  topicHint: topicHintSchema.optional(),
+});
+const calculationSchema = z.object({ tosses: tossesSchema, analysisContext: analysisContextSchema.optional(), intentSelection: intentSelectionSchema.optional() }).merge(automaticContextSchema);
 const reflectionSchema = z.object({
   question: z.string().trim().min(5).max(500),
   tosses: tossesSchema,
@@ -68,12 +98,31 @@ async function requireUser(
 }
 
 export async function registerDailyMirrorRoutes(app: FastifyInstance, dependencies: AppDependencies) {
+  app.post(
+    "/api/v1/tools/liuyao/resolve-intent",
+    { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } },
+    async (request, reply) => {
+      const parsed = intentResolutionRequestSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_intent_input" });
+      return understandLiuyaoIntent({
+        llm: dependencies.llm,
+        question: parsed.data.question,
+        topicHint: parsed.data.topicHint,
+      });
+    },
+  );
+
   app.post("/api/v1/tools/liuyao/calculate", async (request, reply) => {
     const parsed = calculationSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_coin_tosses" });
     let analysisContext = parsed.data.analysisContext as LiuyaoAnalysisContext | undefined;
     try {
-      analysisContext ??= parsed.data.question ? resolveLiuyaoContext({ question: parsed.data.question, occurredAt: parsed.data.occurredAt, timezone: parsed.data.timezone }) : undefined;
+      analysisContext ??= parsed.data.question ? resolveLiuyaoContext({
+        question: parsed.data.question,
+        occurredAt: parsed.data.occurredAt,
+        timezone: parsed.data.timezone,
+        intentSelection: parsed.data.intentSelection as LiuyaoIntentSelection | undefined,
+      }) : undefined;
     } catch {
       return reply.code(400).send({ error: "invalid_divination_context" });
     }

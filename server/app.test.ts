@@ -51,3 +51,53 @@ test("requests from untrusted origins are rejected", async () => {
 
   await app.close();
 });
+
+test("intent resolution is confirmed before its semantic target enters calculation", async () => {
+  const llm: LlmProvider = {
+    name: "fixture",
+    async generate() {
+      return {
+        text: JSON.stringify({
+          intents: [{ label: "关系后续", topic: "self", targetRole: "other_party", scenario: "reconciliation", scenarioFocus: null }],
+          confidence: 0.6,
+          needsClarification: true,
+          clarificationQuestion: "你主要想问重新联系，还是关系稳定？",
+          clarificationOptions: [
+            { label: "是否重新联系", intents: [{ label: "是否重新联系", topic: "self", targetRole: "other_party", scenario: "reconciliation", scenarioFocus: "relationship_contact" }] },
+            { label: "关系能否稳定", intents: [{ label: "关系能否稳定", topic: "self", targetRole: "other_party", scenario: "reconciliation", scenarioFocus: "relationship_stability" }] },
+          ],
+        }),
+        provider: "fixture",
+        model: "fixture-model",
+      };
+    },
+  };
+  const app = await buildApp({ config, database: {} as Database, llm });
+
+  const resolved = await app.inject({
+    method: "POST",
+    url: "/api/v1/tools/liuyao/resolve-intent",
+    payload: { question: "看看我和她以后怎么样", topicHint: "relationship" },
+  });
+  assert.equal(resolved.statusCode, 200);
+  assert.equal(resolved.json().status, "confirmation_required");
+  const selection = resolved.json().clarification.options[1].selection;
+
+  const calculated = await app.inject({
+    method: "POST",
+    url: "/api/v1/tools/liuyao/calculate",
+    payload: {
+      question: "看看我和她以后怎么样",
+      intentSelection: selection,
+      occurredAt: "2019-01-27T12:00:00.000Z",
+      timezone: "UTC",
+      tosses: Array.from({ length: 6 }, () => [3, 2, 2]),
+    },
+  });
+  assert.equal(calculated.statusCode, 200);
+  assert.equal(calculated.json().analysisContext.scenarioFocus, "relationship_stability");
+  assert.equal(calculated.json().analysisContext.intentResolution.source, "user_confirmed");
+  assert.equal(calculated.json().analysisContext.dayStem, "jia");
+
+  await app.close();
+});
