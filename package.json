@@ -14,7 +14,7 @@
     "start:api": "node dist/server/index.js",
     "db:migrate": "tsx server/database/migrate.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js dist/test/runtime/*.test.js",
     "test:integration": "tsc -p tsconfig.integration.json && node --test dist/integration/integration/*.integration.js"
   },
   "dependencies": {
