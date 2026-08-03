@@ -14,7 +14,7 @@ type Toss = readonly [CoinValue, CoinValue, CoinValue];
 type CastingPhase = "idle" | "shaking" | "tilting" | "falling" | "settling";
 type PendingCast = { token: number; toss: Toss; previousTosses: Toss[] };
 type ShareArtifact = { blob: Blob; file: File; url: string; canNativeShare: boolean };
-type Stage = "hub" | "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
+type Stage = "home" | "question" | "cast" | "hexagram" | "traditional" | "mirror" | "reflectionQuestion" | "save" | "memory";
 type Hexagram = LiuyaoResult;
 type Knowledge = LiuyaoKnowledgeContext;
 type ReflectionKnowledge = LiuyaoReflectionKnowledge;
@@ -42,7 +42,7 @@ type IntentResolution = {
 };
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection | PreviousReflection | LegacyReflection; savedAt: string };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
 const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
@@ -183,7 +183,7 @@ function LineGlyph({ polarity, moving }: { polarity: "yin" | "yang"; moving?: bo
 }
 
 export function DailyMirrorExperience() {
-  const [stage, setStage] = useState<Stage>("hub");
+  const [stage, setStage] = useState<Stage>("home");
   const [authState, setAuthState] = useState<"checking" | "signedOut" | "guest" | "authenticated">("checking");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -262,7 +262,7 @@ export function DailyMirrorExperience() {
     };
   }, [sharePreviewOpen]);
 
-  const progress = useMemo(() => ({ hub: 0, home: 0, question: 1, cast: 2, hexagram: 3, traditional: 4, mirror: 5, reflectionQuestion: 5, save: 6, memory: 0 })[stage], [stage]);
+  const progress = useMemo(() => ({ home: 0, question: 1, cast: 2, hexagram: 3, traditional: 4, mirror: 5, reflectionQuestion: 5, save: 6, memory: 0 })[stage], [stage]);
 
   async function authenticate(event: React.FormEvent) {
     event.preventDefault();
@@ -282,7 +282,7 @@ export function DailyMirrorExperience() {
     } else {
       window.localStorage.removeItem(GUEST_SESSION_KEY);
     }
-    setAuthState("signedOut"); setHistory([]); setStage("hub"); setBusy(false);
+    setAuthState("signedOut"); setHistory([]); setStage("home"); setBusy(false);
   }
 
   function enterAsGuest() {
@@ -290,7 +290,6 @@ export function DailyMirrorExperience() {
     setHistory(readGuestHistory());
     setError("");
     setAuthState("guest");
-    setStage("hub");
   }
 
   function clearCastTimers() {
@@ -586,41 +585,10 @@ export function DailyMirrorExperience() {
       <div className={styles.ambient} />
       <header className={styles.appHeader}>
         <Link href="/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>DAILY MIRROR</small></Link>
-        <div className={styles.headerActions}><Link href="/mirror/">我的镜像</Link><span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
+        <div className={styles.headerActions}><span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
-      {stage !== "hub" && stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "六爻判断", "拾光解释", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
-
-      {stage === "hub" && (
-        <section className={styles.toolHub}>
-          <header className={styles.toolHubIntro}>
-            <p>探索工具 · 选择一面镜子</p>
-            <h1>今天，想从哪里<br />看见自己？</h1>
-            <span>不同传统提供不同观察角度。先选择一种方式，再把答案带回真实生活。</span>
-          </header>
-          <div className={styles.toolGrid}>
-            <button className={`${styles.toolCard} ${styles.toolCardActive}`} onClick={() => setStage("home")}>
-              <span className={styles.toolSymbol}>䷀</span><small>DAILY MIRROR</small><h2>六爻</h2><p>从一个此刻最关心的问题开始，以卦象照见处境与行动。</p><b>开始探索 <ArrowRight /></b>
-            </button>
-            <Link className={styles.toolCard} href="/app/knowledge/bazi/">
-              <span className={styles.toolSymbol}>命</span><small>BAZI · KNOWLEDGE PACK</small><h2>命盘</h2><p>从出生年份建立年柱基础镜像，并清楚区分文化象征与现实证据。</p><b>建立基础镜像 <ArrowRight /></b>
-            </Link>
-            <Link className={styles.toolCard} href="/app/knowledge/astrology/">
-              <span className={styles.toolSymbol}>✦</span><small>ASTROLOGY · KNOWLEDGE PACK</small><h2>占星</h2><p>从太阳星座开始，用象征视角观察表达、边界与变化。</p><b>开始观察 <ArrowRight /></b>
-            </Link>
-            <Link className={styles.toolCard} href="/app/knowledge/personality/">
-              <span className={styles.toolSymbol}>人</span><small>PERSONALITY · KNOWLEDGE PACK</small><h2>人格镜像</h2><p>用四个可变化的维度，生成一份不贴标签的自我观察。</p><b>开始自评 <ArrowRight /></b>
-            </Link>
-            <Link className={styles.toolCard} href="/app/knowledge/psychology/">
-              <span className={styles.toolSymbol}>心</span><small>PSYCHOLOGY · KNOWLEDGE PACK</small><h2>心理镜像</h2><p>扫描压力、恢复、连接与行动感，找到此刻最需要照顾的资源。</p><b>开始扫描 <ArrowRight /></b>
-            </Link>
-            <Link className={styles.toolCard} href="/mirror/">
-              <span className={styles.toolSymbol}>镜</span><small>PERSONAL MIRROR</small><h2>个人镜像</h2><p>回看反思、时间线、模式证据与正在形成的 Mirror DNA。</p><b>查看我的镜像 <ArrowRight /></b>
-            </Link>
-          </div>
-          <p className={styles.toolHubNote}>{authState === "guest" ? "游客模式 · 数据保存在当前设备" : "私人模式 · 你的反思只属于你"}</p>
-        </section>
-      )}
+      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "六爻判断", "拾光解释", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
 
       {stage === "home" && (
         <section className={styles.homeScreen}>
