@@ -32,12 +32,15 @@ export function PersonalMirrorDashboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "[]") as MirrorEvent[];
-      setEvents(saved.length ? saved : demoEvents);
-    } catch {
-      setEvents(demoEvents);
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "[]") as MirrorEvent[];
+        setEvents(saved.length ? saved : demoEvents);
+      } catch {
+        setEvents(demoEvents);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const visibleEvents = useMemo(() => events.filter((event) => {

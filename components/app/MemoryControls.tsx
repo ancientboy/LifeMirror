@@ -86,7 +86,10 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
     }
   }, [mode]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function updateEvent(event: MemoryEvent, values: Partial<{ title: string; summary: string; visibility: "visible" | "hidden" }>) {
     setBusyId(event.id); setError("");
