@@ -14,6 +14,9 @@ import { understandLiuyaoIntent } from "../tools/liuyao/intent-understanding.js"
 import type { CoinToss, LiuyaoAnalysisContext, LiuyaoIntentSelection } from "../tools/liuyao/types.js";
 import { processReflectionEvent } from "../memory/processor.js";
 import { retrievePersonalReflectionContext } from "../memory/reflection-context.js";
+import { runMirrorRuntime } from "../runtime/runtime.js";
+import { ToolRegistry } from "../runtime/tool-registry.js";
+import type { InteractionMode, ToolExecutionTrace } from "../runtime/types.js";
 
 const coinSchema = z.union([z.literal(2), z.literal(3)]);
 const tossSchema = z.tuple([coinSchema, coinSchema, coinSchema]);
@@ -81,6 +84,7 @@ const reflectionSchema = z.object({
   question: z.string().trim().min(5).max(500),
   tosses: tossesSchema,
   analysisContext: analysisContextSchema.optional(),
+  requestedMode: z.enum(["reflection", "deep"]).optional(),
 }).merge(automaticContextSchema.omit({ question: true }));
 const saveSchema = z.object({ draftToken: z.string().min(20).max(32_000) });
 
@@ -154,6 +158,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       const knowledge = retrieveLiuyaoKnowledge(hexagram);
       const reflectionKnowledge = retrieveLiuyaoReflectionKnowledge(hexagram, knowledge);
       const userContext = await retrievePersonalReflectionContext(dependencies.database, user.id);
+      const interactionMode: InteractionMode = parsed.data.requestedMode ?? "reflection";
       let generated;
       try {
         generated = await generateMirrorReflection({
@@ -163,6 +168,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
           knowledge,
           reflectionKnowledge,
           userContext,
+          interactionMode,
         });
       } catch (error) {
         request.log.error({ err: error }, "reflection generation failed");
@@ -170,9 +176,30 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       }
 
       const now = new Date();
+      const toolTrace: ToolExecutionTrace = {
+        toolId: "liuyao.calculate", toolVersion: "1", status: "succeeded",
+        startedAt: now.toISOString(), finishedAt: now.toISOString(), durationMs: 0,
+        permission: "authenticated", risk: "medium",
+      };
+      const knowledgeTraces = knowledge.readingRule.focus.map((item, index) => ({
+        packId: "lifemirror.liuyao", packVersion: "1.0.0",
+        entryId: `${item.hexagram}-${item.kind}-${item.position ?? index}`,
+        sourceIds: [knowledge.source],
+      }));
+      const runtime = await runMirrorRuntime({
+        text: parsed.data.question, requestedMode: interactionMode,
+        sessionId: request.cookies[dependencies.config.SESSION_COOKIE_NAME] ?? randomUUID(), userId: user.id,
+        registry: new ToolRegistry(), knowledge: { traces: knowledgeTraces, conflicts: [] },
+        completedToolTraces: [toolTrace], memoryUsed: Boolean(userContext.recentEvents.length || userContext.patterns.length),
+        reflectionCompleted: true,
+        claims: generated.reflection.evidenceCards.map((card, index) => ({
+          text: card.plain, kind: "supported" as const, confidence: 0.78,
+          evidenceIds: [knowledgeTraces[index % Math.max(knowledgeTraces.length, 1)]?.entryId ?? knowledge.source],
+        })),
+      });
       const payload: ReflectionDraftPayload = {
-        version: 6,
-        runtimeId: randomUUID(),
+        version: 7,
+        runtimeId: runtime.trace.id,
         userId: user.id,
         question: parsed.data.question,
         tosses,
@@ -181,6 +208,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         knowledge,
         reflectionKnowledge,
         explanationTrace: generated.explanationTrace,
+        interactionMode,
+        runtimeTrace: runtime.trace,
         reflection: generated.reflection,
         provider: generated.provider,
         model: generated.model,
@@ -196,6 +225,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         reflectionKnowledge,
         reflection: normalizeMirrorReflection(payload.reflection),
         explanationTrace: generated.explanationTrace,
+        interactionMode,
+        runtimeTrace: runtime.trace,
         draftToken: sealReflectionDraft(payload, dependencies.config.REFLECTION_TOKEN_SECRET),
         expiresAt: payload.expiresAt,
       };
@@ -237,11 +268,12 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     const result = await dependencies.database.query<{ id: string; saved_at: Date }>(
       `INSERT INTO reflection_events (
         id, user_id, runtime_id, question, coin_tosses, hexagram_result,
-        knowledge_context, reflection, explanation_trace, llm_provider, llm_model, generated_at
-      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12)
+        knowledge_context, reflection, explanation_trace, interaction_mode, runtime_trace,
+        llm_provider, llm_model, generated_at
+      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11::jsonb,$12,$13,$14)
       ON CONFLICT (runtime_id) DO UPDATE SET runtime_id = EXCLUDED.runtime_id
       RETURNING id, saved_at`,
-      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), JSON.stringify(draft.explanationTrace ?? null), draft.provider, draft.model, draft.generatedAt],
+      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), JSON.stringify(draft.explanationTrace ?? null), draft.interactionMode ?? "reflection", JSON.stringify(draft.runtimeTrace ?? null), draft.provider, draft.model, draft.generatedAt],
     );
     let memoryProcessing: "completed" | "retry_pending" = "completed";
     try {
@@ -263,9 +295,11 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       question: string;
       hexagram_result: ReflectionDraftPayload["hexagram"];
       reflection: ReflectionDraftPayload["reflection"];
+      interaction_mode: InteractionMode | null;
+      runtime_trace: ReflectionDraftPayload["runtimeTrace"];
       saved_at: Date;
     }>(
-      `SELECT id, question, hexagram_result, reflection, saved_at
+      `SELECT id, question, hexagram_result, reflection, interaction_mode, runtime_trace, saved_at
          FROM reflection_events
         WHERE user_id = $1
         ORDER BY saved_at DESC
@@ -278,6 +312,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
         question: row.question,
         hexagram: row.hexagram_result,
         reflection: normalizeMirrorReflection(row.reflection),
+        interactionMode: row.interaction_mode ?? "reflection",
+        runtimeTrace: row.runtime_trace ?? undefined,
         savedAt: row.saved_at.toISOString(),
       })),
     };
@@ -288,12 +324,12 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     if (!user) return;
     const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_reflection_id" });
-    const result = await dependencies.database.query<{ explanation_trace: ReflectionDraftPayload["explanationTrace"] }>(
-      `SELECT explanation_trace FROM reflection_events WHERE id = $1 AND user_id = $2`,
+    const result = await dependencies.database.query<{ explanation_trace: ReflectionDraftPayload["explanationTrace"]; runtime_trace: ReflectionDraftPayload["runtimeTrace"] }>(
+      `SELECT explanation_trace, runtime_trace FROM reflection_events WHERE id = $1 AND user_id = $2`,
       [parsed.data.id, user.id],
     );
     if (!result.rows[0]) return reply.code(404).send({ error: "reflection_not_found" });
     if (!result.rows[0].explanation_trace) return reply.code(404).send({ error: "explanation_trace_unavailable" });
-    return { explanationTrace: result.rows[0].explanation_trace };
+    return { explanationTrace: result.rows[0].explanation_trace, runtimeTrace: result.rows[0].runtime_trace ?? undefined };
   });
 }

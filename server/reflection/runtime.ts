@@ -6,6 +6,7 @@ import type { PersonalReflectionContext } from "../memory/reflection-context.js"
 import type { LiuyaoResult } from "../tools/liuyao/types.js";
 import { assembleMirrorRuntimeContext } from "./context.js";
 import type { ExplanationTrace, MirrorReflection } from "./types.js";
+import type { InteractionMode } from "../runtime/types.js";
 
 const reflectionSchema = z.object({
   traditionalJudgment: z.string().trim().min(1).max(1_200),
@@ -39,8 +40,9 @@ export async function generateMirrorReflection(input: {
   knowledge: LiuyaoKnowledgeContext;
   reflectionKnowledge: LiuyaoReflectionKnowledge;
   userContext?: PersonalReflectionContext;
+  interactionMode?: InteractionMode;
 }): Promise<{ reflection: MirrorReflection; explanationTrace: ExplanationTrace; provider: string; model: string }> {
-  const { llm, question, hexagram, knowledge, reflectionKnowledge, userContext = { recentEvents: [], patterns: [] } } = input;
+  const { llm, question, hexagram, knowledge, reflectionKnowledge, userContext = { recentEvents: [], patterns: [] }, interactionMode = "reflection" } = input;
   const runtimeContext = assembleMirrorRuntimeContext({ question, hexagram, knowledge, reflectionKnowledge, userContext });
   const result = await llm.generate({
     temperature: 0.45,
@@ -79,6 +81,7 @@ export async function generateMirrorReflection(input: {
           "closing is optional and scene-aware: banter/follow_up for light questions, observation for serious decisions, reflection only when genuinely invited. Do not force every reading into reflection.",
           "reflectionQuestion is optional and may appear only when closing.type is reflection.",
           "shareableReflection is a self-contained, emotionally resonant 20-60 Chinese-character line grounded in this reading; it must not reveal private details or sound like fortune-telling.",
+          interactionMode === "deep" ? "Deep mode: make the reasoning chain explicit, distinguish computed evidence from interpretation, mention the strongest counter-signal, and give concrete conditional guidance. Do not add new claims or certainty." : "Reflection mode: keep the interpretation concise, warm and directly useful.",
         ].join(" "),
       },
       {

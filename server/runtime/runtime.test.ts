@@ -36,3 +36,22 @@ test("runtime emits a complete explainable trace", async () => {
   assert.equal(result.trace.tools[0].status, "succeeded");
   assert.equal(result.trace.stages.at(-2)?.name, "evaluation");
 });
+
+test("runtime incorporates already-completed calculation, memory and reflection stages", async () => {
+  const registry = new ToolRegistry();
+  const completedTool = {
+    toolId: "liuyao.calculate", toolVersion: "1", status: "succeeded" as const,
+    startedAt: "2026-08-03T00:00:00.000Z", finishedAt: "2026-08-03T00:00:00.001Z",
+    durationMs: 1, permission: "authenticated" as const, risk: "medium" as const,
+  };
+  const result = await runMirrorRuntime({
+    text: "请深入分析", requestedMode: "deep", sessionId: "s", userId: "u", registry,
+    completedToolTraces: [completedTool], memoryUsed: true, reflectionCompleted: true,
+    claims: [{ text: "有明确依据", kind: "supported", confidence: 0.78, evidenceIds: ["rule:1"] }],
+  });
+  assert.equal(result.trace.mode.source, "explicit");
+  assert.equal(result.trace.tools[0].toolId, "liuyao.calculate");
+  assert.equal(result.trace.stages.find((stage) => stage.name === "memory")?.status, "completed");
+  assert.equal(result.trace.stages.find((stage) => stage.name === "reflection")?.status, "completed");
+  assert.deepEqual(result.trace.evaluation.flags, []);
+});

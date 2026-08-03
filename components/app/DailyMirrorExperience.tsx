@@ -31,7 +31,8 @@ type Reflection = {
 type PreviousReflection = { shiguangSees: string; hexagramMeaning: string; mirrorUnderstanding: string; practicalGuidance: string; reflectionQuestion: string; shareableReflection: string };
 type LegacyReflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
 type ExplanationTrace = { traditional_basis: string; liuyao_factors: string[]; reflection_mapping: string; final_response: Reflection };
-type ReflectionResponse = { question: string; hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; draftToken: string; expiresAt: string };
+type RuntimeTrace = { mode: { mode: "reflection" | "deep"; confidence: number }; evaluation: { level: string; score: number; flags: string[] }; stages: Array<{ name: string; status: string; detail?: string }> };
+type ReflectionResponse = { question: string; hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; interactionMode?: "reflection" | "deep"; runtimeTrace?: RuntimeTrace; draftToken: string; expiresAt: string };
 type IntentResolution = {
   status: "resolved" | "confirmation_required";
   source: LiuyaoIntentSelection["resolution"]["source"];
@@ -198,6 +199,7 @@ export function DailyMirrorExperience() {
   const [reflectionKnowledge, setReflectionKnowledge] = useState<ReflectionKnowledge | null>(null);
   const [analysisContext, setAnalysisContext] = useState<LiuyaoAnalysisContext | null>(null);
   const [reflectionResult, setReflectionResult] = useState<ReflectionResponse | null>(null);
+  const [interactionMode, setInteractionMode] = useState<"reflection" | "deep">("reflection");
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [busy, setBusy] = useState(false);
   const [castingPhase, setCastingPhase] = useState<CastingPhase>("idle");
@@ -522,7 +524,7 @@ export function DailyMirrorExperience() {
     try {
       const result = authState === "guest" && hexagram && knowledge && reflectionKnowledge
         ? createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext)
-        : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses, analysisContext }) });
+        : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses, analysisContext, requestedMode: interactionMode }) });
       setReflectionResult(result); setStage("traditional");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
@@ -676,6 +678,7 @@ export function DailyMirrorExperience() {
             <article><small>变卦象征</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p></article>
           </div>
           {error && <div className={styles.error} role="alert">{error}</div>}
+          {authState === "authenticated" && <div className={styles.modeSelector} role="group" aria-label="分析深度"><button type="button" aria-pressed={interactionMode === "reflection"} className={interactionMode === "reflection" ? styles.modeActive : ""} onClick={() => setInteractionMode("reflection")}><b>清晰解读</b><small>直接回答，给出重点依据</small></button><button type="button" aria-pressed={interactionMode === "deep"} className={interactionMode === "deep" ? styles.modeActive : ""} onClick={() => setInteractionMode("deep")}><b>深度分析</b><small>展开推理、反向信号与条件</small></button></div>}
           <button className={styles.primaryButton} disabled={busy} onClick={generateReflection}>{busy ? <><CircleNotch className={styles.spin} /> 正在整理传统判断…</> : <>查看这次卦象的判断 <ArrowRight /></>}</button>
         </section>
       )}
@@ -729,6 +732,7 @@ export function DailyMirrorExperience() {
             <div><small>传统依据</small><p>{reflectionResult.explanationTrace.traditional_basis}</p></div>
             <div><small>反思映射</small><p>{reflectionResult.explanationTrace.reflection_mapping}</p></div>
             {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>六爻规则证据</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+            {reflectionResult.runtimeTrace && <div><small>Runtime 信任检查</small><p>{reflectionResult.runtimeTrace.mode.mode === "deep" ? "深度分析" : "清晰解读"} · 可信评分 {Math.round(reflectionResult.runtimeTrace.evaluation.score * 100)}% · {reflectionResult.runtimeTrace.evaluation.level}</p><p>{reflectionResult.runtimeTrace.stages.filter((stage) => stage.status === "completed").map((stage) => stage.name).join(" → ")}</p>{reflectionResult.runtimeTrace.evaluation.flags.length > 0 && <ul>{reflectionResult.runtimeTrace.evaluation.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}</div>}
           </details>
           <div className={styles.reflectionActions}>{reflectionResult.reflection.reflectionQuestion && <button className={styles.secondaryButton} onClick={() => setStage("reflectionQuestion")}>如果愿意，再想一个问题</button>}<button className={styles.primaryButton} onClick={() => setStage("save")}>保存这次解读 <ArrowRight /></button></div>
         </section>

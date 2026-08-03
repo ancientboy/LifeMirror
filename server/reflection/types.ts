@@ -1,6 +1,7 @@
 import type { LiuyaoKnowledgeContext } from "../knowledge/liuyao-retrieval.js";
 import type { LiuyaoReflectionKnowledge } from "../knowledge/liuyao-reflection-map.js";
 import type { CoinToss, LiuyaoAnalysisContext, LiuyaoResult } from "../tools/liuyao/types.js";
+import type { InteractionMode, RuntimeTrace } from "../runtime/types.js";
 
 export type MirrorReflection = {
   traditionalJudgment: string;
@@ -71,7 +72,7 @@ export function normalizeMirrorReflection(reflection: StoredMirrorReflection): M
 }
 
 export type ReflectionDraftPayload = {
-  version: 1 | 2 | 3 | 4 | 5 | 6;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   runtimeId: string;
   userId: string;
   question: string;
@@ -81,6 +82,8 @@ export type ReflectionDraftPayload = {
   knowledge: LiuyaoKnowledgeContext;
   reflectionKnowledge?: LiuyaoReflectionKnowledge;
   explanationTrace?: ExplanationTrace;
+  interactionMode?: InteractionMode;
+  runtimeTrace?: RuntimeTrace;
   reflection: StoredMirrorReflection;
   provider: string;
   model: string;

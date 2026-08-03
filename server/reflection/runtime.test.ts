@@ -81,3 +81,24 @@ test("reflection runtime rejects unstructured provider output", async () => {
   const knowledge = retrieveLiuyaoKnowledge(hexagram);
   await assert.rejects(() => generateMirrorReflection({ llm, question: "我应该如何理解这个选择？", hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge) }));
 });
+
+test("deep mode explicitly requests evidence boundaries, counter-signals and conditional guidance", async () => {
+  const hexagram = calculateLiuyao(Array(6).fill([3, 2, 2] satisfies CoinToss));
+  let systemPrompt = "";
+  const llm: LlmProvider = {
+    name: "fixture",
+    async generate(request) {
+      systemPrompt = request.messages[0].content;
+      return {
+        text: '{"traditionalJudgment":"可以有条件尝试。","reasoningExplanation":"先区分卦象依据与解释。","shiguangInterpretation":"主要信号支持行动，但反向信号要求控制投入。","practicalGuidance":"若现实条件得到验证，再扩大投入。","evidenceCards":[{"title":"主信号","technical":"规则依据","plain":"支持有限尝试。","effect":"positive"},{"title":"反向信号","technical":"条件不足","plain":"不宜一次投入过多。","effect":"mixed"}],"shareableReflection":"先验证条件，再决定投入。"}',
+        model: "fixture-model", provider: "fixture",
+      };
+    },
+  };
+  const knowledge = retrieveLiuyaoKnowledge(hexagram);
+  await generateMirrorReflection({ llm, question: "请深入分析这个选择。", hexagram, knowledge, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(hexagram, knowledge), interactionMode: "deep" });
+  assert.match(systemPrompt, /Deep mode/);
+  assert.match(systemPrompt, /counter-signal/);
+  assert.match(systemPrompt, /conditional guidance/);
+  assert.match(systemPrompt, /Do not add new claims or certainty/);
+});
