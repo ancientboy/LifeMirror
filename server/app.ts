@@ -9,6 +9,7 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerDailyMirrorRoutes } from "./routes/daily-mirror.js";
 import { registerMemoryRoutes } from "./routes/memories.js";
+import { registerReviewRoutes } from "./routes/reviews.js";
 
 export type AppDependencies = {
   config: AppConfig;
@@ -56,6 +57,7 @@ export async function buildApp(dependencies: AppDependencies) {
   await registerAuthRoutes(app, dependencies);
   await registerDailyMirrorRoutes(app, dependencies);
   await registerMemoryRoutes(app, dependencies);
+  await registerReviewRoutes(app, dependencies);
 
   return app;
 }
