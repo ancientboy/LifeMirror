@@ -1,6 +1,6 @@
 "use client";
 
-import { Aperture, ArrowRight, ChatCircleDots, DotsThree, ShieldCheck, Sparkle } from "@phosphor-icons/react";
+import { Aperture, ArrowRight, DotsThree, ShieldCheck, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -31,7 +31,7 @@ export function TwinRealmHome() {
       <div className={styles.companionStage}>
         <div className={styles.companionHalo} />
         <img src={assetPath(character)} alt={`${skin === "east" ? "东方" : "西方"}皮肤的拾光`} />
-        <div className={styles.companionBubble}><ChatCircleDots /><p>“你不需要马上找到答案。先告诉我，今天哪件事一直留在心里？”</p></div>
+        <div className={styles.companionBubble}><img src={assetPath(skin === "east" ? "/characters/shiguang/shiguang-east-avatar.webp" : "/characters/shiguang/shiguang-west-avatar.webp")} alt={`Q版${skin === "east" ? "东方" : "西方"}拾光`} /><p>“你不需要马上找到答案。先告诉我，今天哪件事一直留在心里？”</p></div>
         <div className={styles.skinChoice}><span>同一个拾光 · 两种文化皮肤</span><button className={skin === "east" ? styles.active : ""} onClick={() => setSkin("east")}><img src={assetPath("/characters/shiguang/shiguang-east-avatar.webp")} alt="东方拾光" /></button><button className={skin === "west" ? styles.active : ""} onClick={() => setSkin("west")}><img src={assetPath("/characters/shiguang/shiguang-west-avatar.webp")} alt="西方拾光" /></button></div>
       </div>
     </section>

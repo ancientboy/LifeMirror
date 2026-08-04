@@ -39,7 +39,10 @@ export function ShiguangHome() {
         <div className={styles.flow}><span>说说近况</span><i /><span>一起理清</span><i /><span>需要时再探索</span></div>
         <Link className={styles.exploreLink} href="/app/explore/">进入双镜探索页 <ArrowRight /></Link>
       </div>
-      <div className={styles.character}><div /><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /><blockquote>“不用先把话想完整。你从最放不下的那一小段说起就好。”</blockquote></div>
+      <div className={styles.character}>
+        <div className={styles.characterVisual}><div /><img src={assetPath("/characters/shiguang/shiguang-east.webp")} alt="东方拾光" /></div>
+        <blockquote><img src={assetPath("/characters/shiguang/shiguang-east-avatar.webp")} alt="Q版东方拾光" /><span>“不用先把话想完整。你从最放不下的那一小段说起就好。”</span></blockquote>
+      </div>
     </section>
     <section className={styles.chatSection}><ShiguangChat mode="home" theme="east" context="这是 LifeMirror 的常规聊天首页。用户尚未选择具体工具。先自然回应近况；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个，并说明为什么。不要强迫用户做测试。" opening="我在。今天不用先选工具，你可以从刚刚发生的事、一个反复出现的念头，或一种说不清的感觉开始。" /></section>
     <AppBottomNav active="home" />

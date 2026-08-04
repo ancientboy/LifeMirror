@@ -1,5 +1,6 @@
 import { ArrowRight, CardsThree, ChartPolar, Hexagon, Sparkle } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { AppBottomNav } from "./AppBottomNav";
 import styles from "./ExploreMirrors.module.css";
 
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
@@ -31,5 +32,6 @@ export function ExploreMirrors() {
       </article>)}
     </section>
     <footer><Link href="/app/home/">还不确定？先回去和拾光聊聊 <ArrowRight /></Link></footer>
+    <AppBottomNav active="explore" />
   </main>;
 }

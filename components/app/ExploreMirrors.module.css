@@ -1,1 +1,65 @@
-.shell{min-height:100dvh;padding:72px clamp(18px,5vw,72px) 120px;color:#f2ecdf;background:radial-gradient(circle at 12% 20%,#1c4b3d45,transparent 32%),radial-gradient(circle at 88% 18%,#493c8645,transparent 34%),#070b12}.intro{max-width:850px;margin:0 auto 46px;text-align:center}.intro small{color:#d9c481;font-size:10px;letter-spacing:.2em}.intro h1{margin:15px 0 18px;font:clamp(43px,6vw,74px)/1.1 Georgia,"Songti SC",serif}.intro p{max-width:650px;margin:auto;color:#a9a195;font:14px/1.9 Georgia,"Songti SC",serif}.realms{max-width:1220px;margin:auto;display:grid;grid-template-columns:1fr 1fr;border:1px solid #ffffff18;border-radius:32px;overflow:hidden;box-shadow:0 34px 100px #0008}.realms article{min-width:0;position:relative;display:grid;grid-template-rows:390px 1fr}.realms article+article{border-left:1px solid #ffffff18}.east{background:linear-gradient(180deg,#16372fdd,#0c1817)}.west{background:linear-gradient(180deg,#2c2553dd,#151226)}.art{position:relative;overflow:hidden}.art:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,currentColor 100%)}.east .art{color:#16372f}.west .art{color:#2c2553}.art>span{position:absolute;z-index:2;left:24px;top:22px;padding:7px 10px;border:1px solid #ffffff2a;border-radius:999px;color:#eee7da;background:#080b12aa;font-size:8px;letter-spacing:.14em}.art img{width:100%;height:100%;object-fit:contain;object-position:center 10%;filter:drop-shadow(0 20px 42px #0007)}.realmCopy{position:relative;z-index:2;padding:8px 28px 32px}.realmCopy>small{font-size:8px;letter-spacing:.15em;opacity:.55}.realmCopy h2{margin:9px 0 12px;font:31px/1.25 Georgia,"Songti SC",serif}.realmCopy>p{min-height:52px;margin:0;color:#b2aa9f;font-size:12px;line-height:1.75}.tools{display:grid;gap:10px;margin-top:22px}.tools a{display:grid;grid-template-columns:38px 1fr 18px;gap:13px;align-items:center;padding:15px;border:1px solid #ffffff16;border-radius:17px;background:#ffffff08;transition:.2s}.tools a:hover{transform:translateY(-2px);border-color:#ffffff45;background:#ffffff0e}.tools a>svg:first-child{width:34px;height:34px;color:#e0c978}.west .tools a>svg:first-child{color:#c8b2ff}.tools a>svg:last-child{width:18px;opacity:.55}.tools span{display:grid;gap:4px}.tools b{font:20px Georgia,"Songti SC",serif}.tools small{color:#aaa297;font-size:10px}.shell>footer{max-width:1220px;margin:28px auto 0;display:flex;justify-content:center}.shell>footer a{display:flex;align-items:center;gap:8px;color:#cfc3ad;font-size:12px}@media(max-width:760px){.shell{padding-top:48px}.intro h1{font-size:43px}.realms{grid-template-columns:1fr;border-radius:25px}.realms article+article{border-left:0;border-top:1px solid #ffffff18}.realms article{grid-template-rows:310px 1fr}.realmCopy{padding:5px 20px 26px}.realmCopy h2{font-size:27px}.art img{object-position:center 5%}}
+.shell { min-height:100dvh; padding:72px clamp(18px,5vw,72px) 130px; color:#f2ecdf; background:radial-gradient(circle at 12% 12%,#1c4b3d35,transparent 30%),radial-gradient(circle at 88% 14%,#493c8635,transparent 31%),#070b12; }
+.intro { max-width:850px; margin:0 auto 46px; text-align:center; }
+.intro small { color:#d9c481; font-size:10px; letter-spacing:.2em; }
+.intro h1 { margin:15px 0 18px; font:clamp(43px,6vw,74px)/1.1 Georgia,"Songti SC",serif; }
+.intro p { max-width:650px; margin:auto; color:#a9a195; font:14px/1.9 Georgia,"Songti SC",serif; }
+.realms { max-width:1220px; margin:auto; display:grid; gap:18px; }
+.realms article { min-height:620px; position:relative; overflow:hidden; display:flex; align-items:center; border:1px solid #ffffff18; border-radius:32px; box-shadow:0 34px 100px #0007; isolation:isolate; }
+.east { justify-content:flex-start; background:radial-gradient(circle at 73% 43%,#3a766459,transparent 27%),linear-gradient(110deg,#0b211dcf 0 42%,#14362f 100%); }
+.west { justify-content:flex-end; background:radial-gradient(circle at 27% 43%,#6651ad52,transparent 27%),linear-gradient(250deg,#1b1738d9 0 42%,#29214d 100%); }
+.art { position:absolute; z-index:-1; inset:0; overflow:hidden; pointer-events:none; }
+.art:before { content:""; position:absolute; z-index:1; inset:0; pointer-events:none; }
+.east .art:before { background:linear-gradient(90deg,#091814 0 34%,rgba(9,24,20,.72) 45%,transparent 70%); }
+.west .art:before { background:linear-gradient(270deg,#110f25 0 34%,rgba(17,15,37,.72) 45%,transparent 70%); }
+.art:after { content:""; position:absolute; z-index:2; inset:0; box-shadow:inset 0 -120px 150px #05080d66; }
+.art>span { position:absolute; z-index:3; left:28px; top:26px; padding:7px 10px; border:1px solid #ffffff2a; border-radius:999px; color:#eee7da; background:#080b12aa; font-size:8px; letter-spacing:.14em; backdrop-filter:blur(10px); }
+.west .art>span { left:auto; right:28px; }
+.art img { width:58%; height:108%; position:absolute; bottom:-7%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 24px 48px #0008); }
+.east .art img { right:3%; }
+.west .art img { left:4%; }
+.realmCopy { width:min(500px,47%); position:relative; z-index:3; padding:70px 54px; }
+.west .realmCopy { text-align:right; }
+.realmCopy>small { font-size:8px; letter-spacing:.15em; opacity:.62; }
+.realmCopy h2 { margin:12px 0 15px; font:clamp(34px,4vw,52px)/1.18 Georgia,"Songti SC",serif; }
+.realmCopy>p { margin:0; color:#bdb4a7; font-size:13px; line-height:1.85; }
+.tools { display:grid; gap:11px; margin-top:28px; }
+.tools a { display:grid; grid-template-columns:38px 1fr 18px; gap:13px; align-items:center; padding:16px; border:1px solid #ffffff1c; border-radius:18px; background:#050b0db8; box-shadow:0 12px 30px #0003; backdrop-filter:blur(18px); transition:.2s; text-align:left; }
+.west .tools a { grid-template-columns:18px 1fr 38px; }
+.west .tools a>svg:first-child { grid-column:3; grid-row:1; }
+.west .tools a>span { grid-column:2; grid-row:1; text-align:right; }
+.west .tools a>svg:last-child { grid-column:1; grid-row:1; transform:rotate(180deg); }
+.tools a:hover { transform:translateY(-2px); border-color:#ffffff45; background:#ffffff0e; }
+.tools a>svg:first-child { width:34px; height:34px; color:#e0c978; }
+.west .tools a>svg:first-child { color:#c8b2ff; }
+.tools a>svg:last-child { width:18px; opacity:.55; }
+.tools span { display:grid; gap:4px; }
+.tools b { font:20px Georgia,"Songti SC",serif; }
+.tools small { color:#aaa297; font-size:10px; }
+.shell>footer { max-width:1220px; margin:28px auto 0; display:flex; justify-content:center; }
+.shell>footer a { display:flex; align-items:center; gap:8px; color:#cfc3ad; font-size:12px; }
+@media(max-width:900px) {
+  .realms article { min-height:590px; }
+  .realmCopy { width:54%; padding-inline:34px; }
+  .art img { width:62%; opacity:.9; }
+}
+@media(max-width:640px) {
+  .shell { padding:48px 14px 118px; }
+  .intro h1 { font-size:43px; }
+  .realms { gap:14px; }
+  .realms article { min-height:690px; align-items:flex-start; border-radius:25px; }
+  .realmCopy,.west .realmCopy { width:66%; padding:78px 0 28px 20px; text-align:left; }
+  .west .realmCopy { margin-left:auto; padding:78px 20px 28px 0; text-align:right; }
+  .realmCopy h2 { font-size:30px; }
+  .realmCopy>p { font-size:12px; }
+  .art img { width:72%; height:72%; bottom:-2%; opacity:.82; }
+  .east .art img { right:-13%; }
+  .west .art img { left:-13%; }
+  .east .art:before { background:linear-gradient(90deg,#091814 0 38%,rgba(9,24,20,.7) 55%,transparent 82%); }
+  .west .art:before { background:linear-gradient(270deg,#110f25 0 38%,rgba(17,15,37,.7) 55%,transparent 82%); }
+  .tools { margin-top:20px; }
+  .tools a { grid-template-columns:31px 1fr 14px; padding:13px; }
+  .tools a>svg:first-child { width:29px; height:29px; }
+  .tools b { font-size:17px; }
+  .tools small { font-size:9px; line-height:1.4; }
+  .west .tools a { grid-template-columns:14px 1fr 31px; }
+}
