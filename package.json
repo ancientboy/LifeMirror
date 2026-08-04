@@ -16,7 +16,7 @@
     "db:migrate": "tsx server/database/migrate.ts",
     "db:migrate:status": "tsx server/database/migration-status.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/tools/tarot/*.test.js dist/test/tools/bazi/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js dist/test/runtime/*.test.js dist/test/review/*.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/tools/tarot/*.test.js dist/test/tools/bazi/*.test.js dist/test/tools/astrology/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js dist/test/runtime/*.test.js dist/test/review/*.test.js",
     "test:integration": "tsc -p tsconfig.integration.json && node --test dist/integration/integration/*.integration.js"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "@fastify/rate-limit": "^11.2.0",
     "@mdx-js/react": "^3.1.1",
     "@phosphor-icons/react": "^2.1.10",
+    "astronomy-engine": "2.1.19",
     "fastify": "^5.11.0",
     "gray-matter": "^4.0.3",
     "lunar-javascript": "1.7.7",
