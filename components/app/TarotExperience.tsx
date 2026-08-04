@@ -36,7 +36,7 @@ export function TarotExperience(){
     {stage==="reading"&&<section className={styles.reading}>
       <span className={styles.eyebrow}>SHIGUANG READING · 拾光解读</span><h1>三束光，落在同一个问题上</h1><blockquote>“{question}”</blockquote>
       <div className={styles.cards}>{cards.map((card,i)=><article key={card.name} style={{"--delay":`${i*.16}s`} as React.CSSProperties}><div className={styles.cardFace}><small>{card.roman}</small><Sparkle/><b>{card.name}</b><span>{["正在离开","此刻核心","正在靠近"][i]}</span></div><h2>{card.light}</h2><p>{card.meaning}</p></article>)}</div>
-      <div className={styles.insight}><img src={assetPath("/characters/shiguang/shiguang-west-avatar.webp")} alt=""/><div><small>拾光看见</small><p>{cards[1].meaning} 先别急着把牌面变成结论，今天只做一件能让你更靠近真实感受的小事。</p></div></div>
+      <div className={styles.insight}><img src={assetPath("/characters/shiguang/shiguang-west-chibi.png")} alt="Q版西方拾光"/><div><small>拾光看见</small><p>{cards[1].meaning} 先别急着把牌面变成结论，今天只做一件能让你更靠近真实感受的小事。</p></div></div>
       <div className={styles.actions}><button onClick={reset}>换一个问题</button><Link href="/mirror/">保存到我的镜像 <ArrowRight/></Link></div>
     </section>}
   </main>;

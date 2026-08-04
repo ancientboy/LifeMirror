@@ -1,0 +1,2 @@
+import Link from "next/link"; import { ArrowLeft } from "@phosphor-icons/react/dist/ssr"; import { BirthProfileForm } from "@/components/app/BirthProfileForm";
+export default function ChartPage(){return <main className="birth-tool east-birth"><nav><Link href="/"><ArrowLeft/> 东方镜域</Link></nav><section><small>EASTERN NATAL MIRROR · 命盘</small><h1>把出生时刻，放进东方的时间坐标。</h1><p>以四柱为基础呈现五行强弱、十神结构、大运与流年。每个结论都应显示计算依据、置信边界与不同流派差异。</p></section><BirthProfileForm tradition="east"/></main>}

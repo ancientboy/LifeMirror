@@ -16,6 +16,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body { margin: 0; background: var(--bg-deep); color: var(--paper); font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.birth-tool{min-height:100vh;padding:28px clamp(18px,5vw,72px) 70px;color:#f7f2e7;background:radial-gradient(circle at 50% 0,#2d342a,transparent 45%),#0c100e}.birth-tool.west-birth{background:radial-gradient(circle at 50% 0,#302758,transparent 48%),#0b0915}.birth-tool nav{max-width:1100px;margin:0 auto 48px}.birth-tool nav a{display:inline-flex;gap:8px;align-items:center}.birth-tool>section{max-width:720px;margin:0 auto 26px;text-align:center}.birth-tool>section small{letter-spacing:.18em;opacity:.6}.birth-tool>section h1{font-family:Georgia,serif;font-size:clamp(34px,5vw,58px);line-height:1.08;margin:18px 0}.birth-tool>section p{line-height:1.8;opacity:.68}
 button, a { color: inherit; }
 a { text-decoration: none; }
 button { font: inherit; }

@@ -34,7 +34,7 @@ export function TwinRealmHome() {
             <p>从变化的象里，照见此刻的处境。</p>
             <div className={styles.tools}>
               <Link href="/app/"><Hexagon weight="thin" /><span><b>六爻</b><small>以变化观当下</small></span></Link>
-              <span className={styles.coming}><ChartPolar weight="thin" /><span><b>命盘</b><small>即将开放</small></span></span>
+              <Link href="/app/chart/"><ChartPolar weight="thin" /><span><b>命盘</b><small>建立出生资料</small></span></Link>
             </div>
             <Link className={styles.realmCta} href="/app/">进入东方镜域 <ArrowRight /></Link>
           </div>
@@ -62,7 +62,7 @@ export function TwinRealmHome() {
             <p>从象征与星轨里，读出内心的语言。</p>
             <div className={styles.tools}>
               <Link href="/app/tarot/"><CardsThree weight="thin" /><span><b>塔罗</b><small>三张牌镜像</small></span></Link>
-              <span className={styles.coming}><Sparkle weight="thin" /><span><b>占星</b><small>即将开放</small></span></span>
+              <Link href="/app/astrology/"><Sparkle weight="thin" /><span><b>占星</b><small>建立本命星盘</small></span></Link>
             </div>
             <Link className={styles.realmCta} href="/app/tarot/">进入西方镜域 <ArrowRight /></Link>
           </div>

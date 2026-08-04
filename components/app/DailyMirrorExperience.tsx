@@ -714,7 +714,7 @@ export function DailyMirrorExperience() {
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回六爻判断</button>
           <div className={styles.reflectionHero}><span>05 · SHIGUANG EXPLAINS</span><h1>让拾光翻成人话。</h1><p>前面已经给出判断和依据；这里说清楚，它落到你眼前的处境意味着什么。</p></div>
-          <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-avatar.webp")} alt="拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
+          <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-east-chibi.png")} alt="Q版东方拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
           <div className={styles.personaFlow}>
             <article className={styles.understandingCard}><small>拾光翻成人话</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>
             <article className={styles.guidanceCard}><small>给你的建议</small><h2>接下来可以怎么做</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
