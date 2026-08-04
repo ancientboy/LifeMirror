@@ -159,6 +159,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       const reflectionKnowledge = retrieveLiuyaoReflectionKnowledge(hexagram, knowledge);
       const userContext = await retrievePersonalReflectionContext(dependencies.database, user.id);
       const interactionMode: InteractionMode = parsed.data.requestedMode ?? "reflection";
+      const generationStartedAt = Date.now();
       let generated;
       try {
         generated = await generateMirrorReflection({
@@ -171,6 +172,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
           interactionMode,
         });
       } catch (error) {
+        dependencies.metrics?.increment("llm_provider_failures_total", { provider: dependencies.llm.name, mode: interactionMode });
         request.log.error({ err: error }, "reflection generation failed");
         return reply.code(502).send({ error: "reflection_generation_failed" });
       }
@@ -197,6 +199,8 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
           evidenceIds: [knowledgeTraces[index % Math.max(knowledgeTraces.length, 1)]?.entryId ?? knowledge.source],
         })),
       });
+      dependencies.metrics?.recordRuntime(interactionMode, Date.now() - generationStartedAt, runtime.trace.evaluation);
+      dependencies.metrics?.increment("llm_provider_requests_total", { provider: generated.provider, mode: interactionMode });
       const payload: ReflectionDraftPayload = {
         version: 7,
         runtimeId: runtime.trace.id,

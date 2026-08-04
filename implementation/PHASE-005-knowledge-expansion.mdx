@@ -1,5 +1,11 @@
 # PHASE-005 Knowledge Expansion
 
+**Status:** In progress — framework complete
+
+**Implemented in:** 0.7.1 foundation
+
+**Last verified:** 2026-08-03
+
 ## Goal
 Expand Life Mirror understanding capabilities.
 
@@ -17,3 +23,23 @@ Expand Life Mirror understanding capabilities.
 
 ## Deliverables
 Multiple knowledge systems available through Runtime.
+
+## Implementation Status
+
+- [x] Versioned Knowledge Pack schema and registry.
+- [x] Deterministic retrieval, source provenance, conflict reporting, and registry tests.
+- [x] Liuyao pack with complete 64-hexagram coverage and Runtime integration.
+- [ ] Astrology pack with reviewed sources, fixtures, retrieval tests, and Runtime integration.
+- [ ] Bazi pack with reviewed sources, fixtures, retrieval tests, and Runtime integration.
+- [ ] Personality model pack with consent and non-diagnostic boundaries.
+- [ ] Psychology pack with evidence-level metadata and safety boundaries.
+
+The phase is not complete until at least two systems beyond Liuyao meet the same source, test, conflict, and Runtime integration requirements. UI experiments or schema registration alone do not count as an available knowledge system.
+
+## Next Acceptance Slice
+
+1. Choose one bounded system (recommended: a consent-based personality reflection pack).
+2. Add authoritative sources and versioned entries.
+3. Add retrieval, conflict, and regression fixtures.
+4. Register the pack in Runtime and expose its evidence in Runtime Trace.
+5. Verify that disabling the pack removes it without affecting Liuyao.

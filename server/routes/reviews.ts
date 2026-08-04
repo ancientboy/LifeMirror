@@ -41,7 +41,9 @@ export async function registerReviewRoutes(app: FastifyInstance, dependencies: A
     await ensureUserMemoriesProcessed(dependencies.database, user.id);
     const review = await generateUserReview(dependencies.database, user.id, parsed.data.cadence, new Date(), parsed.data.timezone);
     const last = await dependencies.database.query<{ created_at: Date; period_end: Date }>(`SELECT created_at, period_end FROM proactive_reflection_deliveries WHERE user_id = $1 AND cadence = $2 ORDER BY created_at DESC LIMIT 1`, [user.id, parsed.data.cadence]);
-    return { decision: decideProactiveReflection({ review, preferences: await preferences(dependencies, user.id), lastSuggestedAt: last.rows[0]?.created_at, lastSuggestedPeriodEnd: last.rows[0]?.period_end }), review: review.status === "ready" ? review : undefined };
+    const decision = decideProactiveReflection({ review, preferences: await preferences(dependencies, user.id), lastSuggestedAt: last.rows[0]?.created_at, lastSuggestedPeriodEnd: last.rows[0]?.period_end });
+    dependencies.metrics?.increment("proactive_decisions_total", { cadence: parsed.data.cadence, outcome: decision.shouldSuggest ? "suggest" : decision.reason });
+    return { decision, review: review.status === "ready" ? review : undefined };
   });
 
   app.get("/api/v1/proactive-reflections/preferences", async (request, reply) => {
@@ -61,6 +63,7 @@ export async function registerReviewRoutes(app: FastifyInstance, dependencies: A
     const user = await requireUser(request, reply, dependencies); if (!user) return;
     const parsed = deliverySchema.safeParse(request.body); if (!parsed.success) return reply.code(400).send({ error: "invalid_proactive_delivery" });
     const result = await dependencies.database.query<{ id: string }>(`INSERT INTO proactive_reflection_deliveries (id, user_id, cadence, period_start, period_end, evidence_count, status) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (user_id, cadence, period_end) DO UPDATE SET status = EXCLUDED.status, updated_at = now() RETURNING id`, [randomUUID(), user.id, parsed.data.cadence, parsed.data.periodStart, parsed.data.periodEnd, parsed.data.evidenceCount, parsed.data.status]);
+    dependencies.metrics?.increment("proactive_delivery_outcomes_total", { cadence: parsed.data.cadence, status: parsed.data.status });
     return reply.code(201).send({ delivery: { id: result.rows[0].id, status: parsed.data.status } });
   });
 }

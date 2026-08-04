@@ -29,8 +29,24 @@ test("liveness endpoint does not depend on external services", async () => {
   assert.deepEqual(response.json(), {
     status: "ok",
     service: "life-mirror-api",
-    phase: "PHASE-002",
+    phase: "PHASE-006",
   });
+
+  await app.close();
+});
+
+test("operational metrics expose aggregate request health without user data", async () => {
+  const database = {} as Database;
+  const llm = { name: "disabled" } as LlmProvider;
+  const app = await buildApp({ config, database, llm });
+
+  await app.inject({ method: "GET", url: "/health/live" });
+  const response = await app.inject({ method: "GET", url: "/health/metrics" });
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.status, "ok");
+  assert.equal(body.metrics.counters["http_requests_total{method=GET,route=/health/live,status=200}"], 1);
+  assert.equal(JSON.stringify(body).includes("userId"), false);
 
   await app.close();
 });

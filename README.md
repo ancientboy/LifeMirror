@@ -2,6 +2,10 @@
 
 **AI 人生镜像理论与产品项目**
 
+**Current application version:** 0.7.2
+
+**Development status:** PHASE-001–004 complete; PHASE-005 in progress; PHASE-006 core complete with production verification pending. See [`implementation/README.md`](implementation/README.md).
+
 > 帮助每一个人，看见自己，理解自己，成为自己。
 
 Life Mirror 不是一个命理工具，也不是一个普通聊天机器人。

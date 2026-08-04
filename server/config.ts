@@ -14,6 +14,7 @@ const environmentSchema = z.object({
   LLM_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  METRICS_TOKEN: z.string().min(24).optional(),
 });
 
 export type AppConfig = z.infer<typeof environmentSchema>;
@@ -34,6 +35,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
 
   if (parsed.data.NODE_ENV === "production" && parsed.data.REFLECTION_TOKEN_SECRET === "development-only-reflection-secret") {
     throw new Error("REFLECTION_TOKEN_SECRET must be changed in production");
+  }
+
+  if (parsed.data.NODE_ENV === "production" && !parsed.data.METRICS_TOKEN) {
+    throw new Error("METRICS_TOKEN is required in production");
   }
 
   return parsed.data;
