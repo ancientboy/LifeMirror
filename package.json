@@ -16,7 +16,7 @@
     "db:migrate": "tsx server/database/migrate.ts",
     "db:migrate:status": "tsx server/database/migration-status.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/tools/tarot/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js dist/test/runtime/*.test.js dist/test/review/*.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test/app.test.js dist/test/auth/*.test.js dist/test/llm/*.test.js dist/test/tools/liuyao/*.test.js dist/test/tools/tarot/*.test.js dist/test/tools/bazi/*.test.js dist/test/knowledge/*.test.js dist/test/reflection/*.test.js dist/test/memory/*.test.js dist/test/runtime/*.test.js dist/test/review/*.test.js",
     "test:integration": "tsc -p tsconfig.integration.json && node --test dist/integration/integration/*.integration.js"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "fastify": "^5.11.0",
     "gray-matter": "^4.0.3",
+    "lunar-javascript": "1.7.7",
     "next": "15.5.22",
     "next-mdx-remote": "^6.0.0",
     "pg": "^8.22.0",

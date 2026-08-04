@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { calculateBazi } from "./engine.js";
+
+const base = { utcOffsetMinutes: 480, dayBoundary: "midnight" as const, useTrueSolarTime: false };
+
+test("matches a published library fixture for all four pillars", () => {
+  const result = calculateBazi({ ...base, year: 2005, month: 12, day: 23, hour: 8, minute: 37 });
+  assert.deepEqual(result.pillars.map((item) => item?.ganZhi), ["乙酉", "戊子", "辛巳", "壬辰"]);
+  assert.equal(result.pillars[2]?.stemTenGod, "日主");
+});
+
+test("changes the day pillar at late Zi when the selected school requires it", () => {
+  const civil = calculateBazi({ ...base, year: 1988, month: 2, day: 15, hour: 23, minute: 30 });
+  const lateZi = calculateBazi({ ...base, dayBoundary: "late-zi", year: 1988, month: 2, day: 15, hour: 23, minute: 30 });
+  assert.equal(civil.pillars[2]?.ganZhi, "庚子");
+  assert.equal(lateZi.pillars[2]?.ganZhi, "辛丑");
+});
+
+test("omits the time pillar when birth time is unknown", () => {
+  const result = calculateBazi({ ...base, year: 1990, month: 1, day: 1, hour: null, minute: 0 });
+  assert.equal(result.pillars[3], null);
+  assert.match(result.warnings.join(" "), /时柱/);
+});
+
+test("validates impossible Gregorian dates", () => {
+  assert.throws(() => calculateBazi({ ...base, year: 2025, month: 2, day: 29, hour: 12, minute: 0 }), /valid Gregorian/);
+});
+
+test("true solar correction is deterministic and disclosed", () => {
+  const result = calculateBazi({ ...base, year: 2000, month: 1, day: 1, hour: 12, minute: 0, longitude: 121.47, useTrueSolarTime: true });
+  assert.equal(typeof result.trueSolarAdjustmentMinutes, "number");
+  assert.match(result.warnings.join(" "), /均时差/);
+});
