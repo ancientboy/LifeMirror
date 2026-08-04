@@ -1,77 +1,41 @@
 "use client";
 
-import { Aperture, ArrowRight, CardsThree, ChartPolar, DotsThree, Hexagon, Sparkle } from "@phosphor-icons/react";
+import { Aperture, ArrowRight, ChatCircleDots, DotsThree, ShieldCheck, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./TwinRealmHome.module.css";
 
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
 export function TwinRealmHome() {
-  const [realm, setRealm] = useState<"east" | "west">("east");
+  const router = useRouter();
+  const [skin, setSkin] = useState<"east" | "west">("east");
+  const character = skin === "east" ? "/characters/shiguang/shiguang-east.webp" : "/characters/shiguang/shiguang-west.webp";
 
-  return (
-    <main className={`${styles.shell} ${styles[realm]}`}>
-      <header className={styles.header}>
-        <Link href="/" className={styles.brand} aria-label="LifeMirror 首页">
-          <Aperture weight="thin" />
-          <span><b>LifeMirror</b><small>拾光 · PERSONAL MIRROR</small></span>
-        </Link>
-        <nav aria-label="主导航">
-          <Link href="/mirror/">我的镜像</Link>
-          <Link href="/theory/">镜像志</Link>
-          <button aria-label="更多"><DotsThree weight="bold" /></button>
-        </nav>
-      </header>
+  return <main className={`${styles.companionShell} ${styles[skin]}`}>
+    <header className={styles.companionHeader}>
+      <Link href="/" className={styles.brand} aria-label="LifeMirror 首页"><Aperture weight="thin" /><span><b>LifeMirror</b><small>拾光 · PERSONAL MIRROR</small></span></Link>
+      <nav aria-label="主导航"><Link href="/theory/">我们如何工作</Link><Link href="/mirror/">我的镜像</Link><button aria-label="更多"><DotsThree weight="bold" /></button></nav>
+    </header>
 
-      <section className={styles.hero} aria-labelledby="twin-title">
-        <div className={`${styles.realm} ${styles.eastRealm}`} onMouseEnter={() => setRealm("east")}>
-          <div className={styles.orbit} aria-hidden="true" />
-          <img src={assetPath("/characters/shiguang/shiguang-east.webp")} className={styles.character} alt="东方皮肤的拾光" />
-          <div className={styles.realmCopy}>
-            <span className={styles.kicker}>EASTERN MIRROR · 观象</span>
-            <h2>东方镜域</h2>
-            <p>从变化的象里，照见此刻的处境。</p>
-            <div className={styles.tools}>
-              <Link href="/app/"><Hexagon weight="thin" /><span><b>六爻</b><small>以变化观当下</small></span></Link>
-              <Link href="/app/chart/"><ChartPolar weight="thin" /><span><b>命盘</b><small>建立出生资料</small></span></Link>
-            </div>
-            <Link className={styles.realmCta} href="/app/">进入东方镜域 <ArrowRight /></Link>
-          </div>
-        </div>
+    <section className={styles.companionHero}>
+      <div className={styles.companionCopy}>
+        <span className={styles.companionKicker}><Sparkle /> SHIGUANG · 你的长期陪伴者</span>
+        <h1>先和拾光聊聊，<br />再决定从哪里<br />看见自己。</h1>
+        <p>不必先懂六爻、塔罗或星盘。告诉拾光你此刻在意什么，她会陪你厘清问题，再由你选择适合的镜像方式。</p>
+        <div className={styles.companionActions}><button type="button" onClick={() => { window.localStorage.setItem("life-mirror:guest-session:v1", "active"); router.push("/app/home/"); }}>以游客身份开始 <ArrowRight /></button><Link className={styles.loginLink} href="/app/">登录个人镜像</Link><small><ShieldCheck /> 游客记录留在本机；登录后才可跨设备同步</small></div>
+        <div className={styles.companionSteps}><article><b>01</b><span><strong>先说此刻</strong><small>自由聊天或描述困惑</small></span></article><article><b>02</b><span><strong>选择镜像</strong><small>六爻、命盘、塔罗、占星</small></span></article><article><b>03</b><span><strong>继续追问</strong><small>让一次体验变成持续理解</small></span></article></div>
+      </div>
 
-        <div className={styles.axis}>
-          <div className={styles.axisMark}><span>拾<br />光</span></div>
-          <p id="twin-title">同一束光<br /><b>两种凝视</b></p>
-          <div className={styles.skinSwitch} role="group" aria-label="拾光皮肤预览">
-            <button className={realm === "east" ? styles.active : ""} onClick={() => setRealm("east")} aria-label="预览东方拾光">
-              <img src={assetPath("/characters/shiguang/shiguang-east-avatar.webp")} alt="" />
-            </button>
-            <button className={realm === "west" ? styles.active : ""} onClick={() => setRealm("west")} aria-label="预览西方拾光">
-              <img src={assetPath("/characters/shiguang/shiguang-west-avatar.webp")} alt="" />
-            </button>
-          </div>
-        </div>
+      <div className={styles.companionStage}>
+        <div className={styles.companionHalo} />
+        <img src={assetPath(character)} alt={`${skin === "east" ? "东方" : "西方"}皮肤的拾光`} />
+        <div className={styles.companionBubble}><ChatCircleDots /><p>“你不需要马上找到答案。先告诉我，今天哪件事一直留在心里？”</p></div>
+        <div className={styles.skinChoice}><span>同一个拾光 · 两种文化皮肤</span><button className={skin === "east" ? styles.active : ""} onClick={() => setSkin("east")}><img src={assetPath("/characters/shiguang/shiguang-east-avatar.webp")} alt="东方拾光" /></button><button className={skin === "west" ? styles.active : ""} onClick={() => setSkin("west")}><img src={assetPath("/characters/shiguang/shiguang-west-avatar.webp")} alt="西方拾光" /></button></div>
+      </div>
+    </section>
 
-        <div className={`${styles.realm} ${styles.westRealm}`} onMouseEnter={() => setRealm("west")}>
-          <div className={styles.orbit} aria-hidden="true" />
-          <img src={assetPath("/characters/shiguang/shiguang-west.webp")} className={styles.character} alt="西方皮肤的拾光" />
-          <div className={styles.realmCopy}>
-            <span className={styles.kicker}>WESTERN MIRROR · 读星</span>
-            <h2>西方镜域</h2>
-            <p>从象征与星轨里，读出内心的语言。</p>
-            <div className={styles.tools}>
-              <Link href="/app/tarot/"><CardsThree weight="thin" /><span><b>塔罗</b><small>三张牌镜像</small></span></Link>
-              <Link href="/app/astrology/"><Sparkle weight="thin" /><span><b>占星</b><small>建立本命星盘</small></span></Link>
-            </div>
-            <Link className={styles.realmCta} href="/app/tarot/">进入西方镜域 <ArrowRight /></Link>
-          </div>
-        </div>
-      </section>
-
-      <footer className={styles.identity}>
-        <span>01 / SHIGUANG</span><p>她不替你预言答案，只陪你把问题看得更清楚。</p><span>YOUR LIGHT, YOUR MIRROR</span>
-      </footer>
-    </main>
-  );
+    <footer className={styles.companionFooter}><span>SYMBOLIC REFLECTION + PERSONAL AI MIRROR</span><p>她不替你预言答案，只陪你把问题看得更清楚。</p><span>YOUR LIGHT, YOUR MIRROR</span></footer>
+  </main>;
 }

@@ -7,6 +7,7 @@ const inputSchema = z.object({
   hour: z.number().int().min(0).max(23).nullable(), minute: z.number().int().min(0).max(59),
   utcOffsetMinutes: z.number().int().min(-720).max(840), dayBoundary: z.enum(["midnight", "late-zi"]),
   longitude: z.number().min(-180).max(180).nullable().optional(), useTrueSolarTime: z.boolean().optional(),
+  luckGender: z.enum(["male", "female"]).nullable().optional(),
 });
 
 export async function POST(request: Request) {

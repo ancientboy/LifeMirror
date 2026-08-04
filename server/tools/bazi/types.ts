@@ -1,4 +1,5 @@
 export type DayBoundary = "midnight" | "late-zi";
+export type LuckGender = "male" | "female";
 
 export interface BaziInput {
   year: number;
@@ -10,6 +11,7 @@ export interface BaziInput {
   dayBoundary: DayBoundary;
   longitude?: number | null;
   useTrueSolarTime?: boolean;
+  luckGender?: LuckGender | null;
 }
 
 export interface BaziPillar {
@@ -32,6 +34,25 @@ export interface BaziResult {
   trueSolarAdjustmentMinutes: number | null;
   pillars: Array<BaziPillar | null>;
   solarTerms: { previous: string; previousAt: string; next: string; nextAt: string };
+  fiveElementProfile: {
+    scores: Record<"木" | "火" | "土" | "金" | "水", number>;
+    strongest: string[];
+    weakest: string[];
+    dayMaster: string;
+    dayMasterElement: "木" | "火" | "土" | "金" | "水";
+    supportiveShare: number;
+    strengthBand: "偏强" | "中和" | "偏弱";
+    method: string;
+  };
+  interactions: Array<{ kind: "合" | "冲" | "刑" | "害"; members: string; note: string }>;
+  luck: null | {
+    gender: LuckGender;
+    direction: "顺排" | "逆排";
+    startsAfter: string;
+    cycles: Array<{ ganZhi: string; startYear: number; endYear: number; startAge: number; endAge: number }>;
+    annual: Array<{ year: number; ganZhi: string; age: number; tenGod: string }>;
+    method: string;
+  };
   rules: string[];
   warnings: string[];
 }

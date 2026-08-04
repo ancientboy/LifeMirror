@@ -1,11 +1,15 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, LockKey, ShareNetwork, SignOut, Sparkle, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CardsThree, ChartPolar, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, Hexagon, LockKey, ShareNetwork, SignOut, Sparkle, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
 import type { LiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
 import type { LiuyaoAnalysisContext, LiuyaoIntentSelection, LiuyaoResult, LiuyaoTopicHint } from "@/server/tools/liuyao/types";
+import { calculateLiuyao } from "@/server/tools/liuyao/engine";
+import { createIntentSelection, resolveLiuyaoContext } from "@/server/tools/liuyao/context-resolver";
+import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
+import { retrieveLiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
 import { MemoryControls } from "./MemoryControls";
 import { ShiguangChat } from "./ShiguangChat";
 import styles from "./DailyMirrorExperience.module.css";
@@ -44,7 +48,7 @@ type IntentResolution = {
 };
 type HistoryEvent = { id: string; question: string; hexagram: Hexagram; reflection: Reflection | PreviousReflection | LegacyReflection; savedAt: string };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 const suggestions = ["我该如何看待现在的职业选择？", "这段关系正在提醒我什么？", "我为什么迟迟无法开始？"];
@@ -184,8 +188,8 @@ function LineGlyph({ polarity, moving }: { polarity: "yin" | "yang"; moving?: bo
   return <span className={`${styles.lineGlyph} ${styles[polarity]}${moving ? ` ${styles.moving}` : ""}`} aria-label={`${polarity === "yang" ? "阳爻" : "阴爻"}${moving ? "，动爻" : ""}`}><i /><i /></span>;
 }
 
-export function DailyMirrorExperience() {
-  const [stage, setStage] = useState<Stage>("home");
+export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?: "home" | "question" } = {}) {
+  const [stage, setStage] = useState<Stage>(initialStage);
   const [authState, setAuthState] = useState<"checking" | "signedOut" | "guest" | "authenticated">("checking");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -321,14 +325,8 @@ export function DailyMirrorExperience() {
     if (question.trim().length < 5 || !topicHint) return;
     setBusy(true); setError(""); setIntentClarification(null);
     try {
-      const resolution = await api<IntentResolution>("/api/v1/tools/liuyao/resolve-intent", {
-        method: "POST",
-        body: JSON.stringify({ question, topicHint }),
-      });
-      if (resolution.status === "confirmation_required" && resolution.clarification) {
-        setIntentClarification(resolution.clarification);
-        return;
-      }
+      const selection = createIntentSelection({ question, topicHint, source: "deterministic" });
+      const resolution = { status: "resolved", source: "deterministic", confidence: selection.resolution.confidence, summary: selection.intents.map((item) => item.label).join("；"), selection } satisfies IntentResolution;
       if (!resolution.selection) throw new Error("invalid_intent_resolution");
       setIntentSelection(resolution.selection);
       setStage("cast");
@@ -454,16 +452,12 @@ export function DailyMirrorExperience() {
     if (next.length !== 6) return;
     setBusy(true);
     try {
-      const result = await api<{ hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge }>("/api/v1/tools/liuyao/calculate", {
-        method: "POST",
-        body: JSON.stringify({
-          tosses: next,
-          question,
-          intentSelection,
-          occurredAt: new Date().toISOString(),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-      });
+      const occurredAt = new Date().toISOString();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const resolvedContext = resolveLiuyaoContext({ question, occurredAt, timezone, intentSelection: intentSelection ?? undefined });
+      const calculated = calculateLiuyao(next, resolvedContext);
+      const retrieved = retrieveLiuyaoKnowledge(calculated);
+      const result = { hexagram: calculated, analysisContext: resolvedContext, knowledge: retrieved, reflectionKnowledge: retrieveLiuyaoReflectionKnowledge(calculated, retrieved) };
       setHexagram(result.hexagram);
       setAnalysisContext(result.analysisContext ?? null);
       setKnowledge(result.knowledge);
@@ -523,9 +517,15 @@ export function DailyMirrorExperience() {
   async function generateReflection() {
     setBusy(true); setError("");
     try {
-      const result = authState === "guest" && hexagram && knowledge && reflectionKnowledge
-        ? createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext)
-        : await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses, analysisContext, requestedMode: interactionMode }) });
+      if (!hexagram || !knowledge || !reflectionKnowledge) throw new Error("reflection_generation_failed");
+      let result: ReflectionResponse;
+      if (authState === "authenticated" && API_BASE) {
+        try {
+          result = await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses, analysisContext, requestedMode: interactionMode }) });
+        } catch {
+          result = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
+        }
+      } else result = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
       setReflectionResult(result); setStage("traditional");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
@@ -587,21 +587,23 @@ export function DailyMirrorExperience() {
     <main className={styles.appShell}>
       <div className={styles.ambient} />
       <header className={styles.appHeader}>
-        <Link href="/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>DAILY MIRROR</small></Link>
+        <Link href="/app/home/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>DAILY MIRROR</small></Link>
         <div className={styles.headerActions}>{authState === "authenticated" && <Link href="/app/review/">周期回顾</Link>}<span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
       {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "六爻判断", "拾光解释", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
 
       {stage === "home" && (
-        <section className={styles.homeScreen}>
-          <div className={styles.homeCopy}><p>今日镜像 · 拾光在这里</p><h1>借一卦，<br />看见自己。</h1><span>把此刻最模糊的心事交给拾光。她会先看卦，再陪你把传统象征带回真实生活。</span><button className={styles.heroButton} onClick={startMirror}>和拾光开始今日镜像 <ArrowRight /></button></div>
-          <div className={styles.mirrorPortal}><div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /><strong>SHIGUANG<br />IS HERE<br />WITH YOU</strong></div></div>
-          <aside className={styles.memoryPreview}>
-            <header><ClockCounterClockwise /><span><b>你的镜像</b><small>{history.length} 次已保存的反思</small></span></header>
-            {history[0] ? <article><time>{new Date(history[0].savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</time><p>{history[0].question}</p><span>{history[0].hexagram.originalHexagram.name} → {history[0].hexagram.changedHexagram.name}</span></article> : <p className={styles.emptyMemory}>完成并保存第一次反思后，它会出现在这里。</p>}
-            <button className={styles.manageMemoryButton} onClick={() => setStage("memory")}>管理我的记忆 <ArrowRight /></button>
-          </aside>
+        <section className={styles.companionHome}>
+          <div className={styles.companionWelcome}><div><p>今日镜像 · 拾光在这里</p><h1>今天，想从<br />哪里开始？</h1><span>你可以先自由聊聊，也可以选择一种镜像工具。工具只是观察角度，拾光会留在整个过程里。</span></div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /></div>
+          <div className={styles.homeConversation}><ShiguangChat mode="home" theme="east" context="这是用户进入 LifeMirror 后的常规陪伴首页。当前还没有选择六爻、命盘、塔罗或占星；先自然回应用户当下的困惑，帮助澄清问题，不主动制造占卜结论。" opening="我在。你不必先选择工具——可以直接告诉我，今天哪件事最留在心里。我们先把它说清楚，再决定要不要借一种镜像来看。" /></div>
+          <section className={styles.toolHub}><header><div><small>CHOOSE A MIRROR · 按需要选择</small><h2>换一个角度看此刻</h2></div><span>体验结束后仍可回到拾光对话</span></header><div>
+            <button type="button" onClick={startMirror}><Hexagon /><span><b>六爻</b><small>适合具体事件与变化中的选择</small></span><ArrowRight /></button>
+            <Link href="/app/chart/"><ChartPolar /><span><b>命盘</b><small>从出生时间结构理解长期节奏</small></span><ArrowRight /></Link>
+            <Link href="/app/tarot/"><CardsThree /><span><b>塔罗</b><small>从象征画面厘清内在感受</small></span><ArrowRight /></Link>
+            <Link href="/app/astrology/"><Sparkle /><span><b>占星</b><small>从行星、宫位与相位观察心理结构</small></span><ArrowRight /></Link>
+          </div></section>
+          <aside className={styles.homeMemory}><header><ClockCounterClockwise /><span><b>你的镜像</b><small>{history.length} 次已保存的反思</small></span></header>{history[0] ? <article><time>{new Date(history[0].savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</time><p>{history[0].question}</p><span>{history[0].hexagram.originalHexagram.name} → {history[0].hexagram.changedHexagram.name}</span></article> : <p className={styles.emptyMemory}>完成并保存第一次反思后，它会出现在这里。</p>}<button className={styles.manageMemoryButton} onClick={() => setStage("memory")}>管理我的记忆 <ArrowRight /></button></aside>
         </section>
       )}
 

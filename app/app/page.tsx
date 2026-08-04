@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { DailyMirrorExperience } from "@/components/app/DailyMirrorExperience";
+import { LifeMirrorGateway } from "@/components/app/LifeMirrorGateway";
 
 export const metadata: Metadata = {
-  title: "Daily Mirror — Life Mirror",
-  description: "通过象征探索与 AI Reflection，看见此刻的自己。",
+  title: "进入 LifeMirror — 登录或游客体验",
+  description: "选择登录或游客身份，再进入拾光的日常对话与四种镜像工具。",
 };
 
 export default function DailyMirrorPage() {
-  return <DailyMirrorExperience />;
+  return <LifeMirrorGateway />;
 }

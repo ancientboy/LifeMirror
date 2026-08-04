@@ -356,8 +356,15 @@
 
 .appFooter { min-height: 70px; position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(24px, 6vw, 90px); border-top: 1px solid rgba(49,95,87,.1); color: var(--muted); font-size: 9px; letter-spacing: .12em; }
 .appFooter a { color: var(--jade); letter-spacing: 0; }
+.companionHome { width:min(1420px,100%); min-height:calc(100vh - 84px); margin:auto; padding:56px clamp(24px,5vw,78px) 90px; display:grid; grid-template-columns:minmax(320px,.78fr) minmax(430px,1.22fr); gap:24px; position:relative; z-index:1; }
+.companionWelcome { min-height:430px; position:relative; overflow:hidden; padding:48px 38px; display:flex; align-items:flex-start; border:1px solid rgba(49,95,87,.13); border-radius:26px; background:linear-gradient(145deg,rgba(247,246,240,.95),rgba(214,228,220,.72)); }
+.companionWelcome>div { max-width:330px; position:relative; z-index:2; }.companionWelcome p{margin:0;color:var(--gold);font:10px Georgia,serif;letter-spacing:.12em}.companionWelcome h1{margin:17px 0;font:400 clamp(44px,5vw,70px)/1.12 Georgia,"Songti SC",serif}.companionWelcome span{color:var(--muted);font:13px/1.8 Georgia,"Songti SC",serif}.companionWelcome img{width:62%;height:88%;position:absolute;right:-12%;bottom:0;object-fit:cover;object-position:52% 20%;opacity:.72;mask-image:linear-gradient(to left,#000 65%,transparent)}
+.homeConversation { min-width:0; }.homeConversation>section{height:100%;margin:0;}
+.toolHub { grid-column:1/3; padding:30px; border:1px solid rgba(49,95,87,.13); border-radius:24px; background:rgba(255,255,255,.48); }.toolHub>header{display:flex;align-items:end;justify-content:space-between;gap:20px}.toolHub>header small{color:var(--gold);font:9px Georgia,serif;letter-spacing:.12em}.toolHub>header h2{margin:8px 0 0;font:400 27px Georgia,"Songti SC",serif}.toolHub>header>span{color:var(--muted);font-size:10px}.toolHub>div{margin-top:23px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.toolHub a,.toolHub button{min-height:108px;padding:18px;display:grid;grid-template-columns:34px 1fr 18px;align-items:center;gap:10px;text-align:left;border:1px solid rgba(49,95,87,.13);border-radius:16px;color:inherit;background:rgba(250,249,245,.82);transition:180ms ease}.toolHub a:hover,.toolHub button:hover{transform:translateY(-2px);border-color:rgba(180,138,77,.48);box-shadow:0 13px 30px rgba(42,73,64,.08)}.toolHub svg{width:27px;height:27px;color:var(--gold)}.toolHub a>svg:last-child,.toolHub button>svg:last-child{width:16px}.toolHub span{display:flex;flex-direction:column;gap:7px}.toolHub b{font:400 16px Georgia,"Songti SC",serif}.toolHub small{color:var(--muted);font-size:9px;line-height:1.5}
+.homeMemory { grid-column:1/3; min-height:110px; padding:22px 26px; display:grid; grid-template-columns:220px 1fr auto; align-items:center; gap:22px; border:1px solid rgba(49,95,87,.1); border-radius:18px; background:rgba(255,255,255,.34); }.homeMemory header{display:flex;align-items:center;gap:12px}.homeMemory header>svg{width:24px;color:var(--jade)}.homeMemory header span{display:flex;flex-direction:column;gap:5px}.homeMemory header b{font:400 14px Georgia,"Songti SC",serif}.homeMemory header small,.homeMemory time{color:var(--muted);font-size:9px}.homeMemory article p{margin:5px 0;color:var(--ink);font:13px Georgia,"Songti SC",serif}.homeMemory article>span{color:var(--gold);font-size:9px}
 
 @media (max-width: 1050px) {
+  .companionHome { grid-template-columns:1fr; }.companionWelcome,.homeConversation,.toolHub,.homeMemory{grid-column:1}.toolHub>div{grid-template-columns:repeat(2,1fr)}
   .homeScreen { grid-template-columns: 1fr 1fr; }
   .memoryPreview { grid-column: 1/3; min-height: 140px; padding: 25px 0 0; display: grid; grid-template-columns: 220px 1fr; border-top: 1px solid rgba(49,95,87,.13); border-left: 0; }
   .memoryPreview article, .emptyMemory { margin-top: 0; }
@@ -367,6 +374,7 @@
 }
 
 @media (max-width: 760px) {
+  .companionHome{padding:34px 18px 70px}.companionWelcome{min-height:370px;padding:32px 24px}.companionWelcome h1{font-size:46px}.companionWelcome img{width:78%;right:-25%}.toolHub{padding:23px 18px}.toolHub>header{align-items:flex-start;flex-direction:column}.toolHub>div{grid-template-columns:1fr}.homeMemory{grid-template-columns:1fr}.homeMemory .manageMemoryButton{justify-self:start}
   .brandBar, .appHeader { height: 68px; padding: 0 18px; }
   .productBrand small, .headerActions span { display: none; }
   .authLayout { min-height: calc(100vh - 68px); grid-template-columns: 1fr; gap: 40px; padding: 50px 20px 70px; }

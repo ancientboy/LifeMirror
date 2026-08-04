@@ -228,3 +228,40 @@ export function analyzeRelations(cards: readonly DrawnCard[]) {
 export function cardMeaning(card: DrawnCard) {
   return card.orientation === "upright" ? card.upright : card.reversed;
 }
+
+export type TarotReading = {
+  overview: string;
+  cardInsights: Array<{ position: string; title: string; evidence: string; interpretation: string }>;
+  relationship: string;
+  shiguang: string;
+  action: string;
+  reflectionQuestion: string;
+};
+
+export function synthesizeTarotReading(question: string, spread: TarotSpread, cards: readonly DrawnCard[]): TarotReading {
+  if (cards.length !== spread.positions.length) throw new Error("cards must match the selected spread");
+  const relations = analyzeRelations(cards);
+  const cardInsights = cards.map((card, index) => {
+    const position = spread.positions[index];
+    return {
+      position: position.label,
+      title: `${card.name}${card.orientation === "reversed" ? "逆位" : "正位"}`,
+      evidence: `${card.arcana === "major" ? "大阿尔卡那" : `${card.element}元素`} · ${position.prompt}`,
+      interpretation: `${position.label}并不是结果预告，而是在“${position.prompt}”这个位置上提醒你关注：${cardMeaning(card)}。`,
+    };
+  });
+  const strongest = cards.find((card) => card.arcana === "major") ?? cards[0];
+  const pressure = cards.find((card) => card.orientation === "reversed");
+  return {
+    overview: relations.majorCount >= 2
+      ? `这组牌的大牌密度较高，问题“${question}”更像处在价值选择或阶段转换点；重点不是马上定结果，而是确认你愿意为哪种方向负责。`
+      : `这组牌主要落在可观察的现实层面。围绕“${question}”，先把情绪、判断和行动拆开，会比追问唯一答案更有帮助。`,
+    cardInsights,
+    relationship: relations.repeatedElement
+      ? `${relations.repeatedElement}元素重复，让多张牌指向同一类课题；它是本次牌阵的主轴。${relations.counterSignal}`
+      : `${relations.headline}。${relations.counterSignal}`,
+    shiguang: `如果由拾光陪你读，我会先看${strongest.name}：${cardMeaning(strongest)}。${pressure ? `同时，${pressure.name}逆位说明这里可能有尚未表达、尚未准备好，或节奏被卡住的部分。` : "牌面没有明显要求你停下，但仍需要现实证据来确认方向。"}`,
+    action: "写下一个支持当前方向的事实、一个反对它的事实，再选一个 24 小时内可完成且可撤回的小行动。",
+    reflectionQuestion: "如果不要求牌替你保证结果，你现在最愿意为哪一步承担责任？",
+  };
+}

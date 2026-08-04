@@ -1,0 +1,1 @@
+.loading{min-height:100dvh;display:grid;place-content:center;justify-items:center;gap:12px;color:#d9c481;background:#070c12}.loading>svg:first-child{width:52px;height:52px}.loading>svg:nth-child(2){width:22px;height:22px;animation:spin .8s linear infinite}.loading span{color:#aaa397;font-size:12px}@keyframes spin{to{transform:rotate(360deg)}}

@@ -18,6 +18,7 @@ import {
   cardMeaning,
   drawSpread,
   getSpread,
+  synthesizeTarotReading,
   type DrawnCard,
   type TarotSpread,
 } from "../../server/tools/tarot/core";
@@ -59,6 +60,7 @@ export function TarotExperience() {
   const [saved, setSaved] = useState(false);
   const spread = useMemo(() => getSpread(spreadId), [spreadId]);
   const relations = useMemo(() => analyzeRelations(cards), [cards]);
+  const professionalReading = useMemo(() => cards.length === spread.positions.length ? synthesizeTarotReading(question, spread, cards) : null, [cards, question, spread]);
 
   useEffect(() => {
     try {
@@ -100,8 +102,8 @@ export function TarotExperience() {
   return (
     <main className={styles.shell}>
       <header>
-        <Link href="/">
-          <ArrowLeft /> 双镜域
+        <Link href="/app/home/">
+          <ArrowLeft /> 返回拾光
         </Link>
         <span>
           <MoonStars /> WESTERN MIRROR · 拾光
@@ -238,6 +240,14 @@ export function TarotExperience() {
               <p>{relations.counterSignal}</p>
             </div>
           </div>
+          {professionalReading && <section className={styles.professionalReading}>
+            <header><small>PROFESSIONAL READING · 专业解读</small><h2>先读整体，再看每张牌如何共同回答。</h2></header>
+            <article><small>整体判断</small><p>{professionalReading.overview}</p></article>
+            <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
+            <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
+            <article className={styles.shiguangReading}><small>拾光的专属解释</small><p>{professionalReading.shiguang}</p></article>
+            <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
+          </section>}
           <div className={styles.insight}>
             <img
               src={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
@@ -257,7 +267,7 @@ export function TarotExperience() {
             meta={`${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`}
             image={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
           />
-          <ShiguangChat theme="west" context={`这次使用${spread.name}，大阿尔卡那 ${relations.majorCount} 张、逆位 ${relations.reversedCount} 张。`} />
+          <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
             <button onClick={saveReading} disabled={saved}>

@@ -7,6 +7,7 @@ import {
   drawSpread,
   drawThree,
   getSpread,
+  synthesizeTarotReading,
 } from "./core.js";
 
 test("professional deck contains 22 major and 56 unique minor arcana", () => {
@@ -48,4 +49,15 @@ test("relation analysis exposes emphasis and counter-signals without predicting 
   assert.equal(relation.reversedCount, 2);
   assert.match(relation.headline, /价值选择/);
   assert.match(relation.counterSignal, /内在节奏/);
+});
+
+test("professional synthesis separates evidence, interpretation, Shiguang reflection and action", () => {
+  const spread = getSpread("timeline");
+  const cards = drawSpread(spread, [0, 1, 2, 0, 1, 0]);
+  const reading = synthesizeTarotReading("我要不要换工作？", spread, cards);
+  assert.equal(reading.cardInsights.length, 3);
+  assert.match(reading.cardInsights[0].evidence, /大阿尔卡那|元素/);
+  assert.match(reading.shiguang, /拾光/);
+  assert.match(reading.action, /24 小时/);
+  assert.ok(reading.reflectionQuestion.endsWith("？"));
 });

@@ -32,3 +32,19 @@ test("true solar correction is deterministic and disclosed", () => {
   assert.equal(typeof result.trueSolarAdjustmentMinutes, "number");
   assert.match(result.warnings.join(" "), /均时差/);
 });
+
+test("adds reproducible five-element, branch relation and luck-cycle layers", () => {
+  const result = calculateBazi({ ...base, year: 1990, month: 1, day: 1, hour: 12, minute: 0, luckGender: "male" });
+  const total = Object.values(result.fiveElementProfile.scores).reduce((sum, value) => sum + value, 0);
+  assert.ok(Math.abs(total - 100) < 0.2);
+  assert.match(result.fiveElementProfile.method, /初步旺衰/);
+  assert.ok(result.luck);
+  assert.equal(result.luck?.cycles.length, 8);
+  assert.ok(result.luck?.annual.length);
+});
+
+test("does not fabricate luck-cycle start time when birth time is unknown", () => {
+  const result = calculateBazi({ ...base, year: 1990, month: 1, day: 1, hour: null, minute: 0, luckGender: "female" });
+  assert.equal(result.luck, null);
+  assert.match(result.rules.join(" "), /出生时间未知/);
+});
