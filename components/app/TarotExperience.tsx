@@ -23,6 +23,7 @@ import {
 } from "../../server/tools/tarot/core";
 import styles from "./TarotExperience.module.css";
 import { ShareQuoteCard } from "./ShareQuoteCard";
+import { ShiguangChat } from "./ShiguangChat";
 
 type Stage = "question" | "shuffle" | "reading";
 const prompts = [
@@ -256,6 +257,7 @@ export function TarotExperience() {
             meta={`${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`}
             image={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
           />
+          <ShiguangChat theme="west" context={`这次使用${spread.name}，大阿尔卡那 ${relations.majorCount} 张、逆位 ${relations.reversedCount} 张。`} />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
             <button onClick={saveReading} disabled={saved}>
