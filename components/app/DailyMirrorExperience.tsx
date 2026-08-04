@@ -7,6 +7,7 @@ import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval
 import type { LiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
 import type { LiuyaoAnalysisContext, LiuyaoIntentSelection, LiuyaoResult, LiuyaoTopicHint } from "@/server/tools/liuyao/types";
 import { MemoryControls } from "./MemoryControls";
+import { ShiguangChat } from "./ShiguangChat";
 import styles from "./DailyMirrorExperience.module.css";
 
 type CoinValue = 2 | 3;
@@ -727,6 +728,7 @@ export function DailyMirrorExperience() {
           </article>
           {shareStatus && <p className={styles.shareStatus}><Sparkle /> {shareStatus}</p>}
           <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
+          <ShiguangChat theme="east" context={`本次卦象为${reflectionResult.hexagram.originalHexagram.name}变${reflectionResult.hexagram.changedHexagram.name}；页面中的传统依据与规则证据可供复核。`} />
           <details className={styles.explanationTrace}>
             <summary>为什么拾光这样说</summary>
             <div><small>传统依据</small><p>{reflectionResult.explanationTrace.traditional_basis}</p></div>
