@@ -22,6 +22,7 @@ import {
   type TarotSpread,
 } from "../../server/tools/tarot/core";
 import styles from "./TarotExperience.module.css";
+import { ShareQuoteCard } from "./ShareQuoteCard";
 
 type Stage = "question" | "shuffle" | "reading";
 const prompts = [
@@ -248,6 +249,13 @@ export function TarotExperience() {
               </p>
             </div>
           </div>
+          <ShareQuoteCard
+            theme="west"
+            title="我的塔罗镜像"
+            quote={relations.reversedCount > cards.length / 2 ? "答案不是急着向外推进，而是先看见内在尚未松开的结。" : "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。"}
+            meta={`${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`}
+            image={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
+          />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
             <button onClick={saveReading} disabled={saved}>
