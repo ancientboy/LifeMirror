@@ -167,6 +167,11 @@
   border-color: rgba(225, 184, 111, 0.38);
   color: #c9bfae;
 }
+.spreads { max-width: 720px; margin-top: 22px; display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
+.spreads button { padding: 13px 14px; display: flex; flex-direction: column; gap: 5px; text-align: left; border: 1px solid rgba(255,255,255,.1); border-radius: 13px; color: #a19aaa; background: rgba(17,18,47,.66); cursor: pointer; }
+.spreads button b { color: #d8cfdf; font: 400 13px Georgia,"Songti SC",serif; }
+.spreads button span { font-size: 9px; line-height: 1.5; }
+.spreads .selectedSpread { border-color: rgba(225,184,111,.58); background: rgba(225,184,111,.08); box-shadow: inset 0 0 0 1px rgba(225,184,111,.08); }
 .primary {
   margin-top: 27px;
   padding: 14px 21px;
@@ -260,6 +265,10 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
 }
+.cards.singleCard { width: min(310px,100%); grid-template-columns: 1fr; }
+.cards.wideSpread { width: 100%; grid-template-columns: repeat(5,1fr); }
+.cards.wideSpread .cardFace { padding: 16px 12px; }
+.cards.wideSpread .cardFace b { font-size: 20px; }
 .cards article {
   opacity: 0;
   animation: reveal 0.7s ease forwards;
@@ -386,6 +395,15 @@
   font-size: 10px;
   cursor: pointer;
 }
+.actions button:disabled { opacity: .7; cursor: default; }
+.history { width: min(920px,82%); margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(225,184,111,.16); }
+.history > small { color: var(--gold); font-size: 9px; letter-spacing: .12em; }
+.history > div { margin-top: 12px; display: grid; grid-template-columns: repeat(4,1fr); gap: 9px; }
+.history article { padding: 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(255,255,255,.025); }
+.history time { display: block; color: #716b79; font-size: 8px; }
+.history b { display: block; margin-top: 5px; color: #c9bdcf; font: 400 11px Georgia,"Songti SC",serif; }
+.history article p { margin: 6px 0 0; color: #8d8795; font-size: 9px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history > p { color: #6f6977; font-size: 9px; }
 .actions a {
   border-color: rgba(225, 184, 111, 0.4);
   color: #e1c58f;
@@ -435,16 +453,20 @@
     width: 100%;
     grid-template-columns: 1fr;
   }
+  .cards.wideSpread { grid-template-columns: 1fr; }
+  .spreads { grid-template-columns: 1fr; }
   .cardFace {
     max-width: 250px;
     margin: auto;
   }
   .insight,
   .actions,
-  .synthesis {
+  .synthesis,
+  .history {
     width: 100%;
   }
   .synthesis { grid-template-columns: 1fr; }
+  .history > div { grid-template-columns: 1fr 1fr; }
   .reading {
     padding-bottom: 70px;
   }

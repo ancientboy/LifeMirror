@@ -15,7 +15,14 @@ export type TarotCard = {
 
 export type DrawnCard = TarotCard & {
   orientation: Orientation;
-  position: "past" | "present" | "future";
+  position: string;
+};
+
+export type TarotSpread = {
+  id: "single" | "timeline" | "relationship" | "decision";
+  name: string;
+  description: string;
+  positions: readonly { id: string; label: string; prompt: string }[];
 };
 
 const majors = [
@@ -122,19 +129,72 @@ export const THREE_CARD_POSITIONS = {
   future: { label: "发展方向", prompt: "若延续当前选择，什么趋势可能浮现" },
 } as const;
 
-export function drawThree(randomValues: readonly number[]): DrawnCard[] {
-  if (randomValues.length < 6)
-    throw new Error("six random values are required");
+export const TAROT_SPREADS: readonly TarotSpread[] = [
+  {
+    id: "single",
+    name: "单牌聚焦",
+    description: "用一张牌照见当下最值得留意的主题",
+    positions: [
+      { id: "focus", label: "此刻焦点", prompt: "此刻最值得看见的资源、盲点或提醒" },
+    ],
+  },
+  {
+    id: "timeline",
+    name: "三牌时间线",
+    description: "梳理形成背景、此刻核心与发展方向",
+    positions: Object.entries(THREE_CARD_POSITIONS).map(([id, value]) => ({ id, ...value })),
+  },
+  {
+    id: "relationship",
+    name: "关系镜像",
+    description: "分别看见自己、对方与关系中的共同课题",
+    positions: [
+      { id: "self", label: "我的位置", prompt: "我带入这段关系的需要、资源与盲点" },
+      { id: "other", label: "对方位置", prompt: "对方可能呈现的立场；需要现实沟通验证" },
+      { id: "dynamic", label: "关系动力", prompt: "双方互动正在共同形成的模式或课题" },
+    ],
+  },
+  {
+    id: "decision",
+    name: "决策澄清",
+    description: "比较动机、路径、代价、替代方案与验证行动",
+    positions: [
+      { id: "motive", label: "真实动机", prompt: "这个选择背后真正想满足的需要" },
+      { id: "path", label: "当前路径", prompt: "沿当前方案前进时可利用的条件" },
+      { id: "cost", label: "代价与盲点", prompt: "容易忽略的成本、风险或反向证据" },
+      { id: "alternative", label: "替代路径", prompt: "值得同时保留的另一种可能" },
+      { id: "experiment", label: "最小验证", prompt: "在承诺之前可以先做的小规模现实测试" },
+    ],
+  },
+] as const;
+
+export function getSpread(id: TarotSpread["id"]) {
+  return TAROT_SPREADS.find((spread) => spread.id === id) ?? TAROT_SPREADS[1];
+}
+
+export function drawSpread(
+  spread: TarotSpread,
+  randomValues: readonly number[],
+): DrawnCard[] {
+  if (randomValues.length < spread.positions.length * 2) {
+    throw new Error(`${spread.positions.length * 2} random values are required`);
+  }
   const available = [...TAROT_DECK];
-  const positions: DrawnCard["position"][] = ["past", "present", "future"];
-  return positions.map((position, index) => {
+  return spread.positions.map((position, index) => {
     const card = available.splice(randomValues[index] % available.length, 1)[0];
     return {
       ...card,
-      position,
-      orientation: randomValues[index + 3] % 2 ? "reversed" : "upright",
+      position: position.id,
+      orientation:
+        randomValues[index + spread.positions.length] % 2
+          ? "reversed"
+          : "upright",
     };
   });
+}
+
+export function drawThree(randomValues: readonly number[]): DrawnCard[] {
+  return drawSpread(getSpread("timeline"), randomValues);
 }
 
 export function analyzeRelations(cards: readonly DrawnCard[]) {

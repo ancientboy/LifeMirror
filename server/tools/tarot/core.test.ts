@@ -4,7 +4,9 @@ import {
   TAROT_DECK,
   analyzeRelations,
   cardMeaning,
+  drawSpread,
   drawThree,
+  getSpread,
 } from "./core.js";
 
 test("professional deck contains 22 major and 56 unique minor arcana", () => {
@@ -12,6 +14,17 @@ test("professional deck contains 22 major and 56 unique minor arcana", () => {
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "major").length, 22);
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "minor").length, 56);
   assert.equal(new Set(TAROT_DECK.map((card) => card.id)).size, 78);
+});
+
+test("all supported spreads draw the requested number of unique cards", () => {
+  for (const id of ["single", "timeline", "relationship", "decision"] as const) {
+    const spread = getSpread(id);
+    const entropy = Array.from({ length: spread.positions.length * 2 }, (_, index) => index + 3);
+    const cards = drawSpread(spread, entropy);
+    assert.equal(cards.length, spread.positions.length);
+    assert.equal(new Set(cards.map((card) => card.id)).size, cards.length);
+    assert.deepEqual(cards.map((card) => card.position), spread.positions.map((position) => position.id));
+  }
 });
 
 test("draw is deterministic, unique, and resolves orientations from supplied entropy", () => {

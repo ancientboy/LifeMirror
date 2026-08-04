@@ -4,18 +4,22 @@ import {
   ArrowLeft,
   ArrowRight,
   CardsThree,
+  CheckCircle,
+  ClockCounterClockwise,
   MoonStars,
   Sparkle,
   WarningCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  THREE_CARD_POSITIONS,
+  TAROT_SPREADS,
   analyzeRelations,
   cardMeaning,
-  drawThree,
+  drawSpread,
+  getSpread,
   type DrawnCard,
+  type TarotSpread,
 } from "../../server/tools/tarot/core";
 import styles from "./TarotExperience.module.css";
 
@@ -29,20 +33,43 @@ const assetPath = (path: string) =>
   `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 const orientationLabel = { upright: "正位", reversed: "逆位" } as const;
 
-function secureDraw() {
-  const entropy = new Uint32Array(6);
+type SavedReading = {
+  id: string;
+  createdAt: string;
+  question: string;
+  spreadId: TarotSpread["id"];
+  cards: DrawnCard[];
+};
+const HISTORY_KEY = "lifemirror.tarot.readings.v1";
+
+function secureDraw(spread: TarotSpread) {
+  const entropy = new Uint32Array(spread.positions.length * 2);
   globalThis.crypto.getRandomValues(entropy);
-  return drawThree([...entropy]);
+  return drawSpread(spread, [...entropy]);
 }
 
 export function TarotExperience() {
   const [stage, setStage] = useState<Stage>("question");
   const [question, setQuestion] = useState("");
+  const [spreadId, setSpreadId] = useState<TarotSpread["id"]>("timeline");
   const [cards, setCards] = useState<DrawnCard[]>([]);
+  const [history, setHistory] = useState<SavedReading[]>([]);
+  const [saved, setSaved] = useState(false);
+  const spread = useMemo(() => getSpread(spreadId), [spreadId]);
   const relations = useMemo(() => analyzeRelations(cards), [cards]);
 
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+      if (Array.isArray(stored)) setHistory(stored.slice(0, 12));
+    } catch {
+      localStorage.removeItem(HISTORY_KEY);
+    }
+  }, []);
+
   function draw() {
-    setCards(secureDraw());
+    setCards(secureDraw(spread));
+    setSaved(false);
     setStage("shuffle");
     window.setTimeout(() => setStage("reading"), 1250);
   }
@@ -51,6 +78,21 @@ export function TarotExperience() {
     setStage("question");
     setQuestion("");
     setCards([]);
+    setSaved(false);
+  }
+
+  function saveReading() {
+    const reading: SavedReading = {
+      id: globalThis.crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      question: question.trim(),
+      spreadId,
+      cards,
+    };
+    const next = [reading, ...history].slice(0, 12);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+    setHistory(next);
+    setSaved(true);
   }
 
   return (
@@ -101,6 +143,18 @@ export function TarotExperience() {
               </button>
             ))}
           </div>
+          <div className={styles.spreads} aria-label="选择塔罗牌阵">
+            {TAROT_SPREADS.map((item) => (
+              <button
+                className={spreadId === item.id ? styles.selectedSpread : ""}
+                key={item.id}
+                onClick={() => setSpreadId(item.id)}
+              >
+                <b>{item.name}</b>
+                <span>{item.positions.length} 张 · {item.description}</span>
+              </button>
+            ))}
+          </div>
           <button
             className={styles.primary}
             disabled={question.trim().length < 5}
@@ -122,7 +176,7 @@ export function TarotExperience() {
             ))}
           </div>
           <h1>让问题安静地落进牌里</h1>
-          <p>正在从完整牌库中抽取不重复的三张牌……</p>
+          <p>正在从完整牌库中抽取不重复的 {spread.positions.length} 张牌……</p>
         </section>
       )}
       {stage === "reading" && (
@@ -130,11 +184,11 @@ export function TarotExperience() {
           <span className={styles.eyebrow}>
             EVIDENCE-LAYERED READING · 分层解读
           </span>
-          <h1>三张牌，不止三段牌义</h1>
+          <h1>{spread.name} · 分层解读</h1>
           <blockquote>“{question}”</blockquote>
-          <div className={styles.cards}>
+          <div className={`${styles.cards} ${cards.length === 1 ? styles.singleCard : cards.length > 3 ? styles.wideSpread : ""}`}>
             {cards.map((card, index) => {
-              const position = THREE_CARD_POSITIONS[card.position];
+              const position = spread.positions.find((item) => item.id === card.position) ?? spread.positions[index];
               return (
                 <article
                   key={card.id}
@@ -190,16 +244,33 @@ export function TarotExperience() {
             <div>
               <small>拾光反思</small>
               <p>
-                把三张牌当作三种假设，而不是结论：哪一张最贴近现实证据？哪一张让你不舒服？今天能做的最小验证行动是什么？
+                把这些牌当作不同的观察假设，而不是结论：哪一张最贴近现实证据？哪一张让你不舒服？今天能做的最小验证行动是什么？
               </p>
             </div>
           </div>
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
-            <Link href="/mirror/">
-              保存到我的镜像 <ArrowRight />
-            </Link>
+            <button onClick={saveReading} disabled={saved}>
+              {saved ? <CheckCircle /> : <ClockCounterClockwise />}
+              {saved ? "已保存到此设备" : "保存本次抽牌"}
+            </button>
+            <Link href="/mirror/">查看我的镜像 <ArrowRight /></Link>
           </div>
+          {history.length > 0 && (
+            <aside className={styles.history}>
+              <small>本机抽牌记录 · 最近 {history.length} 条</small>
+              <div>
+                {history.slice(0, 4).map((item) => (
+                  <article key={item.id}>
+                    <time>{new Date(item.createdAt).toLocaleDateString("zh-CN")}</time>
+                    <b>{getSpread(item.spreadId).name}</b>
+                    <p>{item.question}</p>
+                  </article>
+                ))}
+              </div>
+              <p>记录仅保存在当前设备，可随时通过浏览器数据清除；不会自动上传。</p>
+            </aside>
+          )}
         </section>
       )}
     </main>
