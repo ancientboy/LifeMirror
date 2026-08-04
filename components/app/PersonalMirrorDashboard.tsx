@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarBlank, CircleNotch, Eye, Funnel, LockKey, Sparkle } from "@phosphor-icons/react";
 import styles from "./PersonalMirrorDashboard.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
+import { AppBottomNav } from "./AppBottomNav";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
@@ -96,5 +97,6 @@ export function PersonalMirrorDashboard() {
       <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{event.hexagram?.originalHexagram?.name ?? "镜像"} → {event.hexagram?.changedHexagram?.name ?? "成长"}</span></div></article>)}</div>
       {mode !== "loading" && !visibleEvents.length && <div className={stateStyles.timelineEmpty}>{events.length ? "这个分类下还没有镜像记录。" : "保存第一次今日镜像后，时间线会从这里开始。"}</div>}
     </section>
+    <AppBottomNav active="mirror" />
   </main>;
 }

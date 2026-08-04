@@ -27,11 +27,12 @@
   color: #7f837d;
   background: none;
   font-size: 9px;
+  cursor: pointer;
 }
 
 .bottomNav svg { width: 20px; height: 20px; }
 .bottomNav .current { color: #dfc47c; background: rgba(215, 189, 117, .08); }
 
 @media (max-width: 760px) {
-  .bottomNav { bottom: 8px; }
+  .bottomNav { bottom: max(8px, env(safe-area-inset-bottom)); }
 }

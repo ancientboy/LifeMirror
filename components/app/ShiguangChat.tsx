@@ -20,16 +20,14 @@ function contextExcerpt(context: string) {
 }
 
 function localReply(question: string, context: string, mode: "home" | "result") {
-  const focus = question.replace(/[？?。！!]/g, "").trim();
+  const focus = question.replace(/[？?。！!]/g, "").trim().slice(0, 42);
   if (mode === "home") {
-    const recommendation = /出生|性格|长期|人生|事业运|流年/.test(question)
-      ? "如果你想看长期结构，可以再进入命盘或占星；命盘偏时间节律与五行结构，占星偏人格动力与关系模式。"
-      : /选择|关系|犹豫|情绪|当下/.test(question)
-        ? "如果你希望把当下感受摊开来看，塔罗会比预测式提问更合适。"
-        : /能不能|会不会|结果|面试|项目|具体/.test(question)
-          ? "如果这是一个边界清楚、近期会有结果的具体问题，可以用六爻把条件和变化拆开。"
-          : "我们可以先不选工具，把事情分成“已经发生”“你的感受”和“尚未确认”三层。";
-    return `我听见你现在最在意的是“${focus}”。先不用急着得出结论：这件事里，哪一个已经发生的事实最让你不安或反复想到？${recommendation}`;
+    if (/你好|在吗|嗨|hello/i.test(question)) return "我在。今天过得怎么样？如果不想从头讲，也可以只告诉我：此刻最占据你心里的，是一件事、一个人，还是一种情绪？";
+    if (/难过|焦虑|害怕|累|烦|崩溃|失眠/.test(question)) return `听起来，“${focus}”已经消耗你一阵子了。设备内模式听不懂完整语境，所以我不想假装已经懂你；你可以先只写下两件事：实际发生了什么，以及它让你最担心什么。等拾光 AI 接通后，我会沿着你的原话继续聊。`;
+    if (/选择|纠结|犹豫|要不要/.test(question)) return "这像是一个还没法轻易下结论的选择。先别急着算利弊总分：把两个选项各自“最不能承受的代价”写出来，通常会比继续想象结果更快看见你的底线。若想借镜子整理，当下选择可以去探索页试试塔罗。";
+    if (/出生|性格|长期|人生|事业运|流年/.test(question)) return "你问的是比较长期的结构。设备内模式只能先帮你分流：命盘偏时间节律、五行和大运流年；占星偏人格动力、关系模式与行星周期。可以从探索页选择，但结果仍应和真实经历相互验证。";
+    if (/能不能|会不会|结果|面试|项目|具体/.test(question)) return "这是一个边界比较清楚、可能在近期出现变化的问题。设备内模式无法进行开放式推理；如果你愿意借一面镜子，可以去探索页用六爻拆看助力、阻力与变化条件。";
+    return `我收到了你说的“${focus}”。现在拾光 AI 还没接通，我不想用套话假装完全理解。你可以先把它分成三句：发生了什么、你最在意什么、下一步最难在哪里。设备内模式可以陪你整理这三层。`;
   }
   const evidence = contextExcerpt(context);
   if (/最关键|哪张牌|重点|核心/.test(question)) {
@@ -44,7 +42,7 @@ function localReply(question: string, context: string, mode: "home" | "result") 
   if (/准不准|会不会|一定|结果/.test(question)) {
     return `我不能替你保证“${focus}”的结果。盘面能做的是暴露一种结构或倾向，真正决定下一步的仍是现实条件。就这次而言，可复核的线索是：${evidence}。如果你愿意，我们可以把你最担心的那个结果拆成“已经发生”和“尚未证实”两栏。`;
   }
-  return `我听见你真正拿不准的是“${focus}”。先把这次盘面放在桌上：${evidence}。我不会把它说成命定答案。你现在更想先厘清哪一层——现实中已经发生的事实、你对它的解释，还是下一步可以验证的行动？`;
+  return `先把这次结果放回现实里看：${evidence}。设备内模式能做的是帮你核对这条线索，不能理解所有上下文。你可以先判断：它对应的是已经发生的事实、你的解释，还是仍待验证的可能。`;
 }
 
 export function ShiguangChat({ theme, context, opening = "如果你对这次结果还有疑问，可以继续问我。我们一起把象征放回真实生活里。", mode = "result" }: Props) {
@@ -53,7 +51,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const [streaming, setStreaming] = useState(false);
   const [responseMode, setResponseMode] = useState<"ready" | "llm" | "local">("ready");
   const endRef = useRef<HTMLDivElement>(null);
-  const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi.png" : "/characters/shiguang/shiguang-west-chibi.png";
+  const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-avatar.webp" : "/characters/shiguang/shiguang-west-avatar.webp";
   const quickPrompts = mode === "home" ? ["我最近总在为一件事焦虑", "我正面临一个选择", "我想更了解自己"] : theme === "east" ? ["这张盘最关键的结构是什么？", "今年这层关系应该怎么看？", "给我一个可验证的下一步"] : ["哪张牌最关键？", "为什么会这样解释？", "给我一个可验证的下一步"];
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [messages]);
@@ -87,11 +85,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     } catch {
       setResponseMode("local");
       const answer = localReply(question, context, mode);
-      const chunks = answer.match(/.{1,3}/g) ?? [answer];
-      for (const chunk of chunks) {
-        await new Promise((resolve) => window.setTimeout(resolve, 24));
-        setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, text: message.text + chunk } : message));
-      }
+      setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, text: answer } : message));
     }
     setStreaming(false);
   }
@@ -104,6 +98,6 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     </div>
     <div className={styles.quickPrompts}>{quickPrompts.map((prompt) => <button type="button" key={prompt} disabled={streaming} onClick={() => setInput(prompt)}>{prompt}</button>)}</div>
     <div className={styles.composer}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={mode === "home" ? "说说今天发生了什么，或哪件事一直在心里转……" : "追问、说说困惑，或问下一步怎么做……"} maxLength={300} /><button type="button" disabled={!input.trim() || streaming} onClick={() => void send()} aria-label="发送给拾光">{streaming ? <CircleNotch className={styles.spin} /> : <ArrowUp />}</button></div>
-    <footer>{responseMode === "llm" ? "拾光 AI 正在结合当前对话与你交流；历史记忆只会在你授权后使用。" : responseMode === "local" ? "模型服务尚未配置，本轮由设备内引导模式回应；不会伪装成 AI 对话。" : "优先连接拾光 AI；不可用时会明确切换为设备内引导模式。"}</footer>
+    <footer>{responseMode === "llm" ? "拾光 AI 正在结合当前对话回应；历史记忆只会在你授权后使用。" : responseMode === "local" ? "拾光 AI 暂未接通 · 当前为设备内整理模式，适合梳理，不等同于开放式 AI 对话。" : "正在连接拾光 AI；若不可用，会明确切换为设备内整理模式。"}</footer>
   </section>;
 }
