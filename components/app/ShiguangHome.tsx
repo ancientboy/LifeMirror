@@ -41,13 +41,10 @@ export function ShiguangHome() {
       setLatestQuestion(history[0]?.question?.trim() ?? "");
       setLatestClue(history[0]?.reflection?.shareableReflection?.trim() ?? history[0]?.reflection?.shiguangInterpretation?.trim() ?? history[0]?.reflection?.traditionalJudgment?.trim() ?? "");
     } catch { /* ignore invalid device history */ }
-    if (window.localStorage.getItem("life-mirror:guest-session:v1") === "active") {
-      setReady(true);
-      return;
-    }
+    const hasGuestSession = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     fetch("/api/v1/auth/session", { credentials: "include" })
-      .then((response) => { if (!response.ok) throw new Error("signed_out"); setReady(true); })
-      .catch(() => setReady(false));
+      .then((response) => { if (!response.ok) throw new Error("signed_out"); window.localStorage.removeItem("life-mirror:guest-session:v1"); setReady(true); })
+      .catch(() => setReady(hasGuestSession));
   }, []);
 
   if (!ready) return <main className={styles.gate}><Aperture weight="thin" /><h1>直接和拾光聊聊。</h1><p>无需注册。游客记录只留在当前设备，之后也可以再登录同步。</p><button type="button" onClick={enterAsGuest}>以游客身份继续 <ArrowRight /></button><Link href="/app/">登录或创建账户</Link></main>;

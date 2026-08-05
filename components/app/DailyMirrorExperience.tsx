@@ -236,12 +236,12 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
         meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻`,
       },
       witty: {
-        title: "如果是你，会看到什么？",
+        title: "",
         quote: playful ? "换你来照一次，看看谁更会把快乐想复杂" : `也生成一次你的镜像，看看我们会不会困在同一处`,
         meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照`,
       },
       roast: {
-        title: "有句话想让你看见",
+        title: "",
         quote: playful ? "我想要的是一起开心，不是再比一次谁输谁赢" : "我们都在等对方先靠近，所以这件事才一直悬着",
         meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应`,
       },

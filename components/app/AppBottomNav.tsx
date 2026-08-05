@@ -4,7 +4,7 @@ import { Compass, House, Sparkle, UserCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import navStyles from "./ShiguangBottomNav.module.css";
 
-type NavKey = "home" | "explore" | "mirror" | "profile";
+export type NavKey = "home" | "explore" | "mirror" | "profile";
 
 const items = [
   { key: "home", href: "/app/home/", label: "拾光", icon: House },

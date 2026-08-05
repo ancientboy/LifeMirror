@@ -25,7 +25,7 @@ function json(value, status = 200, headers = {}) {
 
 function validEmail(value) {
   const email = String(value || "").trim().toLowerCase();
-  return email.length <= 254 && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) ? email : "";
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
 async function body(request) {
@@ -260,7 +260,7 @@ async function verifyCode(request, env) {
   const input = await body(request);
   const email = validEmail(input?.email);
   const code = String(input?.code || "").trim();
-  if (!email || !/^\\d{6}$/.test(code)) return json({ error: "invalid_code" }, 400);
+  if (!email || !/^\d{6}$/.test(code)) return json({ error: "invalid_code" }, 400);
   const record = await env.DB.prepare("SELECT id, code_hash, expires_at, attempts FROM email_codes WHERE email = ? AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1").bind(email).first();
   if (!record || Date.parse(record.expires_at) <= Date.now()) return json({ error: "code_expired" }, 401);
   if (Number(record.attempts) >= 5) return json({ error: "code_attempts_exceeded" }, 429);
@@ -316,7 +316,7 @@ async function shiguang(request, env) {
   if (!input || !["east", "west"].includes(input.theme) || ![undefined, "chat", "mirror_result"].includes(input.mode) || (input.mode === "mirror_result" && !["tarot", "bazi", "astrology"].includes(input.kind)) || typeof input.context !== "string" || input.context.length > 12000 || !Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 16) return json({ error: "invalid_chat_input" }, 400);
   const messages = input.messages.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string" && item.content.length <= 2000);
   if (messages.length !== input.messages.length) return json({ error: "invalid_chat_input" }, 400);
-  const baseUrl = String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\\\/$/, "");
+  const baseUrl = String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   const upstream = await fetch(baseUrl + "/chat/completions", {
     method: "POST",
     headers: { authorization: "Bearer " + env.LLM_API_KEY, "content-type": "application/json" },

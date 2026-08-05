@@ -16,14 +16,14 @@ import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
 import { formatSavedBirthProfile, getSavedBirthProfile, saveBirthProfile } from "../../lib/birth-profile";
 
-type Props = { tradition: "east" | "west" };
+type Props = { tradition: "east" | "west"; profileOnly?: boolean };
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: Math.min(currentYear, 2100) - 1899 }, (_, index) => Math.min(currentYear, 2100) - index);
 const offsets = [-720, -660, -600, -540, -480, -420, -360, -300, -240, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 540, 570, 600, 660, 720, 780, 840];
 const formatOffset = (minutes: number) => `UTC${minutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, "0")}:${String(Math.abs(minutes) % 60).padStart(2, "0")}`;
 const formatCoordinate = (value: number) => Number.isFinite(value) ? Number(value.toFixed(4)).toString() : "";
 
-export function BirthProfileForm({ tradition }: Props) {
+export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   const [year, setYear] = useState(1990);
   const [month, setMonth] = useState(1);
   const [day, setDay] = useState(1);
@@ -108,7 +108,9 @@ export function BirthProfileForm({ tradition }: Props) {
     setSaved(false);
     setLoading(true);
     try {
-      if (tradition === "west") {
+      if (profileOnly) {
+        // The profile editor owns one canonical birth record. Calculations happen only inside a mirror tool.
+      } else if (tradition === "west") {
         setAstrology(calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) }));
       } else {
         setBazi(calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender }));
@@ -125,12 +127,12 @@ export function BirthProfileForm({ tradition }: Props) {
 
   return <>
     <form className={`${styles.form} ${styles[tradition]}`} onSubmit={submit}>
-      <div className={`${styles.notice} ${profileLoaded ? styles.profileLoaded : ""}`}><CalendarBlank /><p><b>{profileLoaded ? "已载入你的出生资料" : "先建立出生资料"}</b><span>{profileLoaded ? "命盘和占星会共用这份资料；修改并重新生成后会自动更新。" : "填写一次后会保存在你的设备；登录后可跨设备同步，并自动用于命盘与占星。"}</span></p>{profileLoaded && <Check weight="bold" />}</div>
+      <div className={`${styles.notice} ${profileLoaded ? styles.profileLoaded : ""}`}><CalendarBlank /><p><b>{profileLoaded ? "已载入你的出生资料" : "先建立出生资料"}</b><span>{profileOnly ? "这是命盘与占星共用的唯一资料；保存后两个玩法都会自动载入。" : profileLoaded ? "命盘和占星会共用这份资料；修改并重新生成后会自动更新。" : "填写一次后会保存在你的设备；登录后可跨设备同步，并自动用于命盘与占星。"}</span></p>{profileLoaded && <Check weight="bold" />}</div>
       <fieldset><legend>出生日期 <em>必填</em></legend><div className={styles.dateGrid}>
         <label><span>年</span><input list="birth-years" inputMode="numeric" value={year} min={1900} max={currentYear} onChange={(event) => setYear(Number(event.target.value))} aria-label="出生年份" /><datalist id="birth-years">{years.map((value) => <option value={value} key={value} />)}</datalist></label>
         <label><span>月</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option value={value} key={value}>{value} 月</option>)}</select></label>
         <label><span>日</span><select value={validDay} onChange={(event) => setDay(Number(event.target.value))}>{Array.from({ length: maxDay }, (_, index) => index + 1).map((value) => <option value={value} key={value}>{value} 日</option>)}</select></label>
-      </div><div className={styles.yearShortcuts}>{[1980, 1990, 2000, 2010].map((value) => <button type="button" onClick={() => setYear(value)} key={value}>{value}年代</button>)}</div></fieldset>
+      </div></fieldset>
       <fieldset><legend>出生时间 <em>建议填写</em></legend><div className={styles.timeRow}><Clock /><select value={hour} disabled={unknownTime} onChange={(event) => setHour(Number(event.target.value))}>{Array.from({ length: 24 }, (_, index) => <option value={index} key={index}>{String(index).padStart(2, "0")} 时</option>)}</select><select value={minute} disabled={unknownTime} onChange={(event) => setMinute(Number(event.target.value))}>{[0, 15, 30, 45].map((value) => <option value={value} key={value}>{String(value).padStart(2, "0")} 分</option>)}</select><label className={styles.unknown}><input type="checkbox" checked={unknownTime} onChange={(event) => setUnknownTime(event.target.checked)} />不知道具体时间</label></div><small>{tradition === "east" ? "时辰影响时柱与起运时间；未知时只生成三柱，不伪造大运起点。" : "出生时间影响上升点与宫位；未知时将不展示宫位结论。"}</small></fieldset>
       <fieldset><legend>出生地点与时区 <em>必填</em></legend>
         <LocationPicker onSelect={applyChinaRegion} />
@@ -139,13 +141,13 @@ export function BirthProfileForm({ tradition }: Props) {
         {(tradition === "west" || useTrueSolarTime) && <div className={styles.fullLabel}><div className={styles.ruleGrid}><label><span>纬度（北纬为正）</span><input required type="number" step="0.0001" min="-90" max="90" value={latitude} onChange={(event) => setLatitude(event.target.value)} onBlur={() => latitude && setLatitude(formatCoordinate(Number(latitude)))} /></label><label><span>经度（东经为正）</span><input required type="number" step="0.0001" min="-180" max="180" value={longitude} onChange={(event) => setLongitude(event.target.value)} onBlur={() => longitude && setLongitude(formatCoordinate(Number(longitude)))} /></label></div><small>{coordinateStatus || "选择地区后自动填写坐标，也可以手动修正。"}</small></div>}
         <label className={styles.fullLabel}><span>出生当日 UTC 偏移</span><select value={utcOffsetMinutes} onChange={(event) => setUtcOffsetMinutes(Number(event.target.value))}>{offsets.map((value) => <option value={value} key={value}>{formatOffset(value)}</option>)}</select></label>
       </fieldset>
-      {tradition === "east" && <fieldset><legend>排盘口径 <em>可展开复核</em></legend><div className={styles.ruleGrid}><label><span>换日规则</span><select value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value as "midnight" | "late-zi")}><option value="midnight">午夜 00:00 换日</option><option value="late-zi">子初 23:00 换日</option></select></label><label><span>传统排运参数</span><select value={luckGender ?? ""} onChange={(event) => setLuckGender((event.target.value || null) as LuckGender | null)}><option value="">暂不计算大运</option><option value="male">男命排运</option><option value="female">女命排运</option></select></label><label className={styles.toggle}><input type="checkbox" checked={useTrueSolarTime} onChange={(event) => toggleSolar(event.target.checked)} /><Compass />启用真太阳时校正</label></div><small>排运性别仅作为传统顺逆算法参数，不用于身份判断。用神、格局和具体断语仍需流派与专家复核。</small></fieldset>}
-      <label className={styles.consent}><input required type="checkbox" />我理解这是一种象征性自我探索工具，不替代医疗、法律或财务建议。</label>
+      {!profileOnly && tradition === "east" && <fieldset><legend>排盘口径 <em>可展开复核</em></legend><div className={styles.ruleGrid}><label><span>换日规则</span><select value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value as "midnight" | "late-zi")}><option value="midnight">午夜 00:00 换日</option><option value="late-zi">子初 23:00 换日</option></select></label><label><span>传统排运参数</span><select value={luckGender ?? ""} onChange={(event) => setLuckGender((event.target.value || null) as LuckGender | null)}><option value="">暂不计算大运</option><option value="male">男命排运</option><option value="female">女命排运</option></select></label><label className={styles.toggle}><input type="checkbox" checked={useTrueSolarTime} onChange={(event) => toggleSolar(event.target.checked)} /><Compass />启用真太阳时校正</label></div><small>排运性别仅作为传统顺逆算法参数，不用于身份判断。用神、格局和具体断语仍需流派与专家复核。</small></fieldset>}
+      {!profileOnly && <label className={styles.consent}><input required type="checkbox" />我理解这是一种象征性自我探索工具，不替代医疗、法律或财务建议。</label>}
       {error && <p className={styles.error} role="alert">{error}</p>}
-      <button className={styles.submit} disabled={!place.trim() || loading || ((tradition === "west" || useTrueSolarTime) && (!longitude || !latitude))}>{loading ? <><SpinnerGap className={styles.spin} />正在计算{tradition === "west" ? "星盘" : "命盘"}…</> : saved ? <><Check />重新计算{tradition === "west" ? "星盘" : "命盘"}</> : tradition === "east" ? "生成完整基础命盘" : "生成本命星盘"}</button>
+      <button className={styles.submit} disabled={!place.trim() || loading || ((tradition === "west" || useTrueSolarTime) && (!longitude || !latitude))}>{loading ? <><SpinnerGap className={styles.spin} />正在保存…</> : profileOnly ? saved ? <><Check />出生资料已保存</> : "保存出生资料" : saved ? <><Check />重新计算{tradition === "west" ? "星盘" : "命盘"}</> : tradition === "east" ? "生成完整基础命盘" : "生成本命星盘"}</button>
     </form>
-    {tradition === "east" && bazi && <BaziChart result={bazi} />}
-    {tradition === "west" && astrology && <AstrologyChart result={astrology} />}
+    {!profileOnly && tradition === "east" && bazi && <BaziChart result={bazi} />}
+    {!profileOnly && tradition === "west" && astrology && <AstrologyChart result={astrology} />}
   </>;
 }
 

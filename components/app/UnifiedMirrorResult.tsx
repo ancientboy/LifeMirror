@@ -127,8 +127,8 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     <aside><small>留给你的问题</small><p>{result.reflectionQuestion}</p></aside>
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
       paper: { kicker: `我的此刻 · ${labels[kind]}`, title: "这句话有点像我", quote: result.shareCards.warm, meta },
-      night: { kicker: `关系回应 · ${labels[kind]}`, title: "有句话想让你看见", quote: result.shareCards.roast, meta: "这像我们吗？" },
-      character: { kicker: `邀请对照 · ${labels[kind]}`, title: "如果是你，会看到什么？", quote: result.shareCards.witty, meta: "生成你的镜像，和我对照看看" },
+      night: { kicker: `关系回应 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
+      character: { kicker: `邀请对照 · ${labels[kind]}`, quote: result.shareCards.witty, meta: "生成你的镜像，和我对照看看" },
     }} />
   </section>;
 }

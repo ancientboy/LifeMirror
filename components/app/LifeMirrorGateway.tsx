@@ -34,13 +34,15 @@ export function LifeMirrorGateway() {
   useEffect(() => {
     let active = true;
     async function open() {
-      if (window.localStorage.getItem(GUEST_SESSION_KEY) === "active") { router.replace("/app/home/"); return; }
-      if (new URLSearchParams(window.location.search).get("chatgpt") === "1") {
+      const params = new URLSearchParams(window.location.search);
+      const forceLogin = params.get("login") === "1";
+      if (!forceLogin && window.localStorage.getItem(GUEST_SESSION_KEY) === "active") { router.replace("/app/home/"); return; }
+      if (params.get("chatgpt") === "1") {
         try {
           const result = await authRequest<LoginResponse>("/api/v1/auth/chatgpt", { method: "POST", body: JSON.stringify(accountLoginPayload()) });
           finishAccountLogin(result.data); router.replace("/app/home/"); return;
         } catch (cause) { if (active) setError(message(cause)); }
-      } else {
+      } else if (!forceLogin) {
         try { await authRequest("/api/v1/auth/session"); router.replace("/app/home/"); return; } catch { /* show login */ }
       }
       if (active) setChecking(false);
@@ -51,12 +53,14 @@ export function LifeMirrorGateway() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
+    const normalizedEmail = email.normalize("NFKC").trim().toLowerCase();
+    setEmail(normalizedEmail);
     try {
       if (step === "email") {
-        await authRequest("/api/v1/auth/request-code", { method: "POST", body: JSON.stringify({ email }) });
+        await authRequest("/api/v1/auth/request-code", { method: "POST", body: JSON.stringify({ email: normalizedEmail }) });
         setStep("code");
       } else {
-        const result = await authRequest<LoginResponse>("/api/v1/auth/verify-code", { method: "POST", body: JSON.stringify({ email, code, ...accountLoginPayload() }) });
+        const result = await authRequest<LoginResponse>("/api/v1/auth/verify-code", { method: "POST", body: JSON.stringify({ email: normalizedEmail, code, ...accountLoginPayload() }) });
         finishAccountLogin(result.data); router.replace("/app/home/");
       }
     } catch (cause) { setError(message(cause)); }
@@ -74,7 +78,7 @@ export function LifeMirrorGateway() {
         {step === "email" ? <EnvelopeSimple weight="thin" /> : <LockKey weight="thin" />}
         <h2>{step === "email" ? "邮箱登录" : "输入验证码"}</h2>
         <p>{step === "email" ? "首次验证即自动注册，不再区分注册与登录。" : `验证码已发送到 ${email}，10 分钟内有效。`}</p>
-        {step === "email" ? <label>邮箱<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label> : <label>6 位验证码<input className={styles.codeInput} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label>}
+        {step === "email" ? <label>邮箱<input type="email" required inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} onBlur={() => setEmail((value) => value.normalize("NFKC").trim().toLowerCase())} placeholder="you@example.com" /></label> : <label>6 位验证码<input className={styles.codeInput} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label>}
         {error && <div className={styles.error} role="alert">{error}</div>}
         <button className={styles.primary} disabled={busy || (step === "code" && code.length !== 6)}>{busy ? <CircleNotch className={styles.spin} /> : step === "email" ? "发送验证码" : "验证并登录"}</button>
         {step === "code" && <button className={styles.switcher} type="button" onClick={() => { setStep("email"); setCode(""); setError(""); }}><ArrowLeft /> 更换邮箱</button>}

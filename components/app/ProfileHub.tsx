@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, DeviceMobile, FloppyDisk, LockKey, SignOut, Sparkle, Trash, UserCircle } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, Check, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -8,6 +8,9 @@ import { AppBottomNav } from "./AppBottomNav";
 import styles from "./ProfileHub.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { BIRTH_PROFILE_CHANGED_EVENT, formatSavedBirthProfile, getSavedBirthProfile, removeSavedBirthProfile, type SavedBirthProfile } from "@/lib/birth-profile";
+import { getUserProfile, saveUserProfile, USER_PROFILE_CHANGED_EVENT, type GenderDisplay, type UserProfile } from "@/lib/user-profile";
+
+const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
 
 export function ProfileHub() {
   const [guest, setGuest] = useState(true);
@@ -16,21 +19,24 @@ export function ProfileHub() {
   const [facts, setFacts] = useState<SavedFact[]>([]);
   const [draft, setDraft] = useState("");
   const [birthProfile, setBirthProfile] = useState<SavedBirthProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile>(() => ({ version: 1, nickname: "", avatar: "", gender: "hidden", updatedAt: "" }));
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
 
   useEffect(() => {
-    const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); };
-    const isGuest = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
-    setGuest(isGuest);
-    if (!isGuest) fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
-      if (!response.ok) { setGuest(true); return; }
+    const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); setProfile(getUserProfile()); };
+    fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
+      if (!response.ok) throw new Error("signed_out");
       const session = await response.json() as { user?: { email?: string } };
       setAccountEmail(session.user?.email ?? "");
       setGuest(false);
-    }).catch(() => undefined);
+      window.localStorage.removeItem("life-mirror:guest-session:v1");
+    }).catch(() => { setAccountEmail(""); setGuest(true); });
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
     window.addEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync);
-    return () => { window.removeEventListener(MEMORY_CHANGED_EVENT, sync); window.removeEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync); };
+    window.addEventListener(USER_PROFILE_CHANGED_EVENT, sync);
+    return () => { window.removeEventListener(MEMORY_CHANGED_EVENT, sync); window.removeEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync); window.removeEventListener(USER_PROFILE_CHANGED_EVENT, sync); };
   }, []);
 
   function toggle(next: Partial<MemorySettings>) {
@@ -48,21 +54,59 @@ export function ProfileHub() {
     window.location.href = "/app/";
   }
 
+  function persistProfile() {
+    setProfile(saveUserProfile(profile));
+    setProfileSaved(true);
+    setEditingProfile(false);
+    window.setTimeout(() => setProfileSaved(false), 1800);
+  }
+
+  function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 600_000) return;
+    const reader = new FileReader();
+    reader.onload = () => setProfile((current) => ({ ...current, avatar: typeof reader.result === "string" ? reader.result : current.avatar }));
+    reader.readAsDataURL(file);
+  }
+
+  const displayName = profile.nickname || (accountEmail ? accountEmail.split("@")[0] : "镜像旅人");
+  const genderLabel = ({ hidden: "不展示", female: "女性", male: "男性", nonbinary: "非二元／其他" } as Record<GenderDisplay, string>)[profile.gender];
+
   return <main className={styles.shell}>
     {accountEmail && <AccountDataSync />}
     <header><UserCircle weight="thin" /><small>MY LIFE MIRROR</small><h1>我的</h1><p>{guest ? "当前以游客身份使用，记录仅保存在这台设备。" : "管理你的身份、镜像记录与隐私选择。"}</p></header>
+    <section className={styles.identityCard} aria-labelledby="personal-profile-title">
+      <div className={styles.avatar} style={{ background: profile.avatar.startsWith("preset:") ? profile.avatar.slice(7) : avatarPresets[0] }}>
+        {profile.avatar && !profile.avatar.startsWith("preset:") ? <img src={profile.avatar} alt="我的头像" /> : <span>{[...displayName][0]?.toUpperCase() || "我"}</span>}
+      </div>
+      <div className={styles.identityText}><small>个人资料</small><h2 id="personal-profile-title">{displayName}</h2><p>{genderLabel}{birthProfile ? ` · ${birthProfile.year}年${birthProfile.month}月${birthProfile.day}日` : " · 尚未填写生日"}</p></div>
+      <button type="button" onClick={() => setEditingProfile((value) => !value)}>{editingProfile ? <X /> : <PencilSimple />}{editingProfile ? "取消" : "编辑"}</button>
+      {editingProfile && <div className={styles.profileEditor}>
+        <div className={styles.avatarEditor}>
+          <label><Camera /><span>上传头像</span><small>JPG／PNG，600KB 以内</small><input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadAvatar} /></label>
+          <div>{avatarPresets.map((color) => <button type="button" aria-label={`使用${color}头像`} key={color} style={{ background: color }} onClick={() => setProfile((current) => ({ ...current, avatar: `preset:${color}` }))} />)}</div>
+        </div>
+        <label><span>昵称</span><input maxLength={20} value={profile.nickname} onChange={(event) => setProfile((current) => ({ ...current, nickname: event.target.value }))} placeholder="怎么称呼你" /></label>
+        <label><span>性别显示</span><select value={profile.gender} onChange={(event) => setProfile((current) => ({ ...current, gender: event.target.value as GenderDisplay }))}><option value="hidden">不展示</option><option value="female">女性</option><option value="male">男性</option><option value="nonbinary">非二元／其他</option></select></label>
+        <button className={styles.saveProfile} type="button" onClick={persistProfile}><Check />保存个人资料</button>
+      </div>}
+      {profileSaved && <span className={styles.savedNotice}><Check /> 已保存</span>}
+    </section>
+
     <section className={styles.accountSection}>
       <article><DeviceMobile /><div><small>当前身份</small><h2>{guest ? "游客 · 本机模式" : accountEmail || "正在确认账户"}</h2><p>{guest ? "记录仅保存在这台设备；登录后会自动合并到你的账户。" : "个人镜像、明确记忆与设置已启用跨设备同步。"}</p></div></article>
       <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
-      <Link href="/app/"><LockKey /><span><b>登录与账户</b><small>查看当前服务器连接状态</small></span><ArrowRight /></Link>
+      {guest ? <Link href="/app/?login=1"><LockKey /><span><b>登录并同步</b><small>进入邮箱登录，不再跳回聊天首页</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
       {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
     </section>
 
     <section className={styles.birthPanel} aria-labelledby="birth-profile-title">
       <header><CalendarBlank /><div><small>出生资料</small><h2 id="birth-profile-title">命盘与占星共用</h2><p>{birthProfile ? formatSavedBirthProfile(birthProfile) : "还没有保存出生资料。填写一次后，两个玩法都会自动载入。"}</p></div></header>
       <div className={styles.birthActions}>
-        <Link href="/app/chart/">打开命盘 <ArrowRight /></Link>
-        <Link href="/app/astrology/">打开占星 <ArrowRight /></Link>
+        <Link href="/app/profile/birth/">{birthProfile ? "编辑出生资料" : "填写出生资料"} <ArrowRight /></Link>
+        <Link href="/app/chart/">去看命盘</Link>
+        <Link href="/app/astrology/">去看占星</Link>
         {birthProfile && <button type="button" onClick={() => { removeSavedBirthProfile(); setBirthProfile(null); }}><Trash /> 删除资料</button>}
       </div>
       <small className={styles.birthPrivacy}>{guest ? "资料仅保存在这台设备。" : "资料会随账户跨设备同步。"} 不会用于六爻或塔罗。</small>

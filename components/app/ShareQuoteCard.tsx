@@ -5,7 +5,7 @@ import { useState } from "react";
 import styles from "./ShareQuoteCard.module.css";
 
 type Variant = "paper" | "night" | "character";
-type CardContent = { kicker?: string; title: string; quote: string; meta: string };
+type CardContent = { kicker?: string; title?: string; quote: string; meta: string };
 type Props = {
   title: string;
   quote: string;
@@ -118,14 +118,16 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       context.font = "28px serif";
       context.fillText(current.kicker ?? "LIFE MIRROR · 拾光", 90, 110);
       context.fillStyle = ink;
-      context.font = "52px serif";
-      context.fillText(current.title, 90, 210);
+      if (current.title) {
+        context.font = "52px serif";
+        context.fillText(current.title, 90, 210);
+      }
 
       const portrait = variant === "character" ? await loadImage(image) : null;
       const textWidth = portrait ? 650 : 880;
       context.font = "46px serif";
       const lines = wrapText(context, `“${current.quote}”`, textWidth);
-      let y = 382;
+      let y = current.title ? 382 : 270;
       lines.forEach((line) => {
         context.fillText(line, 90, y);
         y += 78;
@@ -158,7 +160,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
         }
         if (canShare) {
           try {
-            await navigator.share({ files: [file], title: current.title, text: `${current.quote}\n${current.meta}` });
+            await navigator.share({ files: [file], title: current.title || "LifeMirror · 拾光", text: `${current.quote}\n${current.meta}` });
             setStatus("已打开系统分享面板");
             return;
           } catch (error) {
@@ -179,7 +181,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   return <section className={`${styles.card} ${styles[theme]} ${styles[variant]}`}>
     <div className={styles.content}>
       <small><Sparkle /> {current.kicker ?? "三款镜像卡片"}</small>
-      <h3>{current.title}</h3>
+      {current.title && <h3>{current.title}</h3>}
       <blockquote>“{current.quote}”</blockquote>
       <span>{current.meta}</span>
       <div className={styles.variants} aria-label="选择分享卡风格">
