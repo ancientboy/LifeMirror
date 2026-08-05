@@ -1,7 +1,7 @@
 .spin { animation: spin 1s linear infinite; }
-.notice { max-width: 1184px; margin: -30px auto 42px; padding: 14px 20px; border: 1px solid rgba(216,186,111,.25); border-radius: 12px; color: #d8ba6f; background: rgba(216,186,111,.06); }
-.empty { min-height: 150px; display: flex; flex-direction: column; justify-content: center; color: #78958d; }
-.empty h2 { margin: 0 0 12px; font: 400 26px/1.4 Georgia, serif; color: #c3d7d1; }
+.notice { max-width: 1184px; margin: -30px auto 42px; padding: 14px 20px; border: 1px solid rgba(169,130,61,.25); border-radius: 12px; color: #8b692f; background: rgba(169,130,61,.08); }
+.empty { min-height: 150px; display: flex; flex-direction: column; justify-content: center; color: #68716c; }
+.empty h2 { margin: 0 0 12px; font: 400 26px/1.4 Georgia, serif; color: #315d52; }
 .empty p { margin: 0; line-height: 1.7; }
-.timelineEmpty { padding: 48px 0; text-align: center; color: #718e85; border-bottom: 1px solid rgba(211,235,226,.1); }
+.timelineEmpty { padding: 48px 0; text-align: center; color: #68716c; border-bottom: 1px solid #d8d2c6; }
 @keyframes spin { to { transform: rotate(360deg); } }

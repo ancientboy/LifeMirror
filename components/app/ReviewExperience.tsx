@@ -9,7 +9,7 @@ type Review = { cadence: "weekly" | "monthly"; status: "ready" | "insufficient_e
 type Preferences = { enabled: boolean; weeklyEnabled: boolean; monthlyEnabled: boolean; cooldownHours: number };
 type Session = { authenticated: boolean; user?: { email: string } };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, credentials: "include", headers: { "content-type": "application/json", ...init?.headers } });

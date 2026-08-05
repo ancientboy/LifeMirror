@@ -10,9 +10,12 @@ import { calculateLiuyao } from "@/server/tools/liuyao/engine";
 import { createIntentSelection, resolveLiuyaoContext } from "@/server/tools/liuyao/context-resolver";
 import { retrieveLiuyaoKnowledge } from "@/server/knowledge/liuyao-retrieval";
 import { retrieveLiuyaoReflectionKnowledge } from "@/server/knowledge/liuyao-reflection-map";
+import { buildLiuyaoPresentation, cleanLiuyaoText } from "@/server/reflection/liuyao-presentation";
 import { MemoryControls } from "./MemoryControls";
+import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
 import styles from "./DailyMirrorExperience.module.css";
+import { markAccountDataChanged } from "@/lib/account-data";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
@@ -32,12 +35,17 @@ type Reflection = {
   closing?: { type: "banter" | "follow_up" | "observation" | "reflection"; text: string };
   reflectionQuestion?: string;
   shareableReflection: string;
+  shareCards?: {
+    warm: { title: string; quote: string; meta: string };
+    witty: { title: string; quote: string; meta: string };
+    roast: { title: string; quote: string; meta: string };
+  };
 };
 type PreviousReflection = { shiguangSees: string; hexagramMeaning: string; mirrorUnderstanding: string; practicalGuidance: string; reflectionQuestion: string; shareableReflection: string };
 type LegacyReflection = { observation: string; insight: string; reflectionQuestion: string; actionSuggestion: string };
 type ExplanationTrace = { traditional_basis: string; liuyao_factors: string[]; reflection_mapping: string; final_response: Reflection };
 type RuntimeTrace = { mode: { mode: "reflection" | "deep"; confidence: number }; evaluation: { level: string; score: number; flags: string[] }; stages: Array<{ name: string; status: string; detail?: string }> };
-type ReflectionResponse = { question: string; hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; interactionMode?: "reflection" | "deep"; runtimeTrace?: RuntimeTrace; draftToken: string; expiresAt: string };
+type ReflectionResponse = { question: string; hexagram: Hexagram; analysisContext?: LiuyaoAnalysisContext; knowledge: Knowledge; reflectionKnowledge: ReflectionKnowledge; reflection: Reflection; explanationTrace: ExplanationTrace; interactionMode?: "reflection" | "deep"; runtimeTrace?: RuntimeTrace; generationMode?: "ai" | "basic"; generationNotice?: string; draftToken: string; expiresAt: string };
 type IntentResolution = {
   status: "resolved" | "confirmation_required";
   source: LiuyaoIntentSelection["resolution"]["source"];
@@ -61,6 +69,46 @@ const topicOptions: Array<{ value: LiuyaoTopicHint; label: string }> = [
 ];
 const lineNames = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"];
 const branchNames = { zi: "子", chou: "丑", yin: "寅", mao: "卯", chen: "辰", si: "巳", wu: "午", wei: "未", shen: "申", you: "酉", xu: "戌", hai: "亥" } as const;
+const liuyaoRuleNames: Record<string, string> = {
+  analysis_context_required: "判断条件说明", useful_god_by_topic: "按所问主题取用神", useful_god_multiple_candidates: "用神候选比较",
+  hidden_spirit: "用神伏藏", month_strength: "月令旺衰", hexagram_body_location: "卦身位置", wandering_soul_structure: "游魂结构", returning_soul_structure: "归魂结构",
+  single_moving_line: "独发", single_static_line: "独静", six_combine_structure: "六合结构", six_clash_structure: "六冲结构",
+  moving_lines_repeat_fuyin: "伏吟线索", moving_lines_reverse_fanyin: "反吟线索", day_generates_useful: "日辰生用神", day_controls_useful: "日辰克用神",
+  month_break: "月破", void_clashed_open: "冲空候选", moving_line_clashed: "动爻逢冲", hidden_movement: "暗动", day_break: "日破",
+  moving_line_bound_by_combine: "动爻合绊", day_combine: "日辰相合", branch_harm_on_useful: "用神逢害", shi_line_changes: "世爻发动", ying_line_changes: "应爻发动",
+  useful_generates_shi: "用神生世", useful_controls_shi: "用神克世", shi_generates_useful: "世爻生用", shi_controls_useful: "世爻克用",
+  shi_use_clash: "世用相冲", shi_use_combine: "世用相合", ying_generates_shi: "应爻生世", ying_controls_shi: "应爻克世", shi_generates_ying: "世爻生应",
+  source_god_moves: "原神发动", source_god_transforms_progress: "原神化进", source_god_transforms_retreat: "原神化退",
+  avoid_god_moves: "忌神发动", avoid_god_transforms_progress: "忌神化进", avoid_god_transforms_retreat: "忌神化退",
+  useful_god_void: "用神旬空", return_generation: "回头生", return_control: "回头克", transforms_progress: "化进神", transforms_retreat: "化退神",
+  transforms_void: "化空", transforms_month_break: "化月破", azure_dragon_on_useful: "用神临青龙", vermilion_bird_on_useful: "用神临朱雀", white_tiger_on_useful: "用神临白虎",
+  siblings_divide_wealth: "兄弟分财", hidden_spirit_supported: "伏神得扶", hidden_spirit_weak: "伏神偏弱", hidden_spirit_void: "伏神旬空",
+  hidden_spirit_month_break: "伏神月破", flying_generates_hidden: "飞神生伏神", hidden_generates_flying: "伏神生飞神", hidden_controls_flying: "伏神克飞神",
+  hidden_and_flying_same_element: "飞伏比和", job_search_documents: "求职文书与手续", job_search_employer_relation: "求职世应关系",
+  exam_evaluation_conditions: "考试评价条件", relationship_contact_signal: "关系联络信号", reconciliation_shi_ying_clash: "复合世应相冲",
+  reconciliation_shi_ying_combine: "复合世应相合", investment_risk_factor: "投资风险因素", health_illness_factor_active: "健康病象活跃",
+  health_relief_controls_illness: "缓解力量发动", relationship_ying_generates_shi: "关系中应爻生世", relationship_ying_controls_shi: "关系中应爻克世",
+  relationship_shi_generates_ying: "关系中世爻生应", shi_ying_relation_after_change: "变化后的世应关系",
+};
+const relationNames: Record<string, string> = { self: "兄弟", offspring: "子孙", wealth: "妻财", official: "官鬼", parent: "父母" };
+function humanizeLiuyaoRule(rule: string) {
+  if (/[㐀-鿿]/.test(rule)) return rule;
+  if (liuyaoRuleNames[rule]) return liuyaoRuleNames[rule];
+  if (rule.startsWith("shi_holds_")) return `世爻临${relationNames[rule.slice("shi_holds_".length)] ?? "六亲"}`;
+  if (rule.startsWith("timing_")) return "应期观察窗口";
+  if (rule.startsWith("topic_auxiliary_")) return "主题辅助线索";
+  if (rule.startsWith("scenario_focus_")) return "情境重点";
+  if (rule.startsWith("three_harmony_")) return "三合局线索";
+  if (rule.includes("punishment")) return "用神逢刑";
+  if (rule.includes("tomb")) return "用神入墓";
+  if (rule.includes("flying_controls_hidden")) return "飞神克伏神";
+  return "六爻结构线索";
+}
+function humanizeLiuyaoFactor(factor: string) {
+  const separator = factor.indexOf(":");
+  if (separator < 0) return cleanLiuyaoText(factor);
+  return `${humanizeLiuyaoRule(factor.slice(0, separator))}：${cleanLiuyaoText(factor.slice(separator + 1))}`;
+}
 const castingPhaseClass: Record<CastingPhase, string> = {
   idle: "",
   shaking: styles.coinShaking,
@@ -142,18 +190,34 @@ function normalizeReflection(reflection: Reflection | PreviousReflection | Legac
   };
 }
 
+function cleanShareQuote(text: string) {
+  return text.trim().replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|轻毒舌(?:版)?)[：:\s]+/u, "");
+}
+
+function cleanReflectionShareCards(reflection: Reflection): Reflection {
+  if (!reflection.shareCards) return reflection;
+  return {
+    ...reflection,
+    shareCards: {
+      warm: { ...reflection.shareCards.warm, quote: cleanShareQuote(reflection.shareCards.warm.quote) },
+      witty: { ...reflection.shareCards.witty, quote: cleanShareQuote(reflection.shareCards.witty.quote) },
+      roast: { ...reflection.shareCards.roast, quote: cleanShareQuote(reflection.shareCards.roast.quote) },
+    },
+  };
+}
+
 function createGuestReflection(question: string, hexagram: Hexagram, knowledge: Knowledge, reflectionKnowledge: ReflectionKnowledge, analysisContext?: LiuyaoAnalysisContext | null): ReflectionResponse {
   const directionText = { favorable: "偏向可以", mixed: "可以，但别把期待拉太满", unfavorable: "眼下不太占优势", undetermined: "暂时还不能定" } as const;
   const verdictText = hexagram.judgment.verdicts.map((item) => `${item.label}：${directionText[item.direction]}`).join("；");
   const decisive = hexagram.judgment.keyEvidence.slice(0, 4);
   const evidenceCards = decisive.map((item) => ({
-    title: item.rule,
+    title: humanizeLiuyaoRule(item.rule),
     technical: item.technicalText ?? item.conclusion,
     plain: item.plainMeaning ?? item.conclusion,
     effect: item.effect === "support" ? "positive" as const : item.effect === "obstruct" ? "negative" as const : "mixed" as const,
   }));
-  const technicalStory = decisive.map((item) => item.technicalText ?? item.conclusion).join("；");
-  const plainStory = decisive.map((item) => item.plainMeaning ?? item.conclusion).join(" ");
+  const technicalStory = decisive.map((item) => cleanLiuyaoText(item.technicalText ?? item.conclusion)).join("；");
+  const plainStory = decisive.map((item) => cleanLiuyaoText(item.plainMeaning ?? item.conclusion)).join(" ");
   const playful = hexagram.judgment.tone === "playful";
   const investment = analysisContext?.scenario === "investment" || analysisContext?.intents?.some((intent) => intent.scenario === "investment");
   const careful = hexagram.judgment.tone === "careful";
@@ -164,7 +228,24 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     practicalGuidance: playful ? "把它当成开心局，安排别太死，也别为了输赢把气氛打紧。" : investment ? "先核验标的、仓位、最大可承受损失和退出条件；卦里的方向不能代替财务判断。" : careful ? "把卦里的线索当成风险提醒，再交给现实检查、证据或专业意见确认。" : "先照卦里最强的助力和阻力各核实一件现实条件，再决定投入多少。",
     evidenceCards,
     closing: playful ? { type: "follow_up", text: "真去了回来跟我说说，这卦到底猜中了几分。" } : { type: "observation", text: "先看现实有没有回应卦里这股力，再决定下一步。" },
-    shareableReflection: playful ? "今天更值得赢到开心，不必把每一分输赢都算得太重。" : "看清助力与阻力，再把决定落回现实。",
+    shareableReflection: playful ? "今天更值得赢到开心，不必把每一分输赢都算得太重。" : `${knowledge.original.name}走向${knowledge.changed.name}：先按眼前最清楚的条件，决定下一步。`,
+    shareCards: {
+      warm: {
+        title: "拾光的温柔提醒",
+        quote: playful ? "去享受这件事吧，开心本身就是今天值得带回来的答案。" : `不用急着一次想完。${knowledge.original.name}提醒你先看清当下，${knowledge.changed.name}提醒你给变化留一点余地。`,
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 暖心版`,
+      },
+      witty: {
+        title: "卦象翻译器",
+        quote: playful ? "可以去，但别把快乐局硬玩成绩效考核。" : `${knowledge.original.name}负责提醒你别急，${knowledge.changed.name}负责提醒你别把路走死。`,
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 翻译梗`,
+      },
+      roast: {
+        title: "拾光轻轻毒舌",
+        quote: playful ? "能不能开心，卦只负责提醒；别临场又给自己加一套输赢 KPI。" : "卦可以给方向，但不能替你把现实条件补齐。少脑补一个，答案通常就清楚一点。",
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 轻毒舌`,
+      },
+    },
   };
   return {
     question: question.trim(),
@@ -179,6 +260,8 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
       reflection_mapping: reflectionKnowledge.mappings.map((item) => `${item.traditionalConcept} → ${item.humanMeaning}`).join("；"),
       final_response: reflection,
     },
+    generationMode: "basic",
+    generationNotice: "本次为基础解读",
     draftToken: `guest-${crypto.randomUUID()}`,
     expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   };
@@ -225,8 +308,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
   const casting = castingPhase !== "idle";
 
   const loadHistory = useCallback(async () => {
-    const data = await api<{ events: HistoryEvent[] }>("/api/v1/daily-mirror/reflections");
-    setHistory(data.events);
+    setHistory(readGuestHistory());
   }, []);
 
   useEffect(() => {
@@ -249,6 +331,11 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     media.addEventListener?.("change", update);
     return () => media.removeEventListener?.("change", update);
   }, []);
+
+  useEffect(() => {
+    if (stage === "home" || stage === "memory") return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" }));
+  }, [stage, reducedMotion]);
 
   useEffect(() => () => {
     castTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -509,6 +596,20 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     castTimersRef.current.push(timer);
   }
 
+  function completeCastRandomly() {
+    if (pendingCastRef.current || busy || tosses.length >= 6) return;
+    setError("");
+    clearCastTimers();
+    pendingCastRef.current = null;
+    setPendingToss(null);
+    setCastingPhase("idle");
+    const next = [...tosses];
+    while (next.length < 6) next.push(createToss());
+    setTosses(next);
+    if (navigator.vibrate) navigator.vibrate([8, 35, 12]);
+    void calculateCompletedHexagram(next);
+  }
+
   function skipCastAnimation() {
     const pending = pendingCastRef.current;
     if (pending) finishCast(pending.token);
@@ -518,14 +619,20 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     setBusy(true); setError("");
     try {
       if (!hexagram || !knowledge || !reflectionKnowledge) throw new Error("reflection_generation_failed");
-      let result: ReflectionResponse;
-      if (authState === "authenticated" && API_BASE) {
-        try {
-          result = await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", { method: "POST", body: JSON.stringify({ question, tosses, analysisContext, requestedMode: interactionMode }) });
-        } catch {
-          result = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
-        }
-      } else result = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
+      const basic = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
+      let result = basic;
+      try {
+        const generated = await api<{ reflection: Reflection; generationMode: "ai"; generationNotice?: string }>("/api/v1/liuyao/reflection", {
+          method: "POST",
+          body: JSON.stringify({
+            traditionalContext: buildLiuyaoPresentation({ question, result: hexagram, knowledge, analysisContext }),
+            interactionMode,
+          }),
+        });
+        result = { ...basic, reflection: cleanReflectionShareCards(generated.reflection), generationMode: generated.generationMode, generationNotice: generated.generationNotice };
+      } catch {
+        result = basic;
+      }
       setReflectionResult(result); setStage("traditional");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
@@ -535,21 +642,17 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     if (!reflectionResult || saved) return;
     setBusy(true); setError("");
     try {
-      if (authState === "guest") {
-        const event: HistoryEvent = {
-          id: crypto.randomUUID(),
-          question: reflectionResult.question,
-          hexagram: reflectionResult.hexagram,
-          reflection: reflectionResult.reflection,
-          savedAt: new Date().toISOString(),
-        };
-        const events = [event, ...readGuestHistory()].slice(0, 20);
-        window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(events));
-        setHistory(events);
-      } else {
-        await api("/api/v1/daily-mirror/reflections/save", { method: "POST", body: JSON.stringify({ draftToken: reflectionResult.draftToken }) });
-        await loadHistory();
-      }
+      const event: HistoryEvent = {
+        id: crypto.randomUUID(),
+        question: reflectionResult.question,
+        hexagram: reflectionResult.hexagram,
+        reflection: reflectionResult.reflection,
+        savedAt: new Date().toISOString(),
+      };
+      const events = [event, ...readGuestHistory()].slice(0, 20);
+      window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(events));
+      markAccountDataChanged();
+      setHistory(events);
       setSaved(true);
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
@@ -607,7 +710,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
         </section>
       )}
 
-      {stage === "memory" && <MemoryControls mode={authState} onClose={() => setStage("home")} onChanged={() => { if (authState === "guest") setHistory(readGuestHistory()); else void loadHistory(); }} />}
+      {stage === "memory" && <MemoryControls mode="guest" onClose={() => setStage("home")} onChanged={() => void loadHistory()} />}
 
       {stage === "question" && (
         <section className={styles.stepScreen}>
@@ -630,7 +733,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
         <section className={`${styles.stepScreen} ${styles.castScreen}`}>
           <button className={styles.backButton} disabled={casting} onClick={() => setStage("question")}><ArrowLeft /> 返回问题</button>
           <div className={styles.stepIntro}><span>02 · LIUYAO INTERACTION</span><h1>把问题放在心里，<br />慢慢摇动龟壳。</h1><p>不必刻意控制结果，让三枚铜钱自然落下。六次结果仍由初爻至上爻、从下向上形成。</p></div>
-          {intentSelection && <div className={styles.intentSummary}><small>本次判断目标</small><b>{intentSelection.intents.map((intent) => intent.label).join("；")}</b><span>理解置信度 {Math.round(intentSelection.resolution.confidence * 100)}% · 只用于选取断卦规则，不参与吉凶计分</span></div>}
+          {intentSelection && <div className={styles.intentSummary}><small>本次判断目标</small><b>{intentSelection.intents.map((intent) => intent.label).join("；")}</b><span>只用于选取对应的断卦规则，不参与吉凶计分</span></div>}
           <div className={styles.castWorkspace}>
             <div className={styles.ritualStage} data-phase={castingPhase}>
               <div className={styles.shellGlow} />
@@ -657,8 +760,11 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
               {casting && <button type="button" className={styles.skipAnimation} onClick={skipCastAnimation}>跳过动画</button>}
             </div>
             <div className={styles.lineStack}>{Array.from({ length: 6 }, (_, reverseIndex) => 5 - reverseIndex).map((index) => { const lineValue = tosses[index]?.reduce((sum, value) => sum + value, 0); const polarity = lineValue === 6 || lineValue === 8 ? "yin" : "yang"; return <div className={tosses[index] ? styles.lineReady : ""} key={index}><small>{lineNames[index]}</small>{tosses[index] ? <LineGlyph polarity={polarity} moving={lineValue === 6 || lineValue === 9} /> : <span className={styles.linePlaceholder} />}</div>; })}</div>
-            <button className={styles.castButton} onClick={castLine} disabled={casting || busy || tosses.length === 6}>{casting ? <><CircleNotch className={styles.spin} /><span>正在成爻…</span></> : tosses.length === 6 ? <><Check /><span>六爻已成</span></> : <><span>{tosses.length === 0 ? "开始摇卦" : "再摇一次"}</span><small>第 {tosses.length + 1} 次</small></>}</button>
-            <p>{tosses.length} / 6 爻已形成</p>
+            <div className={styles.castControls}>
+              <button className={styles.castButton} onClick={castLine} disabled={casting || busy || tosses.length === 6}>{casting ? <><CircleNotch className={styles.spin} /><span>正在成爻…</span></> : tosses.length === 6 ? <><Check /><span>六爻已成</span></> : <><span>{tosses.length === 0 ? "开始摇卦" : "再摇一次"}</span><small>第 {tosses.length + 1} 次</small></>}</button>
+              <button className={styles.quickCastButton} type="button" onClick={completeCastRandomly} disabled={casting || busy || tosses.length === 6} aria-label={tosses.length === 0 ? "一键随机生成完整六爻" : `随机完成剩余 ${6 - tosses.length} 爻`}><Sparkle /><span>{tosses.length === 0 ? "一键随机六爻" : `随机完成剩余 ${6 - tosses.length} 爻`}</span></button>
+              <p>{tosses.length} / 6 爻已形成</p>
+            </div>
             {error && <div className={styles.error} role="alert">{error}</div>}
             {tosses.length === 6 && !hexagram && !busy && <button className={styles.secondaryButton} onClick={() => { setError(""); void calculateCompletedHexagram(tosses); }}>重新计算卦象</button>}
             {hexagram && <button className={styles.primaryButton} onClick={() => setStage("hexagram")}>揭示卦象 <Eye /></button>}
@@ -691,9 +797,10 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
           <button className={styles.backButton} onClick={() => setStage("hexagram")}><ArrowLeft /> 返回卦象</button>
           <div className={styles.resultHeader}><span>04 · LIUYAO READING</span><h1>先回答你的问题。</h1><p>先给结果，再说这卦怎么看。反思不会抢在答案前面。</p></div>
           <article className={styles.judgmentCard}><small>拾光先说</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.reflection.traditionalJudgment}</p></article>
+          {reflectionResult.generationMode === "basic" && reflectionResult.generationNotice && <div className={styles.basicNotice} role="status">{reflectionResult.generationNotice}</div>}
           <section className={styles.reasoningCard}><small>这卦怎么看 · LIUYAO REASONING</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.reasoningExplanation}</p></section>
-          {reflectionResult.reflection.evidenceCards.length > 0 && <div className={styles.classicalGrid}>{reflectionResult.reflection.evidenceCards.map((card) => <article key={`${card.title}-${card.technical}`}><small>{card.effect === "positive" ? "助力" : card.effect === "negative" ? "阻力" : "拉扯"}</small><h3>{card.title}</h3><p>{card.plain}</p><span>{card.technical}</span></article>)}</div>}
-          {reflectionResult.hexagram.analysis.timing?.details.some((item) => item.dateWindows?.length) && <section className={styles.readingFocus}><small>应期候选 · TIMING WINDOWS</small><p>这些日期只是按问题时间尺度换算的观察窗口，不代表事情一定发生。</p>{reflectionResult.hexagram.analysis.timing.details.filter((item) => item.dateWindows?.length).slice(0, 3).map((item) => <p key={`${item.branch}-${item.trigger}`}><b>{branchNames[item.branch]}{item.scale === "month" ? "月" : "日"} · {item.reason}</b>{item.dateWindows?.map((window) => window.startDate === window.endDate ? window.startDate : `${window.startDate} 至 ${window.endDate}`).join("、")}（可信度 {Math.round(item.confidence * 100)}%）</p>)}</section>}
+          {reflectionResult.reflection.evidenceCards.length > 0 && <div className={styles.classicalGrid}>{reflectionResult.reflection.evidenceCards.map((card) => <article key={`${card.title}-${card.technical}`}><small>{card.effect === "positive" ? "助力" : card.effect === "negative" ? "阻力" : "拉扯"}</small><h3>{humanizeLiuyaoRule(card.title)}</h3><p>{card.plain}</p><span>{card.technical}</span></article>)}</div>}
+          {reflectionResult.hexagram.analysis.timing?.details.some((item) => item.dateWindows?.length) && <section className={styles.readingFocus}><small>应期观察窗口</small><p>这些日期只是按问题时间尺度换算的观察窗口，不代表事情一定发生。</p>{reflectionResult.hexagram.analysis.timing.details.filter((item) => item.dateWindows?.length).slice(0, 3).map((item) => <p key={`${item.branch}-${item.trigger}`}><b>{branchNames[item.branch]}{item.scale === "month" ? "月" : "日"} · {item.reason}</b>{item.dateWindows?.map((window) => window.startDate === window.endDate ? window.startDate : `${window.startDate} 至 ${window.endDate}`).join("、")}</p>)}</section>}
           <details className={styles.classicalDetails}><summary>展开查看卦辞、象辞与动爻原文</summary>
           <div className={styles.layerBadge}><span>知识系统</span><b>经典依据</b><small>CLASSICAL KNOWLEDGE</small></div>
           <div className={styles.classicalGrid}>
@@ -705,6 +812,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
             <header><span>动爻</span><h2>{knowledge.movingLines.length ? `${knowledge.movingLines.length} 条变化线索` : "此卦无动爻"}</h2><p>{knowledge.readingRule.summary}</p></header>
             {knowledge.movingLines.length > 0 ? <div className={styles.movingList}>{knowledge.movingLines.map((line) => <article key={line.position}><small>第 {line.position} 爻 · {line.name}</small><h3>{line.text}</h3><p>{line.image}</p><span>{line.positionMeaning}</span></article>)}</div> : <div className={styles.stillLineNote}>六爻皆静，本次以本卦卦辞与大象作为主要传统参照。</div>}
           </section>
+          <div className={styles.sourceNote}><Sparkle /><span><b>传统依据说明</b><small>本卦、变卦、卦辞、象辞与动爻原文属于经典象义层；用神、世应、月日与生克冲合属于纳甲判断层。不同流派取法可能不同，本页会把两层分开呈现，并完整列出本次全部动爻。</small></span></div>
           <details className={styles.allLines}><summary>查看本卦全部六爻原文</summary><div>{knowledge.original.classical.lines.filter((line) => line.id <= 6).map((line) => <article className={hexagram.movingLines.includes(line.id) ? styles.activeLine : ""} key={line.id}><small>{line.name}</small><p>{line.text}</p><span>{line.image}</span></article>)}</div></details>
           <section className={styles.changedMeaning}><span className={styles.hexSymbol}>{hexagram.changedHexagram.symbol}</span><div><small>变卦 · 第 {knowledge.changed.number} 卦 · {knowledge.changed.name}</small><h2>{knowledge.changed.symbolic.meaning}</h2><p>{knowledge.changed.symbolic.interpretation}</p><blockquote><b>卦辞</b>{knowledge.changed.classical.judgment}</blockquote><blockquote><b>大象</b>{knowledge.changed.classical.image}</blockquote></div></section>
           <div className={styles.readingFocus}><small>本次传统判读顺序</small>{knowledge.readingRule.focus.map((item) => <p key={`${item.hexagram}-${item.label}`}><b>{item.label}</b>{item.text}</p>)}</div>
@@ -717,26 +825,25 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回六爻判断</button>
           <div className={styles.reflectionHero}><span>05 · SHIGUANG EXPLAINS</span><h1>让拾光翻成人话。</h1><p>前面已经给出判断和依据；这里说清楚，它落到你眼前的处境意味着什么。</p></div>
-          <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-east-chibi.png")} alt="Q版东方拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
+          <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
           <div className={styles.personaFlow}>
             <article className={styles.understandingCard}><small>拾光翻成人话</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>
             <article className={styles.guidanceCard}><small>给你的建议</small><h2>接下来可以怎么做</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
           </div>
           {reflectionResult.reflection.closing && <article className={styles.guidanceCard}><small>拾光收个尾</small><p>{reflectionResult.reflection.closing.text}</p></article>}
-          <article className={styles.shareCard}>
-            <div><small>可分享的今日镜像</small><blockquote>“{reflectionResult.reflection.shareableReflection}”</blockquote><span>{reflectionResult.hexagram.originalHexagram.symbol} {reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.symbol} {reflectionResult.hexagram.changedHexagram.name}</span></div>
-            <img src={assetPath("/characters/shiguang/shiguang-share.webp")} alt="" />
-            <button disabled={shareGenerating} onClick={generateShareCard}>{shareGenerating ? <><CircleNotch className={styles.spin} /> 正在生成…</> : shareArtifact ? <><Eye /> 查看分享卡</> : <><ShareNetwork /> 生成分享卡</>}</button>
-          </article>
-          {shareStatus && <p className={styles.shareStatus}><Sparkle /> {shareStatus}</p>}
+          <ShareQuoteCard theme="east" title="我的六爻镜像" quote={reflectionResult.reflection.shareableReflection} meta={`${reflectionResult.hexagram.originalHexagram.symbol} ${reflectionResult.hexagram.originalHexagram.name} → ${reflectionResult.hexagram.changedHexagram.symbol} ${reflectionResult.hexagram.changedHexagram.name}`} image={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} contentByVariant={reflectionResult.reflection.shareCards ? {
+            paper: { kicker: "暖心版 · WARM", ...reflectionResult.reflection.shareCards.warm },
+            night: { kicker: "轻毒舌 · ROAST", ...reflectionResult.reflection.shareCards.roast },
+            character: { kicker: "翻译梗 · WITTY", ...reflectionResult.reflection.shareCards.witty },
+          } : undefined} />
           <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
           <ShiguangChat theme="east" context={`本次卦象为${reflectionResult.hexagram.originalHexagram.name}变${reflectionResult.hexagram.changedHexagram.name}；页面中的传统依据与规则证据可供复核。`} />
           <details className={styles.explanationTrace}>
             <summary>为什么拾光这样说</summary>
             <div><small>传统依据</small><p>{reflectionResult.explanationTrace.traditional_basis}</p></div>
             <div><small>反思映射</small><p>{reflectionResult.explanationTrace.reflection_mapping}</p></div>
-            {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>六爻规则证据</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-            {reflectionResult.runtimeTrace && <div><small>Runtime 信任检查</small><p>{reflectionResult.runtimeTrace.mode.mode === "deep" ? "深度分析" : "清晰解读"} · 可信评分 {Math.round(reflectionResult.runtimeTrace.evaluation.score * 100)}% · {reflectionResult.runtimeTrace.evaluation.level}</p><p>{reflectionResult.runtimeTrace.stages.filter((stage) => stage.status === "completed").map((stage) => stage.name).join(" → ")}</p>{reflectionResult.runtimeTrace.evaluation.flags.length > 0 && <ul>{reflectionResult.runtimeTrace.evaluation.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}</div>}
+            {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>六爻规则证据</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{humanizeLiuyaoFactor(item)}</li>)}</ul></div>}
+            {reflectionResult.runtimeTrace && <div><small>解读过程检查</small><p>{reflectionResult.runtimeTrace.mode.mode === "deep" ? "深度分析" : "清晰解读"} · 已完成一致性与边界检查</p>{reflectionResult.runtimeTrace.evaluation.flags.length > 0 && <ul>{reflectionResult.runtimeTrace.evaluation.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}</div>}
           </details>
           <div className={styles.reflectionActions}>{reflectionResult.reflection.reflectionQuestion && <button className={styles.secondaryButton} onClick={() => setStage("reflectionQuestion")}>如果愿意，再想一个问题</button>}<button className={styles.primaryButton} onClick={() => setStage("save")}>保存这次解读 <ArrowRight /></button></div>
         </section>
@@ -754,11 +861,11 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
       {stage === "save" && reflectionResult && (
         <section className={styles.reflectionScreen}>
           <button className={styles.backButton} onClick={() => setStage("mirror")}><ArrowLeft /> 返回拾光解释</button>
-          <div className={styles.reflectionHero}><span>07 · PERSONAL MEMORY</span><h1>保存到你的长期镜像。</h1><p>保存后，问题成为 Event Memory，镜像解读成为 Reflection Memory；Pattern 只会在多次独立证据重复出现后更新。</p></div>
+          <div className={styles.reflectionHero}><span>07 · 保存</span><h1>保存这次解读。</h1><p>保存后可以在“我的镜像”里再次查看。</p></div>
           <article className={styles.saveSummary}><small>本次镜像</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</p><blockquote>{reflectionResult.reflection.shareableReflection}</blockquote></article>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存到镜像</> : <><FloppyDisk /> 保存 Event 与 Reflection Memory</>}</button></div>
-          {saved && <p className={styles.savedNote}>已保存。没有把未经支持的 AI 假设写入 Pattern Memory。</p>}
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存</> : <><FloppyDisk /> 保存</>}</button></div>
+          {saved && <p className={styles.savedNote}>已保存到“我的镜像”。</p>}
         </section>
       )}
 

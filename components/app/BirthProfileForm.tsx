@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarBlank, Check, Clock, Compass, MapPin, SpinnerGap } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CITY_COORDINATES, resolveCityCoordinate } from "../../lib/city-coordinates";
 import type { ChinaLocation } from "../../lib/china-locations";
 import { calculateBazi } from "../../server/tools/bazi/engine";
@@ -12,6 +12,7 @@ import { AstrologyChart } from "./AstrologyChart";
 import { LocationPicker } from "./LocationPicker";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
+import { MirrorSaveButton } from "./MirrorSaveButton";
 import styles from "./BirthProfileForm.module.css";
 
 type Props = { tradition: "east" | "west" };
@@ -19,6 +20,7 @@ const currentYear = new Date().getFullYear();
 const years = Array.from({ length: Math.min(currentYear, 2100) - 1899 }, (_, index) => Math.min(currentYear, 2100) - index);
 const offsets = [-720, -660, -600, -540, -480, -420, -360, -300, -240, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 540, 570, 600, 660, 720, 780, 840];
 const formatOffset = (minutes: number) => `UTC${minutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, "0")}:${String(Math.abs(minutes) % 60).padStart(2, "0")}`;
+const formatCoordinate = (value: number) => Number.isFinite(value) ? Number(value.toFixed(4)).toString() : "";
 
 export function BirthProfileForm({ tradition }: Props) {
   const [year, setYear] = useState(1990);
@@ -43,13 +45,20 @@ export function BirthProfileForm({ tradition }: Props) {
   const maxDay = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
   const validDay = Math.min(day, maxDay);
 
+  useEffect(() => {
+    if (!bazi && !astrology) return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  }, [bazi, astrology]);
+
   function applyPlace(value: string) {
     setPlace(value);
     const city = resolveCityCoordinate(value);
     if (city) {
-      setLongitude(String(city.longitude));
-      setLatitude(String(city.latitude));
-      setCoordinateStatus(`已匹配 ${city.name}：${city.latitude}, ${city.longitude}`);
+      const nextLongitude = formatCoordinate(city.longitude);
+      const nextLatitude = formatCoordinate(city.latitude);
+      setLongitude(nextLongitude);
+      setLatitude(nextLatitude);
+      setCoordinateStatus(`已匹配 ${city.name}：${nextLatitude}, ${nextLongitude}`);
     } else if (value.trim()) {
       setCoordinateStatus("请选择候选城市、中国省市区县，或手动填写坐标");
     }
@@ -57,11 +66,13 @@ export function BirthProfileForm({ tradition }: Props) {
 
   function applyChinaRegion(selection: ChinaLocation, name: string) {
     setPlace(name);
-    setLongitude(String(selection.longitude));
-    setLatitude(String(selection.latitude));
+    const nextLongitude = formatCoordinate(selection.longitude);
+    const nextLatitude = formatCoordinate(selection.latitude);
+    setLongitude(nextLongitude);
+    setLatitude(nextLatitude);
     setUtcOffsetMinutes(480);
     const precision = selection.level === "district" ? "区县中心" : selection.level === "city" ? "城市中心" : "省级中心";
-    setCoordinateStatus(`已匹配${precision}：${selection.latitude}, ${selection.longitude}。如出生地靠近时辰边界，可手动微调。`);
+    setCoordinateStatus(`已匹配${precision}：${nextLatitude}, ${nextLongitude}。如出生地靠近时辰边界，可手动微调。`);
   }
 
   function toggleSolar(checked: boolean) {
@@ -76,9 +87,9 @@ export function BirthProfileForm({ tradition }: Props) {
     setLoading(true);
     try {
       if (tradition === "west") {
-        setAstrology(calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(latitude), longitude: Number(longitude) }));
+        setAstrology(calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) }));
       } else {
-        setBazi(calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(longitude) : null, luckGender }));
+        setBazi(calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender }));
       }
       setSaved(true);
     } catch (reason) {
@@ -101,7 +112,7 @@ export function BirthProfileForm({ tradition }: Props) {
         <LocationPicker onSelect={applyChinaRegion} />
         <div className={styles.locationDivider}><span>或输入海外 / 常用城市</span></div>
         <label className={styles.place}><MapPin /><input list="birth-cities" value={place} onChange={(event) => applyPlace(event.target.value)} placeholder="输入并选择城市，例如：杭州 / New York" /><datalist id="birth-cities">{CITY_COORDINATES.map((city) => <option value={city.name} key={city.name} />)}</datalist><span>中国地区请选择上方省市区县；其他地点可手动输入经纬度。</span></label>
-        {(tradition === "west" || useTrueSolarTime) && <div className={styles.fullLabel}><div className={styles.ruleGrid}><label><span>纬度（北纬为正）</span><input required type="number" step="0.0001" min="-90" max="90" value={latitude} onChange={(event) => setLatitude(event.target.value)} /></label><label><span>经度（东经为正）</span><input required type="number" step="0.0001" min="-180" max="180" value={longitude} onChange={(event) => setLongitude(event.target.value)} /></label></div><small>{coordinateStatus || "选择地区后自动填写坐标，也可以手动修正。"}</small></div>}
+        {(tradition === "west" || useTrueSolarTime) && <div className={styles.fullLabel}><div className={styles.ruleGrid}><label><span>纬度（北纬为正）</span><input required type="number" step="0.0001" min="-90" max="90" value={latitude} onChange={(event) => setLatitude(event.target.value)} onBlur={() => latitude && setLatitude(formatCoordinate(Number(latitude)))} /></label><label><span>经度（东经为正）</span><input required type="number" step="0.0001" min="-180" max="180" value={longitude} onChange={(event) => setLongitude(event.target.value)} onBlur={() => longitude && setLongitude(formatCoordinate(Number(longitude)))} /></label></div><small>{coordinateStatus || "选择地区后自动填写坐标，也可以手动修正。"}</small></div>}
         <label className={styles.fullLabel}><span>出生当日 UTC 偏移</span><select value={utcOffsetMinutes} onChange={(event) => setUtcOffsetMinutes(Number(event.target.value))}>{offsets.map((value) => <option value={value} key={value}>{formatOffset(value)}</option>)}</select></label>
       </fieldset>
       {tradition === "east" && <fieldset><legend>排盘口径 <em>可展开复核</em></legend><div className={styles.ruleGrid}><label><span>换日规则</span><select value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value as "midnight" | "late-zi")}><option value="midnight">午夜 00:00 换日</option><option value="late-zi">子初 23:00 换日</option></select></label><label><span>传统排运参数</span><select value={luckGender ?? ""} onChange={(event) => setLuckGender((event.target.value || null) as LuckGender | null)}><option value="">暂不计算大运</option><option value="male">男命排运</option><option value="female">女命排运</option></select></label><label className={styles.toggle}><input type="checkbox" checked={useTrueSolarTime} onChange={(event) => toggleSolar(event.target.checked)} /><Compass />启用真太阳时校正</label></div><small>排运性别仅作为传统顺逆算法参数，不用于身份判断。用神、格局和具体断语仍需流派与专家复核。</small></fieldset>}
@@ -127,7 +138,8 @@ function BaziChart({ result }: { result: BaziResult }) {
     <section className={styles.analysisSection}><div className={styles.sectionHeading}><div><small>LUCK CYCLES · 大运流年</small><h3>{result.luck ? `${result.luck.direction} · 起运约 ${result.luck.startsAfter}` : "尚未生成排运序列"}</h3></div></div>{result.luck ? <><div className={styles.luckCycles}>{result.luck.cycles.map((cycle) => <article key={`${cycle.ganZhi}-${cycle.startYear}`}><strong>{cycle.ganZhi}</strong><span>{cycle.startYear}–{cycle.endYear}</span><small>{cycle.startAge}–{cycle.endAge} 岁</small></article>)}</div><div className={styles.annuals}>{result.luck.annual.map((item) => <article className={item.year === currentYear ? styles.currentAnnual : ""} key={item.year}><b>{item.year}</b><strong>{item.ganZhi}</strong><span>{item.tenGod} · {item.age} 岁</span></article>)}</div><p className={styles.methodNote}>{result.luck.method} 流年只展示干支与十神关系，不直接生成吉凶结论。</p></> : <p className={styles.emptyAnalysis}>请选择传统排运参数并提供准确出生时间，系统才会计算起运、大运与流年；缺少条件时不会猜测。</p>}</section>
     <div className={styles.evidence}><article><h3>计算时间</h3><p>{result.effectiveLocalTime}{result.trueSolarAdjustmentMinutes !== null && `（真太阳时修正 ${result.trueSolarAdjustmentMinutes >= 0 ? "+" : ""}${result.trueSolarAdjustmentMinutes} 分钟）`}</p><p>支持历法范围：{result.engine.calendarRange}</p></article><article><h3>相邻节气</h3><p>{result.solarTerms.previous} · {result.solarTerms.previousAt}</p><p>{result.solarTerms.next} · {result.solarTerms.nextAt}</p></article></div>
     <details open><summary>排盘规则、方法与边界</summary><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></details>
-    <ShareQuoteCard theme="east" title="我的命盘镜像" quote={`${profile.dayMaster}${profile.dayMasterElement}日主，${profile.strengthBand}不是命运结论，而是提醒我更清楚地理解自己的资源与节奏。`} meta={known} image="/characters/shiguang/shiguang-east-chibi.png" />
+    <ShareQuoteCard theme="east" title="我的命盘镜像" quote={`${profile.dayMaster}${profile.dayMasterElement}日主，${profile.strengthBand}不是命运结论，而是提醒我更清楚地理解自己的资源与节奏。`} meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" />
+    <MirrorSaveButton source="bazi" title="命盘镜像" question="我的出生命盘" summary={`${profile.dayMaster}${profile.dayMasterElement}日主，基础五行结构为${profile.strengthBand}；这是一条需要结合真实经历验证的长期线索。`} meta={known} payload={result} />
     <ShiguangChat theme="east" context={chatContext} opening={`盘面已经展开。你的日主是${profile.dayMaster}${profile.dayMasterElement}，基础五行结构与${result.interactions.length ? "刑冲合害" : "地支关系"}${result.luck ? "、大运流年" : ""}都列在上面。你可以追问某一层，我会先引用盘面，再说明解释边界。`} />
   </section>;
 }

@@ -3,6 +3,7 @@
 import { ArrowLeft, CircleNotch, DownloadSimple, Eye, EyeSlash, FloppyDisk, Trash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./MemoryControls.module.css";
+import { markAccountDataChanged } from "@/lib/account-data";
 
 type Mode = "guest" | "authenticated";
 type MemoryEvent = {
@@ -31,7 +32,7 @@ type GuestEvent = {
   reflection: { insight?: string; mirrorUnderstanding?: string; shiguangInterpretation?: string; traditionalJudgment?: string; shareableReflection?: string };
 };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 const GUEST_HISTORY_KEY = "life-mirror:guest-history:v1";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -123,6 +124,7 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
   function updateGuest(event: GuestEvent, question: string) {
     const next = guestEvents.map((item) => item.id === event.id ? { ...item, question } : item);
     window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(next));
+    markAccountDataChanged();
     setGuestEvents(next); onChanged();
   }
 
@@ -130,6 +132,7 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
     if (!window.confirm("确定删除这次本地反思吗？")) return;
     const next = guestEvents.filter((item) => item.id !== event.id);
     window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(next));
+    markAccountDataChanged();
     setGuestEvents(next); onChanged();
   }
 

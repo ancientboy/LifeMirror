@@ -8,10 +8,10 @@
   grid-template-columns: repeat(4, 1fr);
   padding: 7px;
   transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, .1);
+  border: 1px solid rgba(49, 93, 82, .14);
   border-radius: 21px;
-  background: rgba(11, 17, 18, .92);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, .45);
+  background: rgba(255, 252, 246, .92);
+  box-shadow: 0 16px 44px rgba(49, 63, 58, .14);
   backdrop-filter: blur(20px);
 }
 
@@ -24,15 +24,28 @@
   padding: 7px;
   border: 0;
   border-radius: 14px;
-  color: #7f837d;
+  color: #7a837e;
   background: none;
   font-size: 9px;
   cursor: pointer;
 }
 
 .bottomNav svg { width: 20px; height: 20px; }
-.bottomNav .current { color: #dfc47c; background: rgba(215, 189, 117, .08); }
+.bottomNav .current { color: #315d52; background: #dce8e1; }
 
 @media (max-width: 760px) {
-  .bottomNav { bottom: max(8px, env(safe-area-inset-bottom)); }
+  .bottomNav {
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+    transform: none;
+    border: 0;
+    border-top: 1px solid rgba(49, 93, 82, .13);
+    border-radius: 0;
+    background: rgba(255, 252, 246, .97);
+    box-shadow: 0 -10px 34px rgba(49, 63, 58, .08);
+  }
+  .bottomNav a,
+  .bottomNav button { min-height: 48px; justify-content: center; border-radius: 12px; }
 }

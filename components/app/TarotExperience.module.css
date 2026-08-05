@@ -14,6 +14,24 @@
     #080b20;
   font-family: Inter, "PingFang SC", sans-serif;
 }
+
+/* Reading stays bright; the deck and revealed cards retain the ritual night. */
+:global(body) .shell{--gold:#a9823d;color:#302d42;background:radial-gradient(circle at 74% 20%,rgba(98,93,130,.17),transparent 30%),radial-gradient(circle at 28% 85%,rgba(173,124,139,.1),transparent 30%),#f5f1e8}
+:global(body) .shell header{border-color:rgba(98,93,130,.17);color:#6e697d}
+:global(body) .stars{opacity:.28;background-image:radial-gradient(circle,rgba(98,93,130,.35) 1px,transparent 1.5px)}
+:global(body) .shiguang{opacity:.62;filter:drop-shadow(0 25px 45px rgba(78,69,96,.2))}
+:global(body) .intro h1 em{color:#625d82}:global(body) .intro>p,:global(body) .reading>blockquote,:global(body) .shuffle p{color:#6e697d}
+:global(body) .intro label{border-color:rgba(98,93,130,.2);background:rgba(255,252,246,.82);box-shadow:0 18px 48px rgba(68,63,91,.08)}
+:global(body) .intro textarea{color:#302d42}:global(body) .intro textarea::placeholder{color:#8b8795}:global(body) .intro label small{color:#8b8795}
+:global(body) .prompts button,:global(body) .spreads button{border-color:#d9d3df;color:#686378;background:rgba(255,252,246,.74)}
+:global(body) .spreads button b{color:#403b50}:global(body) .spreads .selectedSpread{border-color:rgba(98,93,130,.48);background:#e8e4f0}
+:global(body) .primary{border-color:rgba(98,93,130,.3);color:#fff;background:#625d82;box-shadow:0 12px 30px rgba(98,93,130,.18)}
+:global(body) .cards h2,:global(body) .synthesis h2{color:#3e394e}:global(body) .cards p,:global(body) .history article p,:global(body) .synthesis p{color:#716c7c}
+:global(body) .insight,:global(body) .synthesis>div,:global(body) .professionalReading article{border-color:rgba(98,93,130,.16);background:rgba(255,252,246,.8)}
+:global(body) .insight p,:global(body) .professionalReading article p{color:#686378}:global(body) .professionalReading article b{color:#4f4962}
+:global(body) .professionalReading .shiguangReading{border-color:rgba(98,93,130,.28);background:linear-gradient(135deg,#eeeaf4,#f8f1ef)}
+:global(body) .actions button,:global(body) .actions a{border-color:rgba(98,93,130,.2);color:#625d82;background:#fffaf3}
+:global(body) .history{border-color:#d9d3df}:global(body) .history article{border-color:#ded8e3;background:#f7f3f8}:global(body) .history b{color:#4f4962}
 .shell header {
   height: 74px;
   position: relative;

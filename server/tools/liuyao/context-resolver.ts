@@ -76,6 +76,7 @@ const FOCUS_LABELS: Partial<Record<LiuyaoScenarioFocus, string>> = {
 };
 
 const TOPIC_RULES: TopicRule[] = [
+  { topic: "self", label: "日常改变与外在调整", pattern: /理发|剪头发|剪发|染发|烫发|换发型|换造型|美容|美甲|买衣服|换衣服/, usefulGod: "shi" },
   { topic: "health", label: "身体与恢复", pattern: /健康|身体|生病|疼|痛|症状|检查|治疗|手术|康复|药/, usefulGod: "shi" },
   { topic: "legal", label: "诉讼与争议", pattern: /官司|诉讼|起诉|仲裁|法律|纠纷|报警|判决/ },
   { topic: "study", label: "学习与考试", pattern: /考试|学习|升学|学校|论文|答辩|成绩|录取/ },

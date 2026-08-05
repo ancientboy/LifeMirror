@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "./SessionGuard.module.css";
 import { AppBottomNav } from "./AppBottomNav";
+import { AccountDataSync } from "./AccountDataSync";
 
 export function SessionGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,5 +22,5 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   if (!allowed) return <main className={styles.loading}><Aperture weight="thin" /><CircleNotch /><span>正在进入你的镜像…</span></main>;
-  return <>{children}<AppBottomNav active="explore" /></>;
+  return <><AccountDataSync />{children}<AppBottomNav active="explore" /></>;
 }

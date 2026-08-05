@@ -25,6 +25,7 @@ import {
 import styles from "./TarotExperience.module.css";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
+import { markAccountDataChanged } from "@/lib/account-data";
 
 type Stage = "question" | "shuffle" | "reading";
 const prompts = [
@@ -44,6 +45,7 @@ type SavedReading = {
   cards: DrawnCard[];
 };
 const HISTORY_KEY = "lifemirror.tarot.readings.v1";
+const MIRROR_HISTORY_KEY = "life-mirror:guest-history:v1";
 
 function secureDraw(spread: TarotSpread) {
   const entropy = new Uint32Array(spread.positions.length * 2);
@@ -71,6 +73,11 @@ export function TarotExperience() {
     }
   }, []);
 
+  useEffect(() => {
+    if (stage !== "reading") return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  }, [stage]);
+
   function draw() {
     setCards(secureDraw(spread));
     setSaved(false);
@@ -95,6 +102,20 @@ export function TarotExperience() {
     };
     const next = [reading, ...history].slice(0, 12);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+    const mirrorHistory = JSON.parse(localStorage.getItem(MIRROR_HISTORY_KEY) ?? "[]");
+    const summary = professionalReading?.shiguang ?? "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。";
+    const mirrorRecord = {
+      id: reading.id,
+      source: "tarot",
+      sourceLabel: "塔罗镜像",
+      question: reading.question,
+      meta: `${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`,
+      payload: reading,
+      reflection: { shareableReflection: summary, shiguangInterpretation: summary },
+      savedAt: reading.createdAt,
+    };
+    localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify([mirrorRecord, ...(Array.isArray(mirrorHistory) ? mirrorHistory : [])].slice(0, 50)));
+    markAccountDataChanged();
     setHistory(next);
     setSaved(true);
   }
@@ -245,12 +266,12 @@ export function TarotExperience() {
             <article><small>整体判断</small><p>{professionalReading.overview}</p></article>
             <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
             <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
-            <article className={styles.shiguangReading}><small>拾光的专属解释</small><p>{professionalReading.shiguang}</p></article>
+            <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
             <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
           </section>}
           <div className={styles.insight}>
             <img
-              src={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
+              src={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")}
               alt="Q版西方拾光"
             />
             <div>
@@ -265,14 +286,34 @@ export function TarotExperience() {
             title="我的塔罗镜像"
             quote={relations.reversedCount > cards.length / 2 ? "答案不是急着向外推进，而是先看见内在尚未松开的结。" : "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。"}
             meta={`${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`}
-            image={assetPath("/characters/shiguang/shiguang-west-chibi.png")}
+            image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")}
+            contentByVariant={{
+              paper: {
+                kicker: "牌面结论 · 此刻最值得看见",
+                title: `${spread.name} · 我的牌面镜像`,
+                quote: professionalReading?.overview ?? (relations.reversedCount > cards.length / 2 ? "答案不是急着向外推进，而是先看见内在尚未松开的结。" : "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。"),
+                meta: cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · "),
+              },
+              night: {
+                kicker: "牌间关系 · 隐藏的共同主题",
+                title: "这些牌正在彼此回应",
+                quote: professionalReading?.relationship ?? relations.headline,
+                meta: `${spread.name} · ${relations.reversedCount} 张逆位 · 只作象征性探索`,
+              },
+              character: {
+                kicker: "拾光寄语 · 带走一个现实动作",
+                title: "拾光留给我的一句话",
+                quote: professionalReading?.action ?? professionalReading?.shiguang ?? "把感受带回现实，用一个最小行动验证它。",
+                meta: `回应「${question.slice(0, 42)}${question.length > 42 ? "…" : ""}」`,
+              },
+            }}
           />
           <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
             <button onClick={saveReading} disabled={saved}>
               {saved ? <CheckCircle /> : <ClockCounterClockwise />}
-              {saved ? "已保存到此设备" : "保存本次抽牌"}
+              {saved ? "已保存" : "保存"}
             </button>
             <Link href="/mirror/">查看我的镜像 <ArrowRight /></Link>
           </div>

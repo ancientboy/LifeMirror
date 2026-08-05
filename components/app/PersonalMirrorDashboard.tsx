@@ -6,12 +6,14 @@ import { ArrowLeft, ArrowRight, CalendarBlank, CircleNotch, Eye, Funnel, LockKey
 import styles from "./PersonalMirrorDashboard.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
 import { AppBottomNav } from "./AppBottomNav";
+import { AccountDataSync } from "./AccountDataSync";
+import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 
-type MirrorEvent = { id: string; question: string; savedAt: string; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
+type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
 type DashboardMode = "loading" | "guest" | "authenticated";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 const HISTORY_KEY = "life-mirror:guest-history:v1";
 
 async function api<T>(path: string): Promise<T> {
@@ -39,12 +41,8 @@ export function PersonalMirrorDashboard() {
     async function load() {
       try {
         await api<{ authenticated: boolean }>("/api/v1/auth/session");
-        const [history, memories] = await Promise.all([
-          api<{ events: MirrorEvent[] }>("/api/v1/daily-mirror/reflections"),
-          api<{ patterns: PatternMemory[] }>("/api/v1/memories?limit=20"),
-        ]);
         if (!active) return;
-        setEvents(history.events); setPatterns(memories.patterns); setMode("authenticated");
+        setEvents(readGuestEvents()); setPatterns([]); setMode("authenticated");
       } catch (cause) {
         if (!active) return;
         const code = cause instanceof Error ? cause.message : "";
@@ -53,14 +51,19 @@ export function PersonalMirrorDashboard() {
       }
     }
     void load();
-    return () => { active = false; };
+    const refresh = () => setEvents(readGuestEvents());
+    window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
+    return () => { active = false; window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh); };
   }, []);
 
   const visibleEvents = useMemo(() => events.filter((event) => filter === "all" || (filter === "career" ? /职业|工作|事业|选择|开始|行动/.test(event.question) : /关系|彼此|感情|伴侣|家庭/.test(event.question))), [events, filter]);
   const latest = events[0];
   const strongestPatterns = patterns.slice(0, 3);
+  const sourceStart = (event: MirrorEvent) => event.sourceLabel ?? event.hexagram?.originalHexagram?.name ?? "镜像";
+  const sourceEnd = (event: MirrorEvent) => event.meta ?? event.hexagram?.changedHexagram?.name ?? "成长";
 
   return <main className={styles.shell}>
+    {mode === "authenticated" && <AccountDataSync />}
     <header className={styles.topbar}>
       <Link href="/" className={styles.brand}><span>◌</span><b>LIFE MIRROR</b><small>PERSONAL MIRROR</small></Link>
       <nav aria-label="产品导航"><Link href="/app/">今日镜像</Link><Link className={styles.active} href="/mirror/">我的镜像</Link><Link href="/theory/">研究院</Link></nav>
@@ -76,7 +79,7 @@ export function PersonalMirrorDashboard() {
     <section className={styles.grid}>
       <article className={`${styles.card} ${styles.current}`}>
         <header><span><Sparkle /> 当前反思</span><small>{latest ? new Date(latest.savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" }) : "等待第一次记录"}</small></header>
-        {latest ? <><h2>{latest.question}</h2><blockquote>“{latest.reflection?.shareableReflection ?? latest.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}”</blockquote><div><span>{latest.hexagram?.originalHexagram?.name ?? "镜像"}</span><ArrowRight /><span>{latest.hexagram?.changedHexagram?.name ?? "成长"}</span></div></> : <div className={stateStyles.empty}><h2>你的镜像还在等待第一束光。</h2><p>完成并保存一次今日镜像后，它会出现在这里。</p></div>}
+        {latest ? <><h2>{latest.question}</h2><blockquote>“{latest.reflection?.shareableReflection ?? latest.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}”</blockquote><div><span>{sourceStart(latest)}</span><ArrowRight /><span>{sourceEnd(latest)}</span></div></> : <div className={stateStyles.empty}><h2>你的镜像还在等待第一束光。</h2><p>完成并保存一次今日镜像后，它会出现在这里。</p></div>}
         <Link href="/app/">{latest ? "开启新的今日镜像" : "开始第一次今日镜像"} <ArrowRight /></Link>
       </article>
 
@@ -94,7 +97,7 @@ export function PersonalMirrorDashboard() {
 
     <section className={styles.timeline}>
       <header><div><p>MEMORY TIMELINE</p><h2>镜像时间线</h2></div><div className={styles.filters}><Funnel />{(["all", "career", "relationship"] as const).map((value) => <button className={filter === value ? styles.selected : ""} onClick={() => setFilter(value)} key={value}>{value === "all" ? "全部" : value === "career" ? "事业与行动" : "关系"}</button>)}</div></header>
-      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{event.hexagram?.originalHexagram?.name ?? "镜像"} → {event.hexagram?.changedHexagram?.name ?? "成长"}</span></div></article>)}</div>
+      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")} · {event.sourceLabel ?? "六爻镜像"}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{sourceStart(event)} → {sourceEnd(event)}</span></div></article>)}</div>
       {mode !== "loading" && !visibleEvents.length && <div className={stateStyles.timelineEmpty}>{events.length ? "这个分类下还没有镜像记录。" : "保存第一次今日镜像后，时间线会从这里开始。"}</div>}
     </section>
     <AppBottomNav active="mirror" />

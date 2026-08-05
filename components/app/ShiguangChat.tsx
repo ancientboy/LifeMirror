@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, CircleNotch, Sparkle } from "@phosphor-icons/react";
+import { ArrowUp, Brain, CircleNotch, Sparkle } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { captureExplicitMemory, getMemorySettings, MEMORY_CHANGED_EVENT, retrieveRelevantMemory, type MemorySettings } from "@/lib/shiguang-memory";
 import styles from "./ShiguangChat.module.css";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
@@ -50,15 +51,36 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [responseMode, setResponseMode] = useState<"ready" | "llm" | "local">("ready");
-  const endRef = useRef<HTMLDivElement>(null);
-  const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-avatar.webp" : "/characters/shiguang/shiguang-west-avatar.webp";
+  const [memorySettings, setMemorySettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
+  const [temporary, setTemporary] = useState(false);
+  const [savedNotice, setSavedNotice] = useState(false);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi-v2.png" : "/characters/shiguang/shiguang-west-chibi-v2.png";
   const quickPrompts = mode === "home" ? ["我最近总在为一件事焦虑", "我正面临一个选择", "我想更了解自己"] : theme === "east" ? ["这张盘最关键的结构是什么？", "今年这层关系应该怎么看？", "给我一个可验证的下一步"] : ["哪张牌最关键？", "为什么会这样解释？", "给我一个可验证的下一步"];
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [messages]);
+  useEffect(() => {
+    const sync = () => setMemorySettings(getMemorySettings());
+    sync();
+    window.addEventListener(MEMORY_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(MEMORY_CHANGED_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   async function send() {
     const question = input.trim();
     if (!question || streaming) return;
+    const activeSettings = temporary ? { ...memorySettings, enabled: false } : memorySettings;
+    const savedFact = captureExplicitMemory(question, activeSettings);
+    if (savedFact) {
+      setSavedNotice(true);
+      window.setTimeout(() => setSavedNotice(false), 2800);
+    }
+    const memory = retrieveRelevantMemory(question, activeSettings);
     const userMessage = { id: crypto.randomUUID(), role: "user" as const, text: question };
     const assistantId = crypto.randomUUID();
     setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", text: "" }]);
@@ -67,7 +89,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       const response = await fetch("/api/shiguang", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ theme, context, messages: [...messages, userMessage].map(({ role, text }) => ({ role, content: text })) }),
+        body: JSON.stringify({ theme, context, memory, messages: [...messages, userMessage].map(({ role, text }) => ({ role, content: text })) }),
       });
       if (!response.ok || !response.body) throw new Error("llm_unavailable");
       setResponseMode("llm");
@@ -90,14 +112,13 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     setStreaming(false);
   }
 
-  return <section className={`${styles.chat} ${styles[theme]}`} aria-label="继续和拾光聊聊">
-    <header><img src={assetPath(avatar)} alt={`Q版${theme === "east" ? "东方" : "西方"}拾光`} /><div><small><Sparkle /> {mode === "home" ? "拾光在这里" : "继续和拾光聊聊"}</small><h2>{mode === "home" ? "今天想从哪里说起？" : "关于这次结果，你还想问什么？"}</h2></div></header>
-    <div className={styles.messages} aria-live="polite">
+  return <section className={`${styles.chat} ${styles[theme]} ${styles[mode]}`} aria-label="继续和拾光聊聊">
+    <header><img src={assetPath(avatar)} alt={`Q版${theme === "east" ? "东方" : "西方"}拾光`} /><div><small><Sparkle /> {mode === "home" ? "和拾光聊聊" : "继续和拾光聊聊"}</small><h2>{mode === "home" ? "今天想从哪里说起？" : "关于这次结果，你还想问什么？"}</h2></div>{mode === "home" && <button className={`${styles.memoryMode} ${temporary || !memorySettings.enabled ? styles.memoryOff : ""}`} type="button" onClick={() => setTemporary((value) => !value)} aria-pressed={temporary}><Brain /><span>{temporary ? "临时对话" : memorySettings.enabled ? "记忆已开启" : "记忆未开启"}</span></button>}</header>
+    <div className={styles.messages} aria-live="polite" ref={messagesRef}>
       {messages.map((message) => <div className={message.role === "assistant" ? styles.assistant : styles.user} key={message.id}>{message.role === "assistant" && <img src={assetPath(avatar)} alt="" />}<p>{message.text}{streaming && message.id === messages.at(-1)?.id && <i />}</p></div>)}
-      <div ref={endRef} />
     </div>
     <div className={styles.quickPrompts}>{quickPrompts.map((prompt) => <button type="button" key={prompt} disabled={streaming} onClick={() => setInput(prompt)}>{prompt}</button>)}</div>
     <div className={styles.composer}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={mode === "home" ? "说说今天发生了什么，或哪件事一直在心里转……" : "追问、说说困惑，或问下一步怎么做……"} maxLength={300} /><button type="button" disabled={!input.trim() || streaming} onClick={() => void send()} aria-label="发送给拾光">{streaming ? <CircleNotch className={styles.spin} /> : <ArrowUp />}</button></div>
-    <footer>{responseMode === "llm" ? "拾光 AI 正在结合当前对话回应；历史记忆只会在你授权后使用。" : responseMode === "local" ? "拾光 AI 暂未接通 · 当前为设备内整理模式，适合梳理，不等同于开放式 AI 对话。" : "正在连接拾光 AI；若不可用，会明确切换为设备内整理模式。"}</footer>
+    <footer>{savedNotice ? "已按你的明确要求记住；你可以随时在“我的”中删除。" : temporary ? "临时对话：本轮不读取，也不写入长期记忆。" : responseMode === "llm" ? memorySettings.enabled ? "拾光 AI 正在回应；只检索与当前话题相关的已授权记忆。" : "拾光 AI 正在回应；长期记忆目前未开启。" : responseMode === "local" ? "拾光 AI 暂未接通 · 当前为设备内整理模式。" : memorySettings.enabled ? "长期记忆已开启；镜像只作为可核对的证据。" : "长期记忆默认关闭，可在“我的”中开启。"}</footer>
   </section>;
 }

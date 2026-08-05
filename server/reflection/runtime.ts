@@ -25,12 +25,27 @@ const reflectionSchema = z.object({
   }).optional(),
   reflectionQuestion: z.string().trim().min(1).max(500).optional(),
   shareableReflection: z.string().trim().min(8).max(140),
+  shareCards: z.object({
+    warm: z.object({ title: z.string().trim().min(1).max(40), quote: z.string().trim().min(8).max(120), meta: z.string().trim().min(1).max(80) }),
+    witty: z.object({ title: z.string().trim().min(1).max(40), quote: z.string().trim().min(8).max(120), meta: z.string().trim().min(1).max(80) }),
+    roast: z.object({ title: z.string().trim().min(1).max(40), quote: z.string().trim().min(8).max(120), meta: z.string().trim().min(1).max(80) }),
+  }).optional(),
 });
 
 function parseReflection(text: string): MirrorReflection {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = fenced ?? text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-  return reflectionSchema.parse(JSON.parse(candidate));
+  const reflection = reflectionSchema.parse(JSON.parse(candidate));
+  if (!reflection.shareCards) return reflection;
+  const cleanQuote = (quote: string) => quote.replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|轻毒舌(?:版)?)[：:\s]+/u, "");
+  return {
+    ...reflection,
+    shareCards: {
+      warm: { ...reflection.shareCards.warm, quote: cleanQuote(reflection.shareCards.warm.quote) },
+      witty: { ...reflection.shareCards.witty, quote: cleanQuote(reflection.shareCards.witty.quote) },
+      roast: { ...reflection.shareCards.roast, quote: cleanQuote(reflection.shareCards.roast.quote) },
+    },
+  };
 }
 
 export async function generateMirrorReflection(input: {
@@ -72,7 +87,7 @@ export async function generateMirrorReflection(input: {
           "Match judgment.tone: playful may tease lightly, warm stays humane, grounded is crisp, careful avoids jokes and adds appropriate real-world caution. Avoid academic reports, psychological assessments, fortune-teller performance, generic encouragement, abstract philosophy and repeated disclaimers.",
           "For health, legal or investment questions, preserve the supplied limitation and keep practical guidance anchored in professional evaluation, source verification and real-world risk controls.",
           "Never use stock counselling language such as '真正的问题', '内在需要', '看见自己', '承接', '觉察', or '低风险可撤回实验' unless the user explicitly requested that mode.",
-          "Return only valid JSON with: traditionalJudgment, reasoningExplanation, shiguangInterpretation, practicalGuidance, evidenceCards, optional closing, optional reflectionQuestion, shareableReflection.",
+          "Return only valid JSON with: traditionalJudgment, reasoningExplanation, shiguangInterpretation, practicalGuidance, evidenceCards, optional closing, optional reflectionQuestion, shareableReflection, shareCards.",
           "traditionalJudgment must begin with '先说结论：' or, for a light conversational question, '先说结果：'. Answer immediately and put conditions afterward.",
           "reasoningExplanation uses only supplied computed facts. Select 2-4 decisive factors and describe how they interact; do not dump every rule.",
           "evidenceCards contains 2-4 cards copied faithfully from judgment.keyEvidence. technical names the actual rule/factor; plain explains it vividly; map support to positive, obstruct to negative, and mixed/neutral to mixed.",
@@ -81,6 +96,7 @@ export async function generateMirrorReflection(input: {
           "closing is optional and scene-aware: banter/follow_up for light questions, observation for serious decisions, reflection only when genuinely invited. Do not force every reading into reflection.",
           "reflectionQuestion is optional and may appear only when closing.type is reflection.",
           "shareableReflection is a self-contained, emotionally resonant 20-60 Chinese-character line grounded in this reading; it must not reveal private details or sound like fortune-telling.",
+          "shareCards must contain warm, witty and roast. They are three genuinely different social expressions of the same computed conclusion, not color variants: warm is sincere and comforting; witty is a compact Chinese internet-style translation joke; roast is lightly sharp and self-aware, never humiliating. Each card has title, quote and meta. Write each quote as finished copy; never prefix it with labels such as '翻译一下：', '人话版：' or a style name. Never change the traditional conclusion merely to make a joke.",
           interactionMode === "deep" ? "Deep mode: make the reasoning chain explicit, distinguish computed evidence from interpretation, mention the strongest counter-signal, and give concrete conditional guidance. Do not add new claims or certainty." : "Reflection mode: keep the interpretation concise, warm and directly useful.",
         ].join(" "),
       },

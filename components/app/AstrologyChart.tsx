@@ -3,6 +3,7 @@
 import type { AstrologyResult } from "../../server/tools/astrology/types";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
+import { MirrorSaveButton } from "./MirrorSaveButton";
 import styles from "./AstrologyChart.module.css";
 
 const point = (longitude: number, radius: number) => {
@@ -64,7 +65,8 @@ export function AstrologyChart({ result }: { result: AstrologyResult }) {
     <section className={styles.dataSection}><h3>行星落座与宫位</h3><div className={styles.planetGrid}>{result.planets.map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><strong>{planet.name}</strong><span>{planet.sign.name} {formatDegree(planet.degreeInSign)}</span><em>{planet.house ? `第 ${planet.house} 宫` : "宫位未知"}{planet.retrograde ? " · 逆行" : ""}</em></div></article>)}</div></section>
     <section className={styles.dataSection}><h3>主要相位 <small>按容许度由紧到松</small></h3>{result.aspects.length ? <div className={styles.aspectGrid}>{result.aspects.map((aspect) => <article key={aspect.key}><b>{aspect.glyph}</b><span>{aspect.first} {aspect.name} {aspect.second}</span><em>容许度 {aspect.orb}°</em></article>)}</div> : <p className={styles.empty}>当前设定的容许度内没有主要相位。</p>}</section>
     <details open className={styles.evidence}><summary>计算证据、口径与边界</summary><dl><div><dt>星历模型</dt><dd>{result.engine.model}</dd></div><div><dt>黄道体系</dt><dd>{result.engine.zodiac}</dd></div><div><dt>宫制</dt><dd>{result.engine.houseSystem}</dd></div></dl><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></details>
-    <ShareQuoteCard theme="west" title="我的星盘镜像" quote={result.headline} meta={meta} image="/characters/shiguang/shiguang-west-chibi.png" />
+    <ShareQuoteCard theme="west" title="我的星盘镜像" quote={result.headline} meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" />
+    <MirrorSaveButton source="astrology" title="占星镜像" question="我的本命星盘" summary={result.headline} meta={meta} payload={result} />
     <ShiguangChat theme="west" context={`这次星盘的可确认事实是：${meta}。最紧密主要相位为${result.aspects[0] ? `${result.aspects[0].first}${result.aspects[0].name}${result.aspects[0].second}，容许度 ${result.aspects[0].orb}°` : "当前容许度内未识别"}。请始终区分盘面事实、象征解释和现实证据。`} opening="星盘已经展开。如果你想追问某颗行星、某个宫位或一组相位，我会先指出盘面证据，再陪你把象征放回真实生活。" />
   </section>;
 }

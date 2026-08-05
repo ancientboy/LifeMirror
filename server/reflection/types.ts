@@ -20,6 +20,11 @@ export type MirrorReflection = {
   };
   reflectionQuestion?: string;
   shareableReflection: string;
+  shareCards?: {
+    warm: { title: string; quote: string; meta: string };
+    witty: { title: string; quote: string; meta: string };
+    roast: { title: string; quote: string; meta: string };
+  };
 };
 
 export type PreviousMirrorReflection = {
