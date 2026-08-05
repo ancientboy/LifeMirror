@@ -40,7 +40,13 @@ function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: num
     } else line += char;
   }
   if (line) lines.push(line);
-  return lines.slice(0, 7);
+  return lines.slice(0, 5);
+}
+
+/** A share card is a glimpse, not a compressed analysis report. */
+function compactQuote(value: string) {
+  const clean = value.replace(/\s+/g, "").replace(/^(?:翻译(?:一下|成人话)?|人话版)[：:]/, "").replace(/[。！？!?]+$/u, "");
+  return [...clean].slice(0, 32).join("");
 }
 
 function exportCanvas(canvas: HTMLCanvasElement) {
@@ -78,7 +84,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   const [status, setStatus] = useState("");
 
   const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
-  const current = { ...supplied, title: variant === "paper" ? undefined : supplied.title };
+  const current = { ...supplied, quote: compactQuote(supplied.quote), title: variant === "paper" ? undefined : supplied.title };
 
   async function createRelationshipLink() {
     try {
@@ -106,11 +112,20 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
 
       const east = theme === "east";
       if (variant === "paper") {
-        context.fillStyle = east ? "#f1eee4" : "#eeeaf5";
+        const paper = context.createLinearGradient(0, 0, 1080, 1350);
+        paper.addColorStop(0, east ? "#fcfaf3" : "#f8f5ff");
+        paper.addColorStop(1, east ? "#e9e5d8" : "#e9e1f5");
+        context.fillStyle = paper;
         context.fillRect(0, 0, 1080, 1350);
-        context.strokeStyle = east ? "#315f57" : "#594b82";
+        context.fillStyle = east ? "rgba(49,95,87,.08)" : "rgba(89,75,130,.09)";
+        context.beginPath(); context.arc(902, 230, 270, 0, Math.PI * 2); context.fill();
+        context.beginPath(); context.arc(815, 1030, 385, 0, Math.PI * 2); context.fill();
+        context.strokeStyle = east ? "rgba(49,95,87,.48)" : "rgba(89,75,130,.48)";
         context.lineWidth = 2;
         context.strokeRect(58, 58, 964, 1234);
+        context.strokeStyle = east ? "rgba(180,138,77,.55)" : "rgba(142,116,196,.54)";
+        context.beginPath(); context.arc(860, 230, 150, 0, Math.PI * 2); context.stroke();
+        context.beginPath(); context.arc(860, 230, 92, 0, Math.PI * 2); context.stroke();
       } else {
         const gradient = context.createLinearGradient(0, 0, 1080, 1350);
         gradient.addColorStop(0, east ? "#214f47" : "#47356f");
@@ -132,8 +147,8 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       const ink = light ? "#f7f3e9" : east ? "#173b35" : "#2e2548";
       const accent = east ? "#cbb576" : "#bba7e8";
       context.fillStyle = accent;
-      context.font = "28px serif";
-      context.fillText(current.kicker ?? "LIFE MIRROR · 拾光", 90, 110);
+      context.font = "600 24px sans-serif";
+      context.fillText(current.kicker ?? "LIFE MIRROR · MOMENT NOTE", 90, 110);
       context.fillStyle = ink;
       if (current.title) {
         context.font = "52px serif";
@@ -141,10 +156,10 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       }
 
       const portrait = variant === "character" ? await loadImage(image) : null;
-      const textWidth = portrait ? 650 : 880;
-      context.font = "46px serif";
+      const textWidth = portrait ? 650 : 780;
+      context.font = variant === "paper" ? "52px serif" : "46px serif";
       const lines = wrapText(context, `“${current.quote}”`, textWidth);
-      let y = current.title ? 382 : 270;
+      let y = current.title ? 382 : 310;
       lines.forEach((line) => {
         context.fillText(line, 90, y);
         y += 78;
@@ -159,11 +174,15 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
         context.restore();
       }
 
+      if (variant === "paper") {
+        context.fillStyle = east ? "#b48a4d" : "#8e74c4";
+        context.fillRect(90, 1060, 112, 3);
+      }
       context.fillStyle = light ? "rgba(247,243,233,.62)" : east ? "rgba(23,59,53,.62)" : "rgba(46,37,72,.62)";
       context.font = "25px sans-serif";
-      context.fillText(current.meta.slice(0, 64), 90, 1190);
-      context.font = "22px sans-serif";
-      context.fillText(variant === "paper" ? "LIFE MIRROR · 拾光" : "打开 LifeMirror，回应这张镜像", 90, 1250);
+      context.fillText(current.meta.slice(0, 42), 90, 1160);
+      context.font = "600 21px sans-serif";
+      context.fillText(variant === "paper" ? "LIFE MIRROR · 拾光" : "打开 LifeMirror，回应这张镜像", 90, 1230);
 
       const blob = await exportCanvas(canvas);
       const name = `lifemirror-${theme}-${variant}.png`;
