@@ -234,7 +234,7 @@ Local services:
 - API liveness: `http://localhost:8787/health/live`
 - API readiness: `http://localhost:8787/health/ready`
 
-Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Secrets belong in local or deployment environment variables and must not be committed.
+Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Secrets belong in local or deployment environment variables and must not be committed. Email OTP 的 Resend 配置与密钥轮换流程见 [`docs/resend-email-setup.md`](docs/resend-email-setup.md)。
 
 Set `NEXT_PUBLIC_API_URL` when the web app and API use different origins. Keep `SESSION_COOKIE_SAME_SITE=strict` for same-site deployments; use `none` only for a secure HTTPS API serving a cross-site web origin. The API validates `WEB_ORIGIN` on every browser request. Set a unique `REFLECTION_TOKEN_SECRET` of at least 32 characters in production.
 
