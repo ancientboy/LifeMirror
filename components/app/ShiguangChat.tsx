@@ -66,6 +66,15 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   }, []);
 
   useEffect(() => {
+    const seed = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail === "string") setInput(detail);
+    };
+    window.addEventListener("life-mirror:chat-seed", seed);
+    return () => window.removeEventListener("life-mirror:chat-seed", seed);
+  }, []);
+
+  useEffect(() => {
     const container = messagesRef.current;
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });

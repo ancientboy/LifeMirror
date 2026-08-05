@@ -16,9 +16,9 @@ type Props = {
 };
 
 const variants: Array<{ id: Variant; label: string; note: string }> = [
-  { id: "paper", label: "暖心", note: "真诚、适合朋友圈" },
-  { id: "night", label: "轻毒舌", note: "有刺，但不伤人" },
-  { id: "character", label: "翻译梗", note: "把卦意说成人话" },
+  { id: "paper", label: "发自己", note: "像我，所以想留下" },
+  { id: "night", label: "发给 TA", note: "让对方回应关系" },
+  { id: "character", label: "邀请对照", note: "看看彼此哪里不同" },
 ];
 
 function loadImage(src: string) {
@@ -74,7 +74,7 @@ function downloadBlob(blob: Blob, name: string) {
 }
 
 export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVariant }: Props) {
-  const [variant, setVariant] = useState<Variant>("character");
+  const [variant, setVariant] = useState<Variant>("paper");
   const [status, setStatus] = useState("");
 
   const current = contentByVariant?.[variant] ?? { title, quote, meta };
@@ -144,7 +144,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       context.font = "25px sans-serif";
       context.fillText(current.meta.slice(0, 64), 90, 1190);
       context.font = "22px sans-serif";
-      context.fillText("象征性自我探索 · 不替代专业建议", 90, 1250);
+      context.fillText(variant === "paper" ? "LIFE MIRROR · 拾光" : "打开 LifeMirror，回应这张镜像", 90, 1250);
 
       const blob = await exportCanvas(canvas);
       const name = `lifemirror-${theme}-${variant}.png`;
@@ -158,7 +158,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
         }
         if (canShare) {
           try {
-            await navigator.share({ files: [file], title: current.title, text: current.quote });
+            await navigator.share({ files: [file], title: current.title, text: `${current.quote}\n${current.meta}` });
             setStatus("已打开系统分享面板");
             return;
           } catch (error) {

@@ -91,7 +91,7 @@ export function PersonalMirrorDashboard() {
       <article className={`${styles.card} ${styles.patterns}`}>
         <header><span>近期模式</span><small>至少 2 条独立证据后形成</small></header>
         {patterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><span><i style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></span><b>{pattern.title}</b><small>{pattern.signalCount} 条镜像证据 · {Math.round(pattern.confidence * 100)}% 置信度 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
-        {!patterns.length && <div className={stateStyles.empty}><p>{mode === "guest" ? "登录后，跨时间的 Pattern Memory 会在这里形成并保持同步。" : "继续保存镜像；达到证据门槛的模式会自动出现在这里。"}</p></div>}
+        {!patterns.length && <div className={stateStyles.empty}><p>{mode === "guest" ? "登录后，有记录支持的长期线索会在这里形成并保持同步。" : "继续保存镜像；当同一主题有足够记录支持时，长期线索会自动出现在这里。"}</p></div>}
       </article>
     </section>
 

@@ -23,8 +23,8 @@ import {
   type TarotSpread,
 } from "../../server/tools/tarot/core";
 import styles from "./TarotExperience.module.css";
-import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
+import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import { markAccountDataChanged } from "@/lib/account-data";
 
 type Stage = "question" | "shuffle" | "reading";
@@ -60,9 +60,23 @@ export function TarotExperience() {
   const [cards, setCards] = useState<DrawnCard[]>([]);
   const [history, setHistory] = useState<SavedReading[]>([]);
   const [saved, setSaved] = useState(false);
+  const [mirrorSummary, setMirrorSummary] = useState("");
   const spread = useMemo(() => getSpread(spreadId), [spreadId]);
   const relations = useMemo(() => analyzeRelations(cards), [cards]);
   const professionalReading = useMemo(() => cards.length === spread.positions.length ? synthesizeTarotReading(question, spread, cards) : null, [cards, question, spread]);
+  const mirrorMeta = `${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`;
+  const mirrorFacts = `用户问题：${question}\n牌阵：${spread.name}\n牌面：${cards.map((card, index) => `${spread.positions[index]?.label ?? `位置${index + 1}`}为${card.name}${orientationLabel[card.orientation]}，基础牌义：${cardMeaning(card)}`).join("；")}\n牌间关系：${professionalReading?.relationship ?? relations.headline}\n反向信号：${relations.counterSignal}`;
+  const mirrorFallback: MirrorResult = {
+    headline: professionalReading?.overview ?? relations.headline,
+    interpretation: professionalReading?.shiguang ?? "这些牌提供的是观察假设，不是替你决定未来的结论。请把最有共鸣的一张放回现实证据中核对。",
+    action: professionalReading?.action ?? "选一张最贴近现实的牌，今天只做一个最小验证行动。",
+    reflectionQuestion: professionalReading?.reflectionQuestion ?? "哪一张牌描述的状态，最近已经在现实里出现过？",
+    shareCards: {
+      warm: "牌没有替我选，它只是照亮我一直不敢承认的倾向。",
+      roast: "我不想让牌替我们回答，只想知道你有没有同样的感觉。",
+      witty: "也抽三张你的牌，看看我们会不会卡在同一个地方。",
+    },
+  };
 
   useEffect(() => {
     try {
@@ -90,6 +104,7 @@ export function TarotExperience() {
     setQuestion("");
     setCards([]);
     setSaved(false);
+    setMirrorSummary("");
   }
 
   function saveReading() {
@@ -103,7 +118,7 @@ export function TarotExperience() {
     const next = [reading, ...history].slice(0, 12);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
     const mirrorHistory = JSON.parse(localStorage.getItem(MIRROR_HISTORY_KEY) ?? "[]");
-    const summary = professionalReading?.shiguang ?? "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。";
+    const summary = mirrorSummary || mirrorFallback.headline;
     const mirrorRecord = {
       id: reading.id,
       source: "tarot",
@@ -261,53 +276,16 @@ export function TarotExperience() {
               <p>{relations.counterSignal}</p>
             </div>
           </div>
-          {professionalReading && <section className={styles.professionalReading}>
+          <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} onResolved={(result) => setMirrorSummary(result.headline)} />
+          {professionalReading && <details className={styles.professionalReading}>
+            <summary>查看牌面依据与逐张解释</summary>
             <header><small>PROFESSIONAL READING · 专业解读</small><h2>先读整体，再看每张牌如何共同回答。</h2></header>
             <article><small>整体判断</small><p>{professionalReading.overview}</p></article>
             <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
             <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
             <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
             <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
-          </section>}
-          <div className={styles.insight}>
-            <img
-              src={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")}
-              alt="Q版西方拾光"
-            />
-            <div>
-              <small>拾光反思</small>
-              <p>
-                把这些牌当作不同的观察假设，而不是结论：哪一张最贴近现实证据？哪一张让你不舒服？今天能做的最小验证行动是什么？
-              </p>
-            </div>
-          </div>
-          <ShareQuoteCard
-            theme="west"
-            title="我的塔罗镜像"
-            quote={relations.reversedCount > cards.length / 2 ? "答案不是急着向外推进，而是先看见内在尚未松开的结。" : "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。"}
-            meta={`${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`}
-            image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")}
-            contentByVariant={{
-              paper: {
-                kicker: "牌面结论 · 此刻最值得看见",
-                title: `${spread.name} · 我的牌面镜像`,
-                quote: professionalReading?.overview ?? (relations.reversedCount > cards.length / 2 ? "答案不是急着向外推进，而是先看见内在尚未松开的结。" : "牌面没有替我决定未来，它只是照亮此刻最值得验证的一步。"),
-                meta: cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · "),
-              },
-              night: {
-                kicker: "牌间关系 · 隐藏的共同主题",
-                title: "这些牌正在彼此回应",
-                quote: professionalReading?.relationship ?? relations.headline,
-                meta: `${spread.name} · ${relations.reversedCount} 张逆位 · 只作象征性探索`,
-              },
-              character: {
-                kicker: "拾光寄语 · 带走一个现实动作",
-                title: "拾光留给我的一句话",
-                quote: professionalReading?.action ?? professionalReading?.shiguang ?? "把感受带回现实，用一个最小行动验证它。",
-                meta: `回应「${question.slice(0, 42)}${question.length > 42 ? "…" : ""}」`,
-              },
-            }}
-          />
+          </details>}
           <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>

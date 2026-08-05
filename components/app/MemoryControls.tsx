@@ -117,7 +117,7 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
       if (action === "delete") await api(`/api/v1/memories/pattern/${pattern.id}`, { method: "DELETE" });
       else await api(`/api/v1/memories/pattern/${pattern.id}`, { method: "PATCH", body: JSON.stringify({ visibility: pattern.visibility === "visible" ? "hidden" : "visible" }) });
       await load();
-    } catch { setError("Pattern Memory 更新失败。"); }
+    } catch { setError("长期线索更新失败。"); }
     finally { setBusyId(""); }
   }
 
@@ -154,12 +154,12 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
     <section className={styles.screen}>
       <button className={styles.back} onClick={onClose}><ArrowLeft /> 返回今日镜像</button>
       <header className={styles.hero}>
-        <div><span>MEMORY CONTROL</span><h1>你的记忆，<br />由你决定。</h1><p>查看、纠正、隐藏、删除或导出。Memory 只服务于你的个人镜像，不是训练数据。</p></div>
+        <div><span>我的记录</span><h1>你的记录，<br />由你决定。</h1><p>你可以随时查看、纠正、隐藏、删除或导出。这些内容只用于你的个人镜像，不会用于训练模型。</p></div>
         <button className={styles.exportButton} onClick={exportMemories} disabled={busyId === "export"}>{busyId === "export" ? <CircleNotch className={styles.spin} /> : <DownloadSimple />} 导出全部</button>
       </header>
       {error && <p className={styles.error}>{error}</p>}
 
-      <div className={styles.sectionHeader}><span>EVENT MEMORY</span><small>{total} 条个人事件</small></div>
+      <div className={styles.sectionHeader}><span>保存的镜像</span><small>{total} 条个人记录</small></div>
       <div className={styles.memoryList}>
         {mode === "guest" ? guestEvents.map((event) => (
           <article className={styles.card} key={event.id}>
@@ -184,15 +184,15 @@ export function MemoryControls({ mode, onClose, onChanged }: { mode: Mode; onClo
             </article>
           );
         })}
-        {total === 0 && <p className={styles.empty}>保存第一次 Daily Mirror 后，Event Memory 会出现在这里。</p>}
+        {total === 0 && <p className={styles.empty}>保存第一次镜像后，它会出现在这里。</p>}
       </div>
 
       {mode === "authenticated" && (
         <>
-          <div className={styles.sectionHeader}><span>PATTERN MEMORY</span><small>至少两条独立证据才会形成</small></div>
+          <div className={styles.sectionHeader}><span>反复出现的线索</span><small>至少两条独立记录支持才会形成</small></div>
           <div className={styles.patternGrid}>
             {patterns.map((pattern) => <article className={`${styles.patternCard} ${pattern.visibility === "hidden" ? styles.hidden : ""}`} key={pattern.id}><small>{pattern.signalCount} 条证据 · {Math.round(pattern.confidence * 100)}% 置信度</small><h2>{pattern.title}</h2><p>{pattern.summary}</p><div className={styles.actions}><button onClick={() => controlPattern(pattern, "visibility")}>{pattern.visibility === "visible" ? <EyeSlash /> : <Eye />} {pattern.visibility === "visible" ? "隐藏" : "恢复"}</button><button className={styles.danger} onClick={() => controlPattern(pattern, "delete")}><Trash /> 删除</button></div></article>)}
-            {patterns.length === 0 && <p className={styles.empty}>当相同主题在多次镜像中出现，Pattern Memory 会带着证据在这里形成。</p>}
+            {patterns.length === 0 && <p className={styles.empty}>当相同主题在多次镜像中出现，有记录支持的长期线索会显示在这里。</p>}
           </div>
         </>
       )}

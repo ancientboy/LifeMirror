@@ -32,6 +32,62 @@ async function body(request) {
   try { return await request.json(); } catch { return null; }
 }
 
+function contentText(value) {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value.map((item) => {
+    if (typeof item === "string") return item;
+    if (!item || typeof item !== "object") return "";
+    if (typeof item.text === "string") return item.text;
+    if (typeof item.output_text === "string") return item.output_text;
+    return contentText(item.content);
+  }).join("");
+}
+
+function modelText(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  const choice = payload.choices?.[0];
+  const candidates = [
+    choice?.delta?.content,
+    choice?.delta?.text,
+    choice?.message?.content,
+    choice?.text,
+    payload.delta,
+    payload.output_text,
+    payload.response?.output_text,
+    payload.content,
+    payload.output,
+  ];
+  for (const candidate of candidates) {
+    const text = contentText(candidate);
+    if (text) return text;
+  }
+  if (payload.delta && typeof payload.delta === "object") {
+    return contentText(payload.delta.text) || contentText(payload.delta.content);
+  }
+  return "";
+}
+
+function decodeModelResponse(source) {
+  const raw = String(source || "");
+  try {
+    const text = modelText(JSON.parse(raw));
+    if (text) return text;
+  } catch {}
+  const chunks = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    try {
+      const text = modelText(JSON.parse(data));
+      if (text) chunks.push(text);
+    } catch {}
+  }
+  return chunks.join("");
+}
+
 function randomHex(bytes = 24) {
   const values = new Uint8Array(bytes);
   crypto.getRandomValues(values);
@@ -90,8 +146,15 @@ function mergeById(serverItems, localItems, limit) {
 function mergeSnapshot(serverData, localData) {
   const server = snapshot(serverData);
   const local = snapshot(localData);
+  const serverBirth = server.settings.birthProfile;
+  const localBirth = local.settings.birthProfile;
+  const serverBirthStamp = String(server.settings.birthProfileUpdatedAt || serverBirth?.updatedAt || "");
+  const localBirthStamp = String(local.settings.birthProfileUpdatedAt || localBirth?.updatedAt || "");
+  const localBirthWins = localBirthStamp > serverBirthStamp;
+  const birthProfile = localBirthWins ? localBirth : serverBirth;
+  const birthProfileUpdatedAt = localBirthWins ? localBirthStamp : serverBirthStamp;
   return {
-    settings: Object.keys(server.settings).length ? server.settings : local.settings,
+    settings: { ...local.settings, ...server.settings, birthProfile: birthProfile ?? null, birthProfileUpdatedAt },
     facts: mergeById(server.facts, local.facts, 50),
     history: mergeById(server.history, local.history, 50),
     tarot: mergeById(server.tarot, local.tarot, 12),
@@ -250,32 +313,24 @@ async function shiguang(request, env) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   if (!env.LLM_API_KEY || !env.LLM_MODEL) return json({ error: "llm_not_configured" }, 503);
   const input = await body(request);
-  if (!input || !["east", "west"].includes(input.theme) || typeof input.context !== "string" || input.context.length > 12000 || !Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 16) return json({ error: "invalid_chat_input" }, 400);
+  if (!input || !["east", "west"].includes(input.theme) || ![undefined, "chat", "mirror_result"].includes(input.mode) || (input.mode === "mirror_result" && !["tarot", "bazi", "astrology"].includes(input.kind)) || typeof input.context !== "string" || input.context.length > 12000 || !Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 16) return json({ error: "invalid_chat_input" }, 400);
   const messages = input.messages.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string" && item.content.length <= 2000);
   if (messages.length !== input.messages.length) return json({ error: "invalid_chat_input" }, 400);
   const baseUrl = String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\\\/$/, "");
   const upstream = await fetch(baseUrl + "/chat/completions", {
     method: "POST",
     headers: { authorization: "Bearer " + env.LLM_API_KEY, "content-type": "application/json" },
-    body: JSON.stringify({ model: env.LLM_MODEL, stream: true, temperature: 0.65, messages: [{ role: "system", content: "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感") + "。本次上下文：" + input.context }, ...messages] }),
+    body: JSON.stringify({ model: env.LLM_MODEL, stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感") + "。本次上下文：" + input.context }, ...messages] }),
   });
-  if (!upstream.ok || !upstream.body) return json({ error: "llm_upstream_failed" }, 502);
-  const decoder = new TextDecoder(), encoder = new TextEncoder();
-  const stream = new ReadableStream({ async start(controller) {
-    const reader = upstream.body.getReader(); let buffer = "";
-    try {
-      while (true) {
-        const { done, value } = await reader.read(); if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\\n"); buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
-          try { const text = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content; if (typeof text === "string") controller.enqueue(encoder.encode(text)); } catch {}
-        }
-      }
-    } finally { controller.close(); }
-  }});
-  return new Response(stream, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+  if (!upstream.ok) return json({ error: "llm_upstream_failed", upstreamStatus: upstream.status }, 502);
+  const text = decodeModelResponse(await upstream.text());
+  if (!text.trim()) return json({ error: "llm_empty_response" }, 502);
+  return new Response(text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+}
+
+function mirrorResultSystem(input) {
+  const label = input.kind === "tarot" ? "塔罗" : input.kind === "bazi" ? "四柱命盘" : "本命星盘";
+  return "你是 LifeMirror 的长期陪伴者拾光。请基于系统已经计算出的" + label + "事实，生成结构化解读。只能使用 <mirror_facts> 中的事实，不补造盘面、用户经历或确定性未来。headline 先给一句明确具体的结论；interpretation 映射现实中可验证的助力、阻力或张力；action 只给一个小而可执行、可撤回的下一步；reflectionQuestion 只问一个现实核对问题；shareCards.warm、roast、witty 分别是同一结论的清醒版、轻毒舌版、朋友版，脱离报告也能看懂，不能只换标题，禁止以翻译一下或人话版开头，毒舌版不羞辱用户。只返回 JSON，不要 Markdown。字段必须是 headline, interpretation, action, reflectionQuestion, shareCards；shareCards 必须包含 warm, roast, witty。文化表达：" + (input.theme === "east" ? "克制、清醒的东方语感。" : "温暖、清晰但不神秘化的西方象征语感。") + "\n<mirror_facts>\n" + input.context + "\n</mirror_facts>";
 }
 
 function extractJson(text) {
@@ -391,7 +446,7 @@ async function liuyaoReflection(request, env) {
     "不得输出内部英文枚举、规则 ID、数值评分或置信度。不要宿命化，不承诺事件必然发生。健康、法律、投资问题保留现实专业边界。",
     "traditionalJudgment 以‘先说结论：’或轻松问题的‘先说结果：’开头；reasoningExplanation 用 2-4 个最关键事实串成清楚故事；shiguangInterpretation 必须具体贴合用户问题，禁止客套话；practicalGuidance 给 1-2 条能马上理解的提醒。",
     "evidenceCards 必须从输入 evidence 中选 2-4 条，title/technical/plain 全部用自然中文，effect 只能是 positive、negative、mixed。",
-    "shareCards 必须是同一卦理结论的三种真正不同表达：warm 暖心真诚；witty 是简短、有传播感的中文翻译梗；roast 是轻毒舌、自嘲式但不羞辱人。三者不能只是换标题或颜色，也不能为了造梗改变结论。每项包含 title、quote、meta。quote 直接写成品文案，禁止以‘翻译一下：’‘人话版：’或风格名称开头。",
+    "shareCards 必须是同一卦理结论的三种真正不同社交表达：warm 是克制清醒、适合公开分享的版本；witty 是不懂六爻的朋友也能直接看懂的版本；roast 是有刺、自嘲式但不羞辱人的毒舌版本。三者不能只是换标题或颜色，也不能为了造梗改变结论。每项包含 title、quote、meta。quote 必须脱离报告仍能独立成立，直接写成品文案，禁止以‘翻译一下：’‘人话版：’或风格名称开头。",
     "只返回一个 JSON 对象，字段为 traditionalJudgment, reasoningExplanation, shiguangInterpretation, practicalGuidance, evidenceCards, 可选 closing, 可选 reflectionQuestion, shareableReflection, shareCards。closing 若有，type 只能是 banter/follow_up/observation/reflection，另含 text。",
     deep ? "这是深度分析：明确主要信号、最强反向信号和条件边界。" : "这是清晰解读：简洁、具体、自然，不写学术报告。",
   ].join("\n");
@@ -412,9 +467,11 @@ async function liuyaoReflection(request, env) {
       }),
       signal: AbortSignal.timeout(45000),
     });
-    const payload = await upstream.json();
+    const rawPayload = await upstream.text();
     if (!upstream.ok) return json({ error: "llm_upstream_failed" }, 502);
-    const reflection = sanitizeReflection(extractJson(payload?.choices?.[0]?.message?.content), context);
+    const generatedText = decodeModelResponse(rawPayload);
+    if (!generatedText.trim()) return json({ error: "llm_empty_response" }, 502);
+    const reflection = sanitizeReflection(extractJson(generatedText), context);
     if (!reflection) return json({ error: "invalid_liuyao_reflection" }, 502);
     return json({ reflection, generationMode: "ai" });
   } catch {

@@ -20,3 +20,4 @@
 :global(body) .pillars strong i:first-child,:global(body) .interactions b,:global(body) .luckCycles strong,:global(body) .cycles strong{color:#a9823d}
 :global(body) .pillars dl div{border-color:#e0d9cd}
 :global(body) .elementBars i{background:#e2e5df}
+.notice p{flex:1}.notice>svg:last-child{color:#6f9c7e}.profileLoaded{border:1px solid #7ca78b4a;background:#7ca78b12}

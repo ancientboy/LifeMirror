@@ -191,7 +191,7 @@ function normalizeReflection(reflection: Reflection | PreviousReflection | Legac
 }
 
 function cleanShareQuote(text: string) {
-  return text.trim().replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|轻毒舌(?:版)?)[：:\s]+/u, "");
+  return [...text.trim().replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|轻毒舌(?:版)?)[：:\s]+/u, "").replace(/[。！？!?]+$/u, "")].slice(0, 46).join("");
 }
 
 function cleanReflectionShareCards(reflection: Reflection): Reflection {
@@ -231,19 +231,19 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     shareableReflection: playful ? "今天更值得赢到开心，不必把每一分输赢都算得太重。" : `${knowledge.original.name}走向${knowledge.changed.name}：先按眼前最清楚的条件，决定下一步。`,
     shareCards: {
       warm: {
-        title: "拾光的温柔提醒",
-        quote: playful ? "去享受这件事吧，开心本身就是今天值得带回来的答案。" : `不用急着一次想完。${knowledge.original.name}提醒你先看清当下，${knowledge.changed.name}提醒你给变化留一点余地。`,
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 暖心版`,
+        title: "这句话有点像我",
+        quote: playful ? "今天值得赢到开心，不必把快乐也做成绩效" : `我不是没有答案，只是还想给变化留一点余地`,
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻`,
       },
       witty: {
-        title: "卦象翻译器",
-        quote: playful ? "可以去，但别把快乐局硬玩成绩效考核。" : `${knowledge.original.name}负责提醒你别急，${knowledge.changed.name}负责提醒你别把路走死。`,
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 翻译梗`,
+        title: "如果是你，会看到什么？",
+        quote: playful ? "换你来照一次，看看谁更会把快乐想复杂" : `也生成一次你的镜像，看看我们会不会困在同一处`,
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照`,
       },
       roast: {
-        title: "拾光轻轻毒舌",
-        quote: playful ? "能不能开心，卦只负责提醒；别临场又给自己加一套输赢 KPI。" : "卦可以给方向，但不能替你把现实条件补齐。少脑补一个，答案通常就清楚一点。",
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 轻毒舌`,
+        title: "有句话想让你看见",
+        quote: playful ? "我想要的是一起开心，不是再比一次谁输谁赢" : "我们都在等对方先靠近，所以这件事才一直悬着",
+        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应`,
       },
     },
   };
@@ -633,7 +633,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
       } catch {
         result = basic;
       }
-      setReflectionResult(result); setStage("traditional");
+      setReflectionResult(result); setStage("mirror");
     } catch (cause) { setError(readableError(cause)); }
     finally { setBusy(false); }
   }
@@ -690,17 +690,17 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     <main className={styles.appShell}>
       <div className={styles.ambient} />
       <header className={styles.appHeader}>
-        <Link href="/app/home/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>DAILY MIRROR</small></Link>
+        <Link href="/app/home/" className={styles.productBrand}><span className={styles.brandOrb}>◌</span><b>LIFE MIRROR</b><small>六爻镜像</small></Link>
         <div className={styles.headerActions}>{authState === "authenticated" && <Link href="/app/review/">周期回顾</Link>}<span><LockKey />{authState === "guest" ? "游客镜像" : "私人镜像"}</span><button onClick={logout} disabled={busy} aria-label="退出登录"><SignOut /></button></div>
       </header>
 
-      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="Daily Mirror 进度">{["提问", "起卦", "卦象", "六爻判断", "拾光解释", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
+      {stage !== "home" && stage !== "memory" && <nav className={styles.progress} aria-label="六爻镜像进度">{["提问", "起卦", "卦象", "拾光解读", "保存"].map((label, index) => <span className={progress >= index + 1 ? styles.progressActive : ""} key={label}><i>{progress > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}</nav>}
 
       {stage === "home" && (
         <section className={styles.companionHome}>
-          <div className={styles.companionWelcome}><div><p>今日镜像 · 拾光在这里</p><h1>今天，想从<br />哪里开始？</h1><span>你可以先自由聊聊，也可以选择一种镜像工具。工具只是观察角度，拾光会留在整个过程里。</span></div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /></div>
+          <div className={styles.companionWelcome}><div><p>今日镜像 · 拾光在这里</p><h1>先说你心里<br />最放不下的事。</h1><span>不用先懂工具。直接说近况；需要另一种观察角度时，拾光再陪你选择。</span></div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /></div>
           <div className={styles.homeConversation}><ShiguangChat mode="home" theme="east" context="这是用户进入 LifeMirror 后的常规陪伴首页。当前还没有选择六爻、命盘、塔罗或占星；先自然回应用户当下的困惑，帮助澄清问题，不主动制造占卜结论。" opening="我在。你不必先选择工具——可以直接告诉我，今天哪件事最留在心里。我们先把它说清楚，再决定要不要借一种镜像来看。" /></div>
-          <section className={styles.toolHub}><header><div><small>CHOOSE A MIRROR · 按需要选择</small><h2>换一个角度看此刻</h2></div><span>体验结束后仍可回到拾光对话</span></header><div>
+          <section className={styles.toolHub}><header><div><small>需要时再用工具</small><h2>换一个角度看此刻</h2></div><span>不确定选哪个，就先和拾光聊</span></header><div>
             <button type="button" onClick={startMirror}><Hexagon /><span><b>六爻</b><small>适合具体事件与变化中的选择</small></span><ArrowRight /></button>
             <Link href="/app/chart/"><ChartPolar /><span><b>命盘</b><small>从出生时间结构理解长期节奏</small></span><ArrowRight /></Link>
             <Link href="/app/tarot/"><CardsThree /><span><b>塔罗</b><small>从象征画面厘清内在感受</small></span><ArrowRight /></Link>
@@ -823,29 +823,35 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
 
       {stage === "mirror" && reflectionResult && (
         <section className={styles.reflectionScreen}>
-          <button className={styles.backButton} onClick={() => setStage("traditional")}><ArrowLeft /> 返回六爻判断</button>
-          <div className={styles.reflectionHero}><span>05 · SHIGUANG EXPLAINS</span><h1>让拾光翻成人话。</h1><p>前面已经给出判断和依据；这里说清楚，它落到你眼前的处境意味着什么。</p></div>
+          <button className={styles.backButton} onClick={() => setStage("hexagram")}><ArrowLeft /> 返回卦象</button>
+          <div className={styles.reflectionHero}><span>拾光解读</span><h1>先说结论。</h1><p>传统依据保留在下方，需要验证时再展开。</p></div>
+          <article className={styles.judgmentCard}><small>拾光先说</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.reflection.traditionalJudgment}</p></article>
+          {reflectionResult.generationMode === "basic" && reflectionResult.generationNotice && <div className={styles.basicNotice} role="status">AI 暂时未完成本次改写，当前先显示可靠的基础解读。</div>}
           <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
           <div className={styles.personaFlow}>
-            <article className={styles.understandingCard}><small>拾光翻成人话</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>
+            <article className={styles.understandingCard}><small>现实里的助力与阻力</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>
             <article className={styles.guidanceCard}><small>给你的建议</small><h2>接下来可以怎么做</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
           </div>
           {reflectionResult.reflection.closing && <article className={styles.guidanceCard}><small>拾光收个尾</small><p>{reflectionResult.reflection.closing.text}</p></article>}
           <ShareQuoteCard theme="east" title="我的六爻镜像" quote={reflectionResult.reflection.shareableReflection} meta={`${reflectionResult.hexagram.originalHexagram.symbol} ${reflectionResult.hexagram.originalHexagram.name} → ${reflectionResult.hexagram.changedHexagram.symbol} ${reflectionResult.hexagram.changedHexagram.name}`} image={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} contentByVariant={reflectionResult.reflection.shareCards ? {
-            paper: { kicker: "暖心版 · WARM", ...reflectionResult.reflection.shareCards.warm },
-            night: { kicker: "轻毒舌 · ROAST", ...reflectionResult.reflection.shareCards.roast },
-            character: { kicker: "翻译梗 · WITTY", ...reflectionResult.reflection.shareCards.witty },
+            paper: { kicker: "我的此刻 · FOR ME", ...reflectionResult.reflection.shareCards.warm },
+            night: { kicker: "关系回应 · FOR US", ...reflectionResult.reflection.shareCards.roast },
+            character: { kicker: "邀请对照 · COMPARE", ...reflectionResult.reflection.shareCards.witty },
           } : undefined} />
           <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
           <ShiguangChat theme="east" context={`本次卦象为${reflectionResult.hexagram.originalHexagram.name}变${reflectionResult.hexagram.changedHexagram.name}；页面中的传统依据与规则证据可供复核。`} />
           <details className={styles.explanationTrace}>
-            <summary>为什么拾光这样说</summary>
+            <summary>为什么拾光这样说 · 查看传统依据</summary>
+            <div><small>六爻判断</small><p>{reflectionResult.reflection.reasoningExplanation}</p></div>
+            {reflectionResult.reflection.evidenceCards.length > 0 && <div><small>关键线索</small><ul>{reflectionResult.reflection.evidenceCards.map((card) => <li key={`${card.title}-${card.technical}`}>{card.effect === "positive" ? "助力" : card.effect === "negative" ? "阻力" : "拉扯"} · {card.title}：{card.plain}</li>)}</ul></div>}
             <div><small>传统依据</small><p>{reflectionResult.explanationTrace.traditional_basis}</p></div>
             <div><small>反思映射</small><p>{reflectionResult.explanationTrace.reflection_mapping}</p></div>
             {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>六爻规则证据</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{humanizeLiuyaoFactor(item)}</li>)}</ul></div>}
             {reflectionResult.runtimeTrace && <div><small>解读过程检查</small><p>{reflectionResult.runtimeTrace.mode.mode === "deep" ? "深度分析" : "清晰解读"} · 已完成一致性与边界检查</p>{reflectionResult.runtimeTrace.evaluation.flags.length > 0 && <ul>{reflectionResult.runtimeTrace.evaluation.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}</div>}
           </details>
-          <div className={styles.reflectionActions}>{reflectionResult.reflection.reflectionQuestion && <button className={styles.secondaryButton} onClick={() => setStage("reflectionQuestion")}>如果愿意，再想一个问题</button>}<button className={styles.primaryButton} onClick={() => setStage("save")}>保存这次解读 <ArrowRight /></button></div>
+          {error && <div className={styles.error} role="alert">{error}</div>}
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>问一个新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存</> : <><FloppyDisk /> 保存这次记录</>}</button></div>
+          {saved && <p className={styles.savedNote}>已保存到“我的镜像”。</p>}
         </section>
       )}
 

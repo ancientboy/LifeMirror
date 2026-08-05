@@ -1,32 +1,36 @@
 "use client";
 
-import { ArrowRight, Brain, DeviceMobile, FloppyDisk, LockKey, SignOut, Sparkle, Trash, UserCircle } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, DeviceMobile, FloppyDisk, LockKey, SignOut, Sparkle, Trash, UserCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
 import { AppBottomNav } from "./AppBottomNav";
 import styles from "./ProfileHub.module.css";
 import { AccountDataSync } from "./AccountDataSync";
+import { BIRTH_PROFILE_CHANGED_EVENT, formatSavedBirthProfile, getSavedBirthProfile, removeSavedBirthProfile, type SavedBirthProfile } from "@/lib/birth-profile";
 
 export function ProfileHub() {
-  const [guest, setGuest] = useState(false);
+  const [guest, setGuest] = useState(true);
   const [accountEmail, setAccountEmail] = useState("");
   const [settings, setSettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
   const [facts, setFacts] = useState<SavedFact[]>([]);
   const [draft, setDraft] = useState("");
+  const [birthProfile, setBirthProfile] = useState<SavedBirthProfile | null>(null);
 
   useEffect(() => {
-    const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); };
+    const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); };
     const isGuest = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     setGuest(isGuest);
     if (!isGuest) fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
-      if (!response.ok) return;
+      if (!response.ok) { setGuest(true); return; }
       const session = await response.json() as { user?: { email?: string } };
       setAccountEmail(session.user?.email ?? "");
+      setGuest(false);
     }).catch(() => undefined);
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(MEMORY_CHANGED_EVENT, sync);
+    window.addEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync);
+    return () => { window.removeEventListener(MEMORY_CHANGED_EVENT, sync); window.removeEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync); };
   }, []);
 
   function toggle(next: Partial<MemorySettings>) {
@@ -52,6 +56,16 @@ export function ProfileHub() {
       <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
       <Link href="/app/"><LockKey /><span><b>登录与账户</b><small>查看当前服务器连接状态</small></span><ArrowRight /></Link>
       {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
+    </section>
+
+    <section className={styles.birthPanel} aria-labelledby="birth-profile-title">
+      <header><CalendarBlank /><div><small>出生资料</small><h2 id="birth-profile-title">命盘与占星共用</h2><p>{birthProfile ? formatSavedBirthProfile(birthProfile) : "还没有保存出生资料。填写一次后，两个玩法都会自动载入。"}</p></div></header>
+      <div className={styles.birthActions}>
+        <Link href="/app/chart/">打开命盘 <ArrowRight /></Link>
+        <Link href="/app/astrology/">打开占星 <ArrowRight /></Link>
+        {birthProfile && <button type="button" onClick={() => { removeSavedBirthProfile(); setBirthProfile(null); }}><Trash /> 删除资料</button>}
+      </div>
+      <small className={styles.birthPrivacy}>{guest ? "资料仅保存在这台设备。" : "资料会随账户跨设备同步。"} 不会用于六爻或塔罗。</small>
     </section>
 
     <section className={styles.memoryPanel} id="memory" aria-labelledby="memory-title">

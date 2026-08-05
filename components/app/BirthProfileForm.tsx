@@ -10,10 +10,11 @@ import { calculateAstrology } from "../../server/tools/astrology/core";
 import type { AstrologyResult } from "../../server/tools/astrology/types";
 import { AstrologyChart } from "./AstrologyChart";
 import { LocationPicker } from "./LocationPicker";
-import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
 import { MirrorSaveButton } from "./MirrorSaveButton";
+import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
+import { formatSavedBirthProfile, getSavedBirthProfile, saveBirthProfile } from "../../lib/birth-profile";
 
 type Props = { tradition: "east" | "west" };
 const currentYear = new Date().getFullYear();
@@ -38,12 +39,33 @@ export function BirthProfileForm({ tradition }: Props) {
   const [latitude, setLatitude] = useState("");
   const [coordinateStatus, setCoordinateStatus] = useState("");
   const [saved, setSaved] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [bazi, setBazi] = useState<BaziResult | null>(null);
   const [astrology, setAstrology] = useState<AstrologyResult | null>(null);
   const maxDay = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
   const validDay = Math.min(day, maxDay);
+
+  useEffect(() => {
+    const profile = getSavedBirthProfile();
+    if (!profile) return;
+    setYear(profile.year);
+    setMonth(profile.month);
+    setDay(profile.day);
+    setHour(profile.hour);
+    setMinute(profile.minute);
+    setUnknownTime(profile.unknownTime);
+    setPlace(profile.place);
+    setUtcOffsetMinutes(profile.utcOffsetMinutes);
+    setLongitude(profile.longitude);
+    setLatitude(profile.latitude);
+    setDayBoundary(profile.dayBoundary);
+    setLuckGender(profile.luckGender);
+    setUseTrueSolarTime(profile.useTrueSolarTime);
+    setCoordinateStatus(`已从你的出生资料载入：${formatSavedBirthProfile(profile)}`);
+    setProfileLoaded(true);
+  }, []);
 
   useEffect(() => {
     if (!bazi && !astrology) return;
@@ -91,6 +113,8 @@ export function BirthProfileForm({ tradition }: Props) {
       } else {
         setBazi(calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender }));
       }
+      saveBirthProfile({ year, month, day: validDay, hour, minute, unknownTime, place: place.trim(), utcOffsetMinutes, longitude, latitude, dayBoundary, luckGender, useTrueSolarTime });
+      setProfileLoaded(true);
       setSaved(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : `${tradition === "west" ? "星盘" : "命盘"}计算失败，请检查日期、时区与坐标`);
@@ -101,7 +125,7 @@ export function BirthProfileForm({ tradition }: Props) {
 
   return <>
     <form className={`${styles.form} ${styles[tradition]}`} onSubmit={submit}>
-      <div className={styles.notice}><CalendarBlank /><p><b>先建立出生资料</b><span>年份支持直接输入与长列表滚动；资料只用于本次排盘，你可以随时修改。</span></p></div>
+      <div className={`${styles.notice} ${profileLoaded ? styles.profileLoaded : ""}`}><CalendarBlank /><p><b>{profileLoaded ? "已载入你的出生资料" : "先建立出生资料"}</b><span>{profileLoaded ? "命盘和占星会共用这份资料；修改并重新生成后会自动更新。" : "填写一次后会保存在你的设备；登录后可跨设备同步，并自动用于命盘与占星。"}</span></p>{profileLoaded && <Check weight="bold" />}</div>
       <fieldset><legend>出生日期 <em>必填</em></legend><div className={styles.dateGrid}>
         <label><span>年</span><input list="birth-years" inputMode="numeric" value={year} min={1900} max={currentYear} onChange={(event) => setYear(Number(event.target.value))} aria-label="出生年份" /><datalist id="birth-years">{years.map((value) => <option value={value} key={value} />)}</datalist></label>
         <label><span>月</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option value={value} key={value}>{value} 月</option>)}</select></label>
@@ -130,6 +154,18 @@ function BaziChart({ result }: { result: BaziResult }) {
   const profile = result.fiveElementProfile;
   const currentAnnual = result.luck?.annual.find((item) => item.year === currentYear);
   const chatContext = `本次四柱为${known}。日主${profile.dayMaster}${profile.dayMasterElement}，基础旺衰区间为${profile.strengthBand}；五行占比为${Object.entries(profile.scores).map(([key, value]) => `${key}${value}%`).join("、")}。${result.interactions.length ? `地支结构包含${result.interactions.map((item) => `${item.members}${item.kind}`).join("、")}。` : "未识别到基础六合、六冲、刑害结构。"}${currentAnnual ? `当前流年${currentAnnual.year}年${currentAnnual.ganZhi}，相对日主十神为${currentAnnual.tenGod}。` : "未生成当前流年。"}请区分确定性盘面、传统解释与现实证据。`;
+  const fallback: MirrorResult = {
+    headline: `${profile.dayMaster}${profile.dayMasterElement}日主，${profile.strengthBand}是一种结构线索，不是命运结论。`,
+    interpretation: `五行结构显示生扶占比为 ${profile.supportiveShare}%。它更适合用来观察你如何调配资源与节奏，再用长期经历验证，而不是给自己贴固定标签。`,
+    action: "回看最近一件消耗明显的事，分清它需要补充资源，还是需要减少无效用力。",
+    reflectionQuestion: "过去半年里，什么情境最容易让你感到资源充足，什么情境最容易耗尽？",
+    shareCards: {
+      warm: "这张盘说的是我习惯怎么用力，不是我只能成为什么人。",
+      roast: "我们节奏不同没关系，别再把沉默误会成不在乎。",
+      witty: "也排一次你的盘，看看我们到底是互补还是互相为难。",
+    },
+  };
+  const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
     <header><div><small>DETERMINISTIC CHART · 可复算盘面</small><h2>四柱命盘 · 基础专业层</h2></div><span>{result.engine.version}</span></header>
     <div className={styles.pillars}>{result.pillars.map((pillar, index) => pillar ? <article key={pillar.key}><small>{pillar.label}</small><strong><i>{pillar.stem}</i><i>{pillar.branch}</i></strong><dl><div><dt>十神</dt><dd>{pillar.stemTenGod}</dd></div><div><dt>藏干</dt><dd>{pillar.hiddenStems.join(" · ")}</dd></div><div><dt>藏干十神</dt><dd>{pillar.branchTenGods.join(" · ")}</dd></div><div><dt>五行</dt><dd>{pillar.fiveElements}</dd></div><div><dt>纳音</dt><dd>{pillar.naYin}</dd></div></dl></article> : <article className={styles.emptyPillar} key={index}><small>时柱</small><strong>未知</strong><p>未使用推测时间</p></article>)}</div>
@@ -138,8 +174,8 @@ function BaziChart({ result }: { result: BaziResult }) {
     <section className={styles.analysisSection}><div className={styles.sectionHeading}><div><small>LUCK CYCLES · 大运流年</small><h3>{result.luck ? `${result.luck.direction} · 起运约 ${result.luck.startsAfter}` : "尚未生成排运序列"}</h3></div></div>{result.luck ? <><div className={styles.luckCycles}>{result.luck.cycles.map((cycle) => <article key={`${cycle.ganZhi}-${cycle.startYear}`}><strong>{cycle.ganZhi}</strong><span>{cycle.startYear}–{cycle.endYear}</span><small>{cycle.startAge}–{cycle.endAge} 岁</small></article>)}</div><div className={styles.annuals}>{result.luck.annual.map((item) => <article className={item.year === currentYear ? styles.currentAnnual : ""} key={item.year}><b>{item.year}</b><strong>{item.ganZhi}</strong><span>{item.tenGod} · {item.age} 岁</span></article>)}</div><p className={styles.methodNote}>{result.luck.method} 流年只展示干支与十神关系，不直接生成吉凶结论。</p></> : <p className={styles.emptyAnalysis}>请选择传统排运参数并提供准确出生时间，系统才会计算起运、大运与流年；缺少条件时不会猜测。</p>}</section>
     <div className={styles.evidence}><article><h3>计算时间</h3><p>{result.effectiveLocalTime}{result.trueSolarAdjustmentMinutes !== null && `（真太阳时修正 ${result.trueSolarAdjustmentMinutes >= 0 ? "+" : ""}${result.trueSolarAdjustmentMinutes} 分钟）`}</p><p>支持历法范围：{result.engine.calendarRange}</p></article><article><h3>相邻节气</h3><p>{result.solarTerms.previous} · {result.solarTerms.previousAt}</p><p>{result.solarTerms.next} · {result.solarTerms.nextAt}</p></article></div>
     <details open><summary>排盘规则、方法与边界</summary><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></details>
-    <ShareQuoteCard theme="east" title="我的命盘镜像" quote={`${profile.dayMaster}${profile.dayMasterElement}日主，${profile.strengthBand}不是命运结论，而是提醒我更清楚地理解自己的资源与节奏。`} meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" />
-    <MirrorSaveButton source="bazi" title="命盘镜像" question="我的出生命盘" summary={`${profile.dayMaster}${profile.dayMasterElement}日主，基础五行结构为${profile.strengthBand}；这是一条需要结合真实经历验证的长期线索。`} meta={known} payload={result} />
+    <UnifiedMirrorResult kind="bazi" theme="east" question="我的出生命盘呈现了怎样的资源、张力与节奏？" facts={chatContext} fallback={fallback} title="我的命盘镜像" meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <MirrorSaveButton source="bazi" title="命盘镜像" question="我的出生命盘" summary={mirrorSummary} meta={known} payload={result} />
     <ShiguangChat theme="east" context={chatContext} opening={`盘面已经展开。你的日主是${profile.dayMaster}${profile.dayMasterElement}，基础五行结构与${result.interactions.length ? "刑冲合害" : "地支关系"}${result.luck ? "、大运流年" : ""}都列在上面。你可以追问某一层，我会先引用盘面，再说明解释边界。`} />
   </section>;
 }

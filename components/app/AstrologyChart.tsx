@@ -1,9 +1,10 @@
 "use client";
 
 import type { AstrologyResult } from "../../server/tools/astrology/types";
-import { ShareQuoteCard } from "./ShareQuoteCard";
+import { useState } from "react";
 import { ShiguangChat } from "./ShiguangChat";
 import { MirrorSaveButton } from "./MirrorSaveButton";
+import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./AstrologyChart.module.css";
 
 const point = (longitude: number, radius: number) => {
@@ -54,6 +55,19 @@ function NatalWheel({ result }: { result: AstrologyResult }) {
 export function AstrologyChart({ result }: { result: AstrologyResult }) {
   const sun = result.planets[0], moon = result.planets[1], asc = result.angles[0];
   const meta = `太阳 ${sun.sign.name} · 月亮 ${moon.sign.name}${asc ? ` · 上升 ${asc.sign.name}` : " · 上升未知"}`;
+  const facts = `可确认盘面：${meta}。主题线索：${result.themes.join("；")}。主要相位：${result.aspects.slice(0, 5).map((aspect) => `${aspect.first}${aspect.name}${aspect.second}，容许度${aspect.orb}°`).join("；") || "当前容许度内未识别主要相位"}。${asc ? "出生时间已知，可以使用宫位与上升点。" : "出生时间未知，禁止生成宫位或上升相关结论。"}`;
+  const fallback: MirrorResult = {
+    headline: result.headline,
+    interpretation: `${result.themes[0] ?? "太阳与月亮提供了两种互相补充的观察角度。"} 这是一条等待现实经历核对的象征线索，不是固定人格标签。`,
+    action: "选一个最近反复出现的情境，分别记录你外在怎么做、内在真正需要什么。",
+    reflectionQuestion: "最近哪一次选择，最明显地让你的外在行动和内在需要发生了拉扯？",
+    shareCards: {
+      warm: "我看起来在往前走，心里其实还在等一个确定的回应。",
+      roast: "我不是要你猜懂我，只想知道你愿不愿意认真回应。",
+      witty: "也生成你的星盘镜像，看看我们为何总在不同频道。",
+    },
+  };
+  const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
     <header className={styles.header}><div><small>NATAL MIRROR · 可复算本命盘</small><h2>你的本命星盘</h2><p>{result.utcTime.replace("T", " ").replace(".000Z", " UTC")}</p></div><span>{result.engine.version}</span></header>
     <div className={styles.overview}><NatalWheel result={result} /><div className={styles.bigThree}>
@@ -65,8 +79,8 @@ export function AstrologyChart({ result }: { result: AstrologyResult }) {
     <section className={styles.dataSection}><h3>行星落座与宫位</h3><div className={styles.planetGrid}>{result.planets.map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><strong>{planet.name}</strong><span>{planet.sign.name} {formatDegree(planet.degreeInSign)}</span><em>{planet.house ? `第 ${planet.house} 宫` : "宫位未知"}{planet.retrograde ? " · 逆行" : ""}</em></div></article>)}</div></section>
     <section className={styles.dataSection}><h3>主要相位 <small>按容许度由紧到松</small></h3>{result.aspects.length ? <div className={styles.aspectGrid}>{result.aspects.map((aspect) => <article key={aspect.key}><b>{aspect.glyph}</b><span>{aspect.first} {aspect.name} {aspect.second}</span><em>容许度 {aspect.orb}°</em></article>)}</div> : <p className={styles.empty}>当前设定的容许度内没有主要相位。</p>}</section>
     <details open className={styles.evidence}><summary>计算证据、口径与边界</summary><dl><div><dt>星历模型</dt><dd>{result.engine.model}</dd></div><div><dt>黄道体系</dt><dd>{result.engine.zodiac}</dd></div><div><dt>宫制</dt><dd>{result.engine.houseSystem}</dd></div></dl><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></details>
-    <ShareQuoteCard theme="west" title="我的星盘镜像" quote={result.headline} meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" />
-    <MirrorSaveButton source="astrology" title="占星镜像" question="我的本命星盘" summary={result.headline} meta={meta} payload={result} />
+    <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <MirrorSaveButton source="astrology" title="占星镜像" question="我的本命星盘" summary={mirrorSummary} meta={meta} payload={result} />
     <ShiguangChat theme="west" context={`这次星盘的可确认事实是：${meta}。最紧密主要相位为${result.aspects[0] ? `${result.aspects[0].first}${result.aspects[0].name}${result.aspects[0].second}，容许度 ${result.aspects[0].orb}°` : "当前容许度内未识别"}。请始终区分盘面事实、象征解释和现实证据。`} opening="星盘已经展开。如果你想追问某颗行星、某个宫位或一组相位，我会先指出盘面证据，再陪你把象征放回真实生活。" />
   </section>;
 }
