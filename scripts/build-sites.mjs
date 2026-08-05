@@ -309,6 +309,149 @@ async function authApi(request, env, pathname) {
   return json({ error: "not_found" }, 404);
 }
 
+async function ensureSocialProfile(env, userId) {
+  let profile = await env.DB.prepare("SELECT invite_code AS inviteCode, discoverable, share_birth_for_relationships AS shareBirth FROM social_profiles WHERE user_id = ?").bind(userId).first();
+  if (profile) return profile;
+  const now = new Date().toISOString();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const inviteCode = randomHex(5).toUpperCase();
+    try {
+      await env.DB.prepare("INSERT INTO social_profiles (user_id, invite_code, discoverable, share_birth_for_relationships, created_at, updated_at) VALUES (?, ?, 1, 0, ?, ?)").bind(userId, inviteCode, now, now).run();
+      return { inviteCode, discoverable: 1, shareBirth: 0 };
+    } catch {}
+  }
+  throw new Error("social_profile_failed");
+}
+
+async function socialUser(env, userId) {
+  const identity = await env.DB.prepare("SELECT id, email, display_name AS displayName FROM identity_users WHERE id = ?").bind(userId).first();
+  if (!identity) return null;
+  const data = await readAccountData(env.DB, userId);
+  const profile = data.settings?.userProfile || {};
+  return {
+    id: identity.id,
+    name: String(profile.nickname || identity.displayName || String(identity.email || "镜像朋友").split("@")[0]).slice(0, 24),
+    avatar: typeof profile.avatar === "string" && profile.avatar.length < 800000 ? profile.avatar : "",
+  };
+}
+
+async function listRelationships(env, userId) {
+  const result = await env.DB.prepare("SELECT id, requester_id AS requesterId, recipient_id AS recipientId, status, created_at AS createdAt, updated_at AS updatedAt FROM relationships WHERE requester_id = ? OR recipient_id = ? ORDER BY updated_at DESC").bind(userId, userId).all();
+  return Promise.all((result.results || []).map(async (row) => ({
+    id: row.id,
+    status: row.status,
+    direction: row.requesterId === userId ? "outgoing" : "incoming",
+    person: await socialUser(env, row.requesterId === userId ? row.recipientId : row.requesterId),
+    createdAt: row.createdAt,
+  })));
+}
+
+function zodiacSign(month, day) {
+  const edges = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22];
+  const names = ["摩羯座", "水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座"];
+  return names[month - 1 + (day >= edges[month - 1] ? 1 : 0)] || "未知";
+}
+
+function relationInsight(first, second) {
+  const groups = { "白羊座":"火", "狮子座":"火", "射手座":"火", "金牛座":"土", "处女座":"土", "摩羯座":"土", "双子座":"风", "天秤座":"风", "水瓶座":"风", "巨蟹座":"水", "天蝎座":"水", "双鱼座":"水" };
+  const a = groups[first] || "";
+  const b = groups[second] || "";
+  if (a === b) return { rhythm: "你们容易快速进入同一种节奏，也更容易把彼此的默认方式当成理所当然。", tension: "一致感很强时，反而要给不同意见留一点位置。" };
+  if ((a === "火" && b === "风") || (a === "风" && b === "火") || (a === "土" && b === "水") || (a === "水" && b === "土")) return { rhythm: "你们的表达方式不同，却常能给对方正在做的事补上一块。", tension: "别把互补变成代替对方决定，先确认对方真正需要什么。" };
+  return { rhythm: "你们看事情的入口不太一样，这会带来新视角，也需要更多翻译。", tension: "压力来时，一个人想推进、另一个人可能先消化；把节奏说出来比猜更有效。" };
+}
+
+async function relationshipMirror(env, userId, relationId) {
+  const relation = await env.DB.prepare("SELECT requester_id AS requesterId, recipient_id AS recipientId, status FROM relationships WHERE id = ? AND (requester_id = ? OR recipient_id = ?)").bind(relationId, userId, userId).first();
+  if (!relation || relation.status !== "accepted") return null;
+  const otherId = relation.requesterId === userId ? relation.recipientId : relation.requesterId;
+  const [mine, theirs, mySocial, theirSocial, me, other] = await Promise.all([
+    readAccountData(env.DB, userId), readAccountData(env.DB, otherId), ensureSocialProfile(env, userId), ensureSocialProfile(env, otherId), socialUser(env, userId), socialUser(env, otherId),
+  ]);
+  const myBirth = mine.settings?.birthProfile;
+  const theirBirth = theirs.settings?.birthProfile;
+  if (!mySocial.shareBirth || !theirSocial.shareBirth || !myBirth || !theirBirth) return { ready: false, me, other };
+  const mySign = zodiacSign(Number(myBirth.month), Number(myBirth.day));
+  const theirSign = zodiacSign(Number(theirBirth.month), Number(theirBirth.day));
+  return { ready: true, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
+}
+
+async function socialApi(request, env, pathname) {
+  const publicShare = pathname.match(/^\/api\/v1\/social\/shares\/([^/]+)$/);
+  if (publicShare && request.method === "GET") {
+    const share = await env.DB.prepare("SELECT id, owner_id AS ownerId, share_kind AS shareKind, mirror_kind AS mirrorKind, quote, meta, expires_at AS expiresAt FROM mirror_share_links WHERE token = ?").bind(publicShare[1]).first();
+    if (!share || Date.parse(share.expiresAt) <= Date.now()) return json({ error: "share_not_found" }, 404);
+    return json({ share: { ...share, owner: await socialUser(env, share.ownerId) } });
+  }
+  const user = await sessionUser(request, env);
+  if (!user) return json({ authenticated: false, error: "authentication_required" }, 401);
+  const ownProfile = await ensureSocialProfile(env, user.id);
+  if (pathname === "/api/v1/social/me" && request.method === "GET") return json({ profile: ownProfile, relationships: await listRelationships(env, user.id), user: await socialUser(env, user.id) });
+  if (pathname === "/api/v1/social/privacy" && request.method === "PATCH") {
+    const input = await body(request);
+    const shareBirth = input?.shareBirth === true ? 1 : 0;
+    const discoverable = input?.discoverable === false ? 0 : 1;
+    await env.DB.prepare("UPDATE social_profiles SET discoverable = ?, share_birth_for_relationships = ?, updated_at = ? WHERE user_id = ?").bind(discoverable, shareBirth, new Date().toISOString(), user.id).run();
+    return json({ profile: { ...ownProfile, discoverable, shareBirth } });
+  }
+  if (pathname === "/api/v1/social/requests" && request.method === "POST") {
+    const input = await body(request);
+    const targetCode = String(input?.inviteCode || "").trim().toUpperCase().slice(0, 40);
+    const target = input?.targetUserId
+      ? await env.DB.prepare("SELECT user_id AS userId FROM social_profiles WHERE user_id = ?").bind(String(input.targetUserId)).first()
+      : await env.DB.prepare("SELECT user_id AS userId FROM social_profiles WHERE invite_code = ? AND discoverable = 1").bind(targetCode).first();
+    if (!target) return json({ error: "person_not_found" }, 404);
+    if (target.userId === user.id) return json({ error: "cannot_add_self" }, 400);
+    const existing = await env.DB.prepare("SELECT id, status FROM relationships WHERE (requester_id = ? AND recipient_id = ?) OR (requester_id = ? AND recipient_id = ?)").bind(user.id, target.userId, target.userId, user.id).first();
+    if (existing) return json({ relationship: existing, alreadyExists: true });
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await env.DB.prepare("INSERT INTO relationships (id, requester_id, recipient_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)").bind(id, user.id, target.userId, now, now).run();
+    return json({ relationship: { id, status: "pending" } }, 201);
+  }
+  const actionMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)$/);
+  if (actionMatch && request.method === "PATCH") {
+    const input = await body(request);
+    const action = input?.action;
+    const relation = await env.DB.prepare("SELECT requester_id AS requesterId, recipient_id AS recipientId, status FROM relationships WHERE id = ? AND (requester_id = ? OR recipient_id = ?)").bind(actionMatch[1], user.id, user.id).first();
+    if (!relation) return json({ error: "relationship_not_found" }, 404);
+    if (action === "accept" && relation.recipientId === user.id && relation.status === "pending") await env.DB.prepare("UPDATE relationships SET status = 'accepted', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), actionMatch[1]).run();
+    else if (action === "block") await env.DB.prepare("UPDATE relationships SET status = 'blocked', requester_id = ?, recipient_id = ?, updated_at = ? WHERE id = ?").bind(user.id, relation.requesterId === user.id ? relation.recipientId : relation.requesterId, new Date().toISOString(), actionMatch[1]).run();
+    else if (action === "remove") await env.DB.prepare("DELETE FROM relationships WHERE id = ?").bind(actionMatch[1]).run();
+    else return json({ error: "invalid_relationship_action" }, 400);
+    return json({ ok: true });
+  }
+  const mirrorMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/mirror$/);
+  if (mirrorMatch && request.method === "GET") {
+    const mirror = await relationshipMirror(env, user.id, mirrorMatch[1]);
+    return mirror ? json({ mirror }) : json({ error: "relationship_not_found" }, 404);
+  }
+  if (pathname === "/api/v1/social/shares" && request.method === "POST") {
+    const input = await body(request);
+    const shareKind = input?.shareKind === "compare" ? "compare" : "relationship";
+    const quote = String(input?.quote || "").trim().slice(0, 120);
+    if (!quote) return json({ error: "invalid_share" }, 400);
+    const id = crypto.randomUUID();
+    const token = randomHex(18);
+    const now = new Date();
+    await env.DB.prepare("INSERT INTO mirror_share_links (id, token, owner_id, share_kind, mirror_kind, quote, meta, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(id, token, user.id, shareKind, String(input?.mirrorKind || "mirror").slice(0, 40), quote, String(input?.meta || "").slice(0, 180), now.toISOString(), new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()).run();
+    return json({ token, path: "/app/relationships/?share=" + token }, 201);
+  }
+  const respondMatch = pathname.match(/^\/api\/v1\/social\/shares\/([^/]+)\/respond$/);
+  if (respondMatch && request.method === "POST") {
+    const input = await body(request);
+    const response = ["like_me", "not_me", "want_compare"].includes(input?.response) ? input.response : "like_me";
+    const share = await env.DB.prepare("SELECT id, owner_id AS ownerId FROM mirror_share_links WHERE token = ? AND expires_at > ?").bind(respondMatch[1], new Date().toISOString()).first();
+    if (!share) return json({ error: "share_not_found" }, 404);
+    if (share.ownerId === user.id) return json({ error: "cannot_respond_self" }, 400);
+    await env.DB.prepare("INSERT INTO mirror_share_responses (id, share_id, responder_id, response, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(share_id, responder_id) DO UPDATE SET response = excluded.response, created_at = excluded.created_at").bind(crypto.randomUUID(), share.id, user.id, response, new Date().toISOString()).run();
+    const existing = await env.DB.prepare("SELECT id FROM relationships WHERE (requester_id = ? AND recipient_id = ?) OR (requester_id = ? AND recipient_id = ?)").bind(user.id, share.ownerId, share.ownerId, user.id).first();
+    if (!existing) await env.DB.prepare("INSERT INTO relationships (id, requester_id, recipient_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)").bind(crypto.randomUUID(), user.id, share.ownerId, new Date().toISOString(), new Date().toISOString()).run();
+    return json({ ok: true, relationshipRequested: !existing });
+  }
+  return json({ error: "not_found" }, 404);
+}
+
 async function shiguang(request, env) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   if (!env.LLM_API_KEY || !env.LLM_MODEL) return json({ error: "llm_not_configured" }, 503);
@@ -502,6 +645,7 @@ export default {
     if (requestUrl.pathname === "/api/shiguang") return shiguang(request, env);
     if (requestUrl.pathname === "/api/v1/liuyao/reflection") return liuyaoReflection(request, env);
     if (requestUrl.pathname.startsWith("/api/v1/auth/") || requestUrl.pathname === "/api/v1/account/data") return authApi(request, env, requestUrl.pathname);
+    if (requestUrl.pathname.startsWith("/api/v1/social/")) return socialApi(request, env, requestUrl.pathname);
     const response = await env.ASSETS.fetch(request);
     if (response.status !== 404) return response;
     requestUrl.pathname = indexPath(requestUrl.pathname);
