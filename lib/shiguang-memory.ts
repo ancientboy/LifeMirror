@@ -1,3 +1,5 @@
+import { createClientId } from "./client-id";
+
 export type MemorySettings = {
   enabled: boolean;
   explicitFacts: boolean;
@@ -78,7 +80,7 @@ export function addSavedFact(text: string): SavedFact | null {
   const current = getSavedFacts();
   const existing = current.find((item) => item.text === normalized);
   const now = new Date().toISOString();
-  const fact = existing ?? { id: crypto.randomUUID(), text: normalized, createdAt: now, updatedAt: now };
+  const fact = existing ?? { id: createClientId(), text: normalized, createdAt: now, updatedAt: now };
   const nextFact = { ...fact, updatedAt: now };
   const next = [nextFact, ...current.filter((item) => item.id !== nextFact.id)].slice(0, 50);
   window.localStorage.setItem(FACTS_KEY, JSON.stringify(next));

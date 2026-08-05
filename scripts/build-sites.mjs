@@ -310,14 +310,21 @@ async function authApi(request, env, pathname) {
 }
 
 async function ensureSocialProfile(env, userId) {
-  let profile = await env.DB.prepare("SELECT invite_code AS inviteCode, discoverable, share_birth_for_relationships AS shareBirth FROM social_profiles WHERE user_id = ?").bind(userId).first();
-  if (profile) return profile;
+  let profile = await env.DB.prepare("SELECT invite_code AS inviteCode, public_id AS publicId, discoverable, share_birth_for_relationships AS shareBirth FROM social_profiles WHERE user_id = ?").bind(userId).first();
+  if (profile?.publicId) return profile;
   const now = new Date().toISOString();
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    const publicId = "LM-" + randomHex(4).toUpperCase();
+    if (profile) {
+      try {
+        await env.DB.prepare("UPDATE social_profiles SET public_id = ?, updated_at = ? WHERE user_id = ?").bind(publicId, now, userId).run();
+        return { ...profile, publicId };
+      } catch { continue; }
+    }
     const inviteCode = randomHex(5).toUpperCase();
     try {
-      await env.DB.prepare("INSERT INTO social_profiles (user_id, invite_code, discoverable, share_birth_for_relationships, created_at, updated_at) VALUES (?, ?, 1, 0, ?, ?)").bind(userId, inviteCode, now, now).run();
-      return { inviteCode, discoverable: 1, shareBirth: 0 };
+      await env.DB.prepare("INSERT INTO social_profiles (user_id, invite_code, public_id, discoverable, share_birth_for_relationships, created_at, updated_at) VALUES (?, ?, ?, 1, 0, ?, ?)").bind(userId, inviteCode, publicId, now, now).run();
+      return { inviteCode, publicId, discoverable: 1, shareBirth: 0 };
     } catch {}
   }
   throw new Error("social_profile_failed");
@@ -387,6 +394,14 @@ async function socialApi(request, env, pathname) {
   if (!user) return json({ authenticated: false, error: "authentication_required" }, 401);
   const ownProfile = await ensureSocialProfile(env, user.id);
   if (pathname === "/api/v1/social/me" && request.method === "GET") return json({ profile: ownProfile, relationships: await listRelationships(env, user.id), user: await socialUser(env, user.id) });
+  if (pathname === "/api/v1/social/search" && request.method === "GET") {
+    const publicId = String(new URL(request.url).searchParams.get("id") || "").trim().toUpperCase().replace(/\\s+/g, "").slice(0, 24);
+    if (!publicId) return json({ error: "invalid_public_id" }, 400);
+    const target = await env.DB.prepare("SELECT user_id AS userId, public_id AS publicId FROM social_profiles WHERE (public_id = ? OR invite_code = ?) AND discoverable = 1").bind(publicId, publicId.replace(/^LM-/, "")).first();
+    if (!target) return json({ error: "person_not_found" }, 404);
+    if (target.userId === user.id) return json({ error: "cannot_add_self" }, 400);
+    return json({ person: await socialUser(env, target.userId), publicId: target.publicId || publicId });
+  }
   if (pathname === "/api/v1/social/privacy" && request.method === "PATCH") {
     const input = await body(request);
     const shareBirth = input?.shareBirth === true ? 1 : 0;

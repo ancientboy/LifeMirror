@@ -1,7 +1,7 @@
 ---
 title: DESIGN-008 Growth Loop & Retention Design
 category: Design Architecture
-status: published
+status: implemented_beta
 ---
 
 # DESIGN-008 Growth Loop & Retention Design
@@ -55,9 +55,19 @@ Creates the user's first personal mirror record.
 
 ## 5. Retention Loop
 
-Daily usage:
+The shipped return loop is:
 
-Daily Question → Reflection → Memory Update → Pattern Discovery
+```text
+Open
+  → Today's Shiguang
+  → Follow up the last unfinished event
+  → One-tap mood response
+  → Conversation
+  → Explicit save
+  → Initial / updated Mirror DNA
+```
+
+The home experience must not ask users to reorganize their entire story. A useful opening references one recent, user-owned event and offers a low-effort response.
 
 ## 6. Pattern Discovery
 
@@ -69,11 +79,23 @@ Examples:
 - Relationship themes
 - Growth directions
 
-## 7. Sharing Loop
+The first saved event creates an initial observation so the first experience is not empty. A repeated Pattern still requires at least two independent signals. The UI must distinguish initial observation, repeated pattern and high-confidence long-term tendency.
 
-Sharing should focus on personal insight rather than prediction.
+## 7. Sharing and Relationship Loop
 
-## 8. Premium Conversion
+Sharing has three different jobs:
+
+- self card: “this describes me”;
+- relationship card: “I want one person to respond”;
+- compare card: “create yours and compare with me”.
+
+The link must support response, identity confirmation and a private relationship request. A saved image alone is not a growth loop.
+
+## 8. Active interaction boundary
+
+In-product active interaction is shipped through Today's Shiguang and last-event follow-up. External email or push delivery remains planned and must be opt-in, rate-limited and quiet by default. Avoid generic daily fortune spam.
+
+## 9. Premium Conversion
 
 Premium value comes from deeper understanding:
 

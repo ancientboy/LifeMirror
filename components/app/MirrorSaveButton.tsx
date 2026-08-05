@@ -4,6 +4,7 @@ import { CheckCircle, FloppyDisk } from "@phosphor-icons/react";
 import { useState } from "react";
 import styles from "./MirrorSaveButton.module.css";
 import { markAccountDataChanged } from "@/lib/account-data";
+import { createClientId } from "@/lib/client-id";
 
 const HISTORY_KEY = "life-mirror:guest-history:v1";
 
@@ -27,7 +28,7 @@ export function MirrorSaveButton({ source, question, title, summary, meta, paylo
       const previous = JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "[]");
       const events = Array.isArray(previous) ? previous : [];
       const record = {
-        id: globalThis.crypto.randomUUID(),
+        id: createClientId(),
         source,
         sourceLabel: title,
         question,

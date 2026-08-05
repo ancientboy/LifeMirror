@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, Camera, Check, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, Check, Copy, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -15,6 +15,7 @@ const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
 export function ProfileHub() {
   const [guest, setGuest] = useState(true);
   const [accountEmail, setAccountEmail] = useState("");
+  const [publicId, setPublicId] = useState("");
   const [settings, setSettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
   const [facts, setFacts] = useState<SavedFact[]>([]);
   const [draft, setDraft] = useState("");
@@ -31,6 +32,7 @@ export function ProfileHub() {
       setAccountEmail(session.user?.email ?? "");
       setGuest(false);
       window.localStorage.removeItem("life-mirror:guest-session:v1");
+      fetch("/api/v1/social/me", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => setPublicId(value?.profile?.publicId ?? "")).catch(() => undefined);
     }).catch(() => { setAccountEmail(""); setGuest(true); });
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
@@ -99,6 +101,7 @@ export function ProfileHub() {
       <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
       <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>邀请朋友、处理申请与查看双方关系镜像</small></span><ArrowRight /></Link>
       {guest ? <Link href="/app/?login=1"><LockKey /><span><b>登录并同步</b><small>进入邮箱登录，不再跳回聊天首页</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
+      {publicId && <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicId); setProfileSaved(true); window.setTimeout(() => setProfileSaved(false), 1800); } catch { /* ID remains visible for manual copy */ } }}><IdentificationCard /><span><b>LifeMirror ID</b><small>{publicId} · 点击复制，好友可用它搜索你</small></span><Copy /></button>}
       {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
     </section>
 

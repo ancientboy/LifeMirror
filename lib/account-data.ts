@@ -1,3 +1,5 @@
+import { createClientId } from "./client-id";
+
 export type AccountSnapshot = {
   settings: Record<string, unknown>;
   facts: unknown[];
@@ -45,7 +47,7 @@ export function writeLocalAccountData(data: AccountSnapshot) {
 export function getGuestMigrationId() {
   let id = window.localStorage.getItem(MIGRATION_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = createClientId();
     window.localStorage.setItem(MIGRATION_KEY, id);
   }
   return id;

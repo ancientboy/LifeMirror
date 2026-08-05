@@ -15,6 +15,9 @@ test("professional deck contains 22 major and 56 unique minor arcana", () => {
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "major").length, 22);
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "minor").length, 56);
   assert.equal(new Set(TAROT_DECK.map((card) => card.id)).size, 78);
+  assert.match(TAROT_DECK.find((card) => card.id === "cups-five")?.upright ?? "", /失落/);
+  assert.match(TAROT_DECK.find((card) => card.id === "swords-seven")?.reversed ?? "", /隐瞒暴露/);
+  assert.notEqual(TAROT_DECK.find((card) => card.id === "wands-two")?.upright, TAROT_DECK.find((card) => card.id === "cups-two")?.upright);
 });
 
 test("all supported spreads draw the requested number of unique cards", () => {
@@ -49,6 +52,7 @@ test("relation analysis exposes emphasis and counter-signals without predicting 
   assert.equal(relation.reversedCount, 2);
   assert.match(relation.headline, /价值选择/);
   assert.match(relation.counterSignal, /内在节奏/);
+  assert.equal(typeof relation.interaction, "string");
 });
 
 test("professional synthesis separates evidence, interpretation, Shiguang reflection and action", () => {
@@ -60,4 +64,5 @@ test("professional synthesis separates evidence, interpretation, Shiguang reflec
   assert.match(reading.shiguang, /拾光/);
   assert.match(reading.action, /24 小时/);
   assert.ok(reading.reflectionQuestion.endsWith("？"));
+  assert.match(reading.method, /Rider–Waite–Smith/);
 });

@@ -31,7 +31,7 @@ Completed in version 0.7.0:
 - deleted automatic patterns are suppressed so processing cannot silently recreate them
 - retrieval excludes hidden Memory and returns only personal reflection context
 - dashboard preparation exposes counts, latest reflection, patterns and timeline preview
-- Mirror DNA remains untouched and the dashboard itself is not implemented
+- At the 0.7.0 boundary Mirror DNA remained untouched and the dashboard was not implemented; PHASE-004 and PHASE-008 now provide the dashboard plus a provisional first-event Mirror DNA display without weakening the two-evidence Pattern rule
 - all personal Memory tables enforce `training_data_eligible = false`
 
 ## Processing Flow
@@ -41,6 +41,7 @@ Explicit Reflection Event save
   → deterministic topic and concept extraction
   → Event Memory + Reflection Memory upsert
   → evidence aggregation
+  → initial observation display after the first saved event
   → Pattern Memory when signal_count >= 2
   → retrieval / user controls / dashboard summary
 ```

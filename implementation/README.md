@@ -11,6 +11,8 @@ Execution order:
 5. PHASE-004 Personal Mirror Dashboard
 6. PHASE-005 Knowledge Expansion
 7. PHASE-006 Advanced Mirror Runtime
+8. PHASE-007 Professional Symbolic Systems
+9. PHASE-008 Retention & Private Relationships
 
 Development must follow phase order and preserve separation between Knowledge, Data, Tools, Runtime, Product, and Design layers.
 
@@ -21,8 +23,10 @@ Development must follow phase order and preserve separation between Knowledge, D
 | 001 Foundation | Completed | 0.5.0 | — |
 | 002 Daily Mirror MVP | Completed | 0.6.0 | — |
 | 003 Memory System | Completed | 0.7.0 | — |
-| 004 Personal Mirror Dashboard | Completed | 0.7.3 pending | Release verification |
-| 005 Knowledge Expansion | In progress | 0.7.1 foundation | Two reviewed non-Liuyao packs integrated with Runtime |
-| 006 Advanced Mirror Runtime | Core complete | 0.7.2 | Execute production migration/provider smoke tests and integrate a delivery channel |
+| 004 Personal Mirror Dashboard | Completed | 0.8.0 | Initial Mirror DNA ships on first save; repeated patterns still require two independent signals |
+| 005 Knowledge Expansion | In progress | 0.8.0 foundation | Reviewed sources and expert fixtures for non-Liuyao systems |
+| 006 Advanced Mirror Runtime | Core complete | 0.8.0 | Add asynchronous delivery and production observability |
+| 007 Professional Symbolic Systems | Beta | 0.8.0 | Historical timezone, source completion and expert gold-case review |
+| 008 Retention & Private Relationships | Beta | 0.8.0 | Notification delivery, relationship model depth, moderation operations |
 
 Status is based on acceptance evidence in each phase file, not commit titles. Update the relevant phase document in the same change as implementation.

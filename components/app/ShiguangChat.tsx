@@ -3,6 +3,7 @@
 import { ArrowUp, Brain, CircleNotch, Sparkle } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { captureExplicitMemory, getMemorySettings, MEMORY_CHANGED_EVENT, retrieveRelevantMemory, type MemorySettings } from "@/lib/shiguang-memory";
+import { createClientId } from "@/lib/client-id";
 import styles from "./ShiguangChat.module.css";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
@@ -90,8 +91,8 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       window.setTimeout(() => setSavedNotice(false), 2800);
     }
     const memory = retrieveRelevantMemory(question, activeSettings);
-    const userMessage = { id: crypto.randomUUID(), role: "user" as const, text: question };
-    const assistantId = crypto.randomUUID();
+    const userMessage = { id: createClientId(), role: "user" as const, text: question };
+    const assistantId = createClientId();
     setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", text: "" }]);
     setInput(""); setStreaming(true);
     try {

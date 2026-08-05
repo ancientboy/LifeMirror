@@ -16,6 +16,7 @@ import { ShareQuoteCard } from "./ShareQuoteCard";
 import { ShiguangChat } from "./ShiguangChat";
 import styles from "./DailyMirrorExperience.module.css";
 import { markAccountDataChanged } from "@/lib/account-data";
+import { createClientId } from "@/lib/client-id";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
@@ -262,7 +263,7 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     },
     generationMode: "basic",
     generationNotice: "本次为基础解读",
-    draftToken: `guest-${crypto.randomUUID()}`,
+    draftToken: `guest-${createClientId()}`,
     expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   };
 }
@@ -643,7 +644,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     setBusy(true); setError("");
     try {
       const event: HistoryEvent = {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         question: reflectionResult.question,
         hexagram: reflectionResult.hexagram,
         reflection: reflectionResult.reflection,

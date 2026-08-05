@@ -2,15 +2,30 @@
 
 **AI 人生镜像理论与产品项目**
 
-**Current application version:** 0.7.2
+**Current application version:** 0.8.0
 
-**Development status:** PHASE-001–004 complete; PHASE-005 in progress; PHASE-006 core complete with production verification pending. See [`implementation/README.md`](implementation/README.md).
+**Development status:** the personal companion loop and private relationship beta are live; professional symbolic systems and proactive delivery remain in staged completion. See [`implementation/README.md`](implementation/README.md).
 
 > 帮助每一个人，看见自己，理解自己，成为自己。
 
 Life Mirror 不是一个命理工具，也不是一个普通聊天机器人。
 
 它是一套关于 AI 如何长期理解、映照并支持人成长的理论与产品体系。
+
+## Current Product Snapshot
+
+The shipped product now includes:
+
+- 拾光首页、每日开场、状态快捷回应与上次事件续问；
+- 六爻、命盘、塔罗、占星四种镜像体验与统一结果顺序；
+- 唯一出生资料，命盘与占星填写一次后自动复用；
+- 用户资料、邮箱／ChatGPT 登录、D1 账户同步与游客数据迁移；
+- 明确事实、已保存镜像与相关历史的授权记忆检索；
+- 第一次保存即生成初始 Mirror DNA，后续证据可加强、修正或推翻；
+- LifeMirror ID、好友搜索／申请、私密关系列表、双方授权的关系镜像；
+- 分享链接回应与关系申请承接，而非仅导出图片。
+
+仍未完成的关键能力：站外推送／邮件触达、完整通知中心、关系洞察的专业匹配模型、IANA 历史时区、专家金标准抽检，以及公开发布前所需的举报与风控运营后台。
 
 ---
 
@@ -209,9 +224,26 @@ Event Memory + Reflection Memory
 Evidence-backed Pattern Memory
 ```
 
-Pattern Memory requires at least two independent saved events. It does not update Mirror DNA. Users can inspect, correct, hide, delete and export their memory. Personal memory is database-constrained as ineligible for model training.
+The first saved mirror creates a clearly labelled initial Mirror DNA observation. It is not promoted to an evidence-backed Pattern until the same theme has at least two independent saved events. Later evidence can strengthen, revise or overturn the observation. Users can inspect, correct, hide, delete and export their memory. Personal memory is excluded from model training.
 
 Version 0.7.1 adds the Daily Mirror correctness sequence: Your Hexagram → Traditional Interpretation → Mirror Reflection → Reflection Question → Save. KNOWLEDGE-003 now carries complete classical judgment, Image and line-text data, structurally separated from modern reflection mapping. Existing PHASE-003 memory data remains compatible.
+
+Version 0.8.0 adds the retention and private-relationship loop: 今日拾光 → 继续对话 → 保存线索 → 初始 Mirror DNA → 关系分享／回应。It also introduces searchable LifeMirror IDs and upgrades Tarot to a 78-card, spread-aware, orientation-aware and cross-card professional beta.
+
+## Memory and Agent Model
+
+LifeMirror does not run several unconstrained agents over every message. The production path uses a controlled orchestrator:
+
+```text
+User input
+  → consent and relevant-memory retrieval
+  → deterministic domain tool (when needed)
+  → structured facts and evidence
+  → Shiguang response model
+  → explicit save / memory update
+```
+
+Normal chat can use structured memory when the user enables it. It retrieves explicit facts and a small number of relevant saved mirror events; it does not silently store every sentence as a permanent user fact. Short-term conversation, event memory, reflection memory and evidence-backed patterns have different lifecycles. This follows the common modern-agent pattern of an orchestrator plus tools, retrieval memory and background extraction, while keeping inference separate from user-authored facts.
 
 ## Local Setup
 
@@ -234,7 +266,7 @@ Local services:
 - API liveness: `http://localhost:8787/health/live`
 - API readiness: `http://localhost:8787/health/ready`
 
-Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Secrets belong in local or deployment environment variables and must not be committed. Email OTP 的 Resend 配置与密钥轮换流程见 [`docs/resend-email-setup.md`](docs/resend-email-setup.md)。
+Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Secrets belong in local or deployment environment variables and must not be committed.
 
 Set `NEXT_PUBLIC_API_URL` when the web app and API use different origins. Keep `SESSION_COOKIE_SAME_SITE=strict` for same-site deployments; use `none` only for a secure HTTPS API serving a cross-site web origin. The API validates `WEB_ORIGIN` on every browser request. Set a unique `REFLECTION_TOKEN_SECRET` of at least 32 characters in production.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Copy, Heart, LinkSimple, LockKey, PaperPlaneTilt, ShieldCheck, Sparkle, UserPlus, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
@@ -8,7 +8,7 @@ import styles from "./RelationshipsHub.module.css";
 
 type Person = { id: string; name: string; avatar: string };
 type Relationship = { id: string; status: "pending" | "accepted" | "blocked"; direction: "incoming" | "outgoing"; person: Person; createdAt: string };
-type SocialPayload = { user: Person; profile: { inviteCode: string; discoverable: number; shareBirth: number }; relationships: Relationship[] };
+type SocialPayload = { user: Person; profile: { inviteCode: string; publicId: string; discoverable: number; shareBirth: number }; relationships: Relationship[] };
 type SharePayload = { id: string; ownerId: string; shareKind: "relationship" | "compare"; mirrorKind: string; quote: string; meta: string; owner: Person };
 type RelationMirror = { ready: boolean; me: Person; other: Person; mySign?: string; theirSign?: string; rhythm?: string; tension?: string; question?: string };
 
@@ -28,6 +28,7 @@ export function RelationshipsHub() {
   const [data, setData] = useState<SocialPayload | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
+  const [searchResult, setSearchResult] = useState<(Person & { publicId: string }) | null>(null);
   const [notice, setNotice] = useState("");
   const [share, setShare] = useState<SharePayload | null>(null);
   const [mirror, setMirror] = useState<RelationMirror | null>(null);
@@ -57,10 +58,40 @@ export function RelationshipsHub() {
     try {
       const result = await api<{ alreadyExists?: boolean }>("/api/v1/social/requests", { method: "POST", body: JSON.stringify(targetUserId ? { targetUserId } : { inviteCode }) });
       setNotice(result.alreadyExists ? "你们已经有一条关系记录。" : "好友申请已发出，等 TA 回应。");
+      setSearchResult(null);
       await refresh();
     } catch (error) {
       setNotice(error instanceof Error && error.message === "person_not_found" ? "没有找到这个邀请码，请检查后重试。" : "暂时无法发送申请。");
     } finally { setBusy(false); }
+  }
+
+  async function searchFriend() {
+    const publicId = inviteCode.trim().toUpperCase().replace(/\s+/g, "");
+    if (!publicId) return;
+    setBusy(true); setNotice(""); setSearchResult(null);
+    try {
+      const result = await api<{ person: Person; publicId: string }>(`/api/v1/social/search?id=${encodeURIComponent(publicId)}`);
+      setSearchResult({ ...result.person, publicId: result.publicId });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setNotice(code === "cannot_add_self" ? "这是你自己的 LifeMirror ID。" : "没有找到这个 LifeMirror ID，请检查后重试。");
+    } finally { setBusy(false); }
+  }
+
+  async function shareInvite() {
+    if (!inviteLink) return;
+    setNotice("");
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${data?.user.name ?? "我"} 邀请你加入 LifeMirror`, text: `用 LifeMirror ID ${data?.profile.publicId ?? ""} 和我建立私密关系镜像。`, url: inviteLink });
+        setNotice("邀请已打开，你可以选择要发送给谁。");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") { setNotice("已取消分享，邀请链接仍在这里。"); return; }
+      }
+    }
+    try { await navigator.clipboard.writeText(inviteLink); setNotice("邀请链接已复制，可以直接发给好友。"); }
+    catch { setNotice(`无法自动复制，请手动发送 LifeMirror ID：${data?.profile.publicId ?? ""}`); }
   }
 
   async function act(id: string, action: "accept" | "remove" | "block") {
@@ -109,9 +140,11 @@ export function RelationshipsHub() {
 
     {signedOut && !data ? <section className={styles.signInCard}><LockKey /><h2>登录后建立私密关系</h2><p>好友、回应和双方关系镜像需要绑定账户，游客记录不会被公开。</p><Link href={loginHref}>登录并继续 <ArrowRight /></Link></section> : data && <>
       <section className={styles.inviteCard}>
-        <div><small>你的专属邀请</small><h2>{data.user.name} 的关系入口</h2><p>把链接发给认识的人。对方回应后，你们会先成为待确认关系。</p></div>
-        <button onClick={async () => { await navigator.clipboard.writeText(inviteLink); setNotice("邀请链接已复制。"); }}><Copy />复制邀请链接</button>
-        <div className={styles.codeEntry}><input aria-label="好友邀请码" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="输入好友邀请码" /><button disabled={busy || !inviteCode.trim()} onClick={() => void sendRequest()}><UserPlus />添加</button></div>
+        <div><small>你的 LifeMirror ID</small><h2>{data.profile.publicId}</h2><p>好友可以搜索这个唯一 ID，或通过邀请链接找到你。</p></div>
+        <button onClick={() => void shareInvite()}><ShareNetwork />邀请好友</button>
+        <div className={styles.idActions}><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(data.profile.publicId); setNotice("LifeMirror ID 已复制。"); } catch { setNotice(`请手动复制：${data.profile.publicId}`); } }}><Copy />复制 ID</button><span>{inviteLink}</span></div>
+        <div className={styles.codeEntry}><input aria-label="好友 LifeMirror ID" value={inviteCode} onChange={(event) => { setInviteCode(event.target.value.toUpperCase()); setSearchResult(null); }} placeholder="输入 LM-A1B2C3D4" /><button disabled={busy || !inviteCode.trim()} onClick={() => void searchFriend()}><MagnifyingGlass />搜索</button></div>
+        {searchResult && <div className={styles.searchResult}><Avatar person={searchResult} /><span><b>{searchResult.name}</b><small>{searchResult.publicId}</small></span><button disabled={busy} onClick={() => void sendRequest(searchResult.id)}><UserPlus />发送申请</button></div>}
       </section>
 
       {incoming.length > 0 && <section className={styles.panel}><header><div><small>等待你回应</small><h2>好友申请</h2></div><span>{incoming.length}</span></header><div className={styles.people}>{incoming.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>想与你建立私密关系镜像</small></div><button disabled={busy} onClick={() => void act(item.id, "accept")}><Check />接受</button><button className={styles.iconButton} aria-label="忽略申请" onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div></section>}

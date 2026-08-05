@@ -28,6 +28,34 @@ function readGuestEvents(): MirrorEvent[] {
   catch { return []; }
 }
 
+const dnaTopics = [
+  { key: "relationship", title: "关系中的回应与边界", match: /关系|感情|伴侣|朋友|家人|对方|彼此|爱|复合/ },
+  { key: "career", title: "事业方向与行动节奏", match: /工作|职业|事业|创业|项目|面试|升职|方向/ },
+  { key: "decision", title: "重要选择与内在取舍", match: /选择|决定|要不要|是否|纠结|犹豫/ },
+  { key: "emotion", title: "情绪消耗与自我照顾", match: /焦虑|压力|难过|疲惫|害怕|情绪|失眠/ },
+] as const;
+
+function deriveDnaPatterns(events: MirrorEvent[]): PatternMemory[] {
+  const grouped = new Map<string, { title: string; events: MirrorEvent[] }>();
+  for (const event of events) {
+    const topic = dnaTopics.find((item) => item.match.test(event.question)) ?? { key: "growth", title: "正在展开的自我探索" };
+    const current = grouped.get(topic.key) ?? { title: topic.title, events: [] };
+    current.events.push(event); grouped.set(topic.key, current);
+  }
+  return [...grouped.entries()].map(([key, value]) => {
+    const signalCount = value.events.length;
+    const latest = value.events[0];
+    const clue = latest.reflection?.shareableReflection ?? latest.reflection?.shiguangInterpretation ?? latest.question;
+    return {
+      id: `derived:${key}`,
+      title: value.title,
+      summary: signalCount === 1 ? `这是第一次记录形成的初始观察：${clue}。它还不是稳定结论，后续记录可以加强、修正或推翻它。` : `这个主题已经在 ${signalCount} 次独立镜像中出现。当前只把它视为可继续核对的倾向，新的经历仍会更新判断。`,
+      signalCount,
+      confidence: Math.min(0.82, signalCount === 1 ? 0.28 : 0.35 + signalCount * 0.11),
+    };
+  }).sort((left, right) => right.signalCount - left.signalCount || right.confidence - left.confidence);
+}
+
 export function PersonalMirrorDashboard() {
   const [mode, setMode] = useState<DashboardMode>("loading");
   const [events, setEvents] = useState<MirrorEvent[]>([]);
@@ -58,7 +86,9 @@ export function PersonalMirrorDashboard() {
 
   const visibleEvents = useMemo(() => events.filter((event) => filter === "all" || (filter === "career" ? /职业|工作|事业|选择|开始|行动/.test(event.question) : /关系|彼此|感情|伴侣|家庭/.test(event.question))), [events, filter]);
   const latest = events[0];
-  const strongestPatterns = patterns.slice(0, 3);
+  const displayPatterns = useMemo(() => patterns.length ? patterns : deriveDnaPatterns(events), [events, patterns]);
+  const strongestPatterns = displayPatterns.slice(0, 3);
+  const repeatedPatterns = displayPatterns.filter((pattern) => pattern.signalCount >= 2);
   const sourceStart = (event: MirrorEvent) => event.sourceLabel ?? event.hexagram?.originalHexagram?.name ?? "镜像";
   const sourceEnd = (event: MirrorEvent) => event.meta ?? event.hexagram?.changedHexagram?.name ?? "成长";
 
@@ -85,13 +115,13 @@ export function PersonalMirrorDashboard() {
 
       <article className={`${styles.card} ${styles.dna}`}>
         <header><span><Eye /> Mirror DNA</span><small>持续演化 · 非固定标签</small></header>
-        {strongestPatterns.length ? <><div className={styles.dnaMap}>{strongestPatterns.map((pattern) => <span key={pattern.id} style={{ "--size": `${Math.max(35, Math.round(pattern.confidence * 100))}%` } as React.CSSProperties}>{pattern.title}</span>)}</div><p>这些线索来自至少两次独立镜像，只代表目前可见的倾向。你可以在记忆控制中纠正、隐藏或删除它们。</p></> : <div className={stateStyles.empty}><h2>Mirror DNA 正在形成。</h2><p>当同一主题获得至少两条独立证据后，可修正的模式会显示在这里。</p></div>}
+        {strongestPatterns.length ? <><div className={styles.dnaMap}>{strongestPatterns.map((pattern) => <span key={pattern.id} style={{ "--size": `${Math.max(35, Math.round(pattern.confidence * 100))}%` } as React.CSSProperties}>{pattern.title}</span>)}</div><p>{strongestPatterns.every((pattern) => pattern.signalCount === 1) ? "第一次保存就会形成初始 Mirror DNA；它只是暂时观察。后续对话与镜像会持续加强、修正或推翻这些线索。" : "这些线索会随新的对话和镜像持续演化，不是固定人格标签。你可以在记忆控制中纠正、隐藏或删除。"}</p></> : <div className={stateStyles.empty}><h2>Mirror DNA 等待第一次记录。</h2><p>保存第一次镜像后，这里就会出现明确标注的初始观察。</p></div>}
       </article>
 
       <article className={`${styles.card} ${styles.patterns}`}>
         <header><span>近期模式</span><small>至少 2 条独立证据后形成</small></header>
-        {patterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><span><i style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></span><b>{pattern.title}</b><small>{pattern.signalCount} 条镜像证据 · {Math.round(pattern.confidence * 100)}% 置信度 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
-        {!patterns.length && <div className={stateStyles.empty}><p>{mode === "guest" ? "登录后，有记录支持的长期线索会在这里形成并保持同步。" : "继续保存镜像；当同一主题有足够记录支持时，长期线索会自动出现在这里。"}</p></div>}
+        {repeatedPatterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><span><i style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></span><b>{pattern.title}</b><small>{pattern.signalCount} 条镜像证据 · {Math.round(pattern.confidence * 100)}% 阶段可信度 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
+        {!repeatedPatterns.length && <div className={stateStyles.empty}><p>{latest ? "已经有一条初始观察；同一主题再次出现后，会在这里升级为可核对的长期模式。" : mode === "guest" ? "第一次保存后先形成初始观察；登录后可跨设备持续更新。" : "第一次保存后先形成初始观察，后续记录会逐步形成长期模式。"}</p></div>}
       </article>
     </section>
 

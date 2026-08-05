@@ -22,12 +22,19 @@ Implemented:
 - Pattern Memory foundation
 - retrieval and user lifecycle controls
 
+Implemented after PHASE-003:
+
+- Personal Mirror Dashboard and timeline
+- first-event initial Mirror DNA observation
+- relevant explicit-fact and saved-mirror retrieval in normal Shiguang chat
+- daily home follow-up based on the latest saved mirror
+- account synchronization of consent settings, explicit facts and saved mirror history
+
 Deferred:
 
-- Mirror DNA Memory
-- Mirror Graph
-- proactive memory use
-- Personal Mirror Dashboard
+- server-native Mirror Graph
+- asynchronous proactive delivery outside the product
+- semantic embeddings and background LLM extraction with human review
 
 ## Extraction Contract
 
@@ -47,7 +54,7 @@ Event Memory classification uses only the user-authored question and determinist
 
 ## Pattern Contract
 
-A Pattern Memory is created only when the same topic or symbolic concept has at least two independent source events. It contains:
+An initial Mirror DNA observation may be displayed after one saved event, but it must be labelled as provisional and remain tied to that event. A Pattern Memory is created only when the same topic or symbolic concept has at least two independent source events. It contains:
 
 - neutral, non-diagnostic title and summary
 - signal count
@@ -65,4 +72,10 @@ The Daily Mirror Runtime may retrieve up to five visible recent Event memories a
 
 ## Dashboard Preparation
 
-`GET /api/v1/memories/summary` provides counts, current reflection, recent patterns and timeline entries. `mirrorDna` is explicitly `null` until PHASE-004.
+`GET /api/v1/memories/summary` provides counts, current reflection, recent patterns and timeline entries for the full API runtime. The Sites runtime synchronizes the same user-controlled inputs through account data and derives the provisional first-event display locally; it does not promote a single event to a Pattern.
+
+## Normal chat memory
+
+When the user enables memory, the chat runtime retrieves up to five relevant explicit facts and up to three relevant saved mirror events. Retrieval is topic-scoped. Temporary chat disables both reading and writing for the current conversation. Explicit “请记住…” instructions can create a saved fact; ordinary sentences are not silently promoted to permanent fact memory.
+
+This architecture follows a common agent pattern: one orchestrator chooses tools and relevant memory, deterministic tools produce domain facts, and the language model writes the response. It does not use several autonomous agents to independently rewrite the user's identity.

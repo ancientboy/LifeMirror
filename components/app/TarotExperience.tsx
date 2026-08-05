@@ -22,6 +22,7 @@ import {
   type DrawnCard,
   type TarotSpread,
 } from "../../server/tools/tarot/core";
+import { createClientId } from "@/lib/client-id";
 import styles from "./TarotExperience.module.css";
 import { ShiguangChat } from "./ShiguangChat";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
@@ -109,7 +110,7 @@ export function TarotExperience() {
 
   function saveReading() {
     const reading: SavedReading = {
-      id: globalThis.crypto.randomUUID(),
+      id: createClientId(),
       createdAt: new Date().toISOString(),
       question: question.trim(),
       spreadId,
@@ -266,6 +267,7 @@ export function TarotExperience() {
               <p>
                 大阿尔卡那 {relations.majorCount} 张 · 逆位{" "}
                 {relations.reversedCount} 张
+                {relations.courtCount ? ` · 宫廷牌 ${relations.courtCount} 张` : ""}
                 {relations.repeatedElement
                   ? ` · ${relations.repeatedElement}元素重复`
                   : ""}
@@ -285,6 +287,7 @@ export function TarotExperience() {
             <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
             <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
             <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
+            <article><small>解读方法与边界</small><p>{professionalReading.method}</p></article>
           </details>}
           <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
