@@ -30,17 +30,21 @@ export function LifeMirrorGateway() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [returnTo, setReturnTo] = useState("/app/home/");
 
   useEffect(() => {
     let active = true;
     async function open() {
       const params = new URLSearchParams(window.location.search);
+      const requestedReturn = params.get("return") || "/app/home/";
+      const safeReturn = requestedReturn.startsWith("/app/") ? requestedReturn : "/app/home/";
+      setReturnTo(safeReturn);
       const forceLogin = params.get("login") === "1";
       if (!forceLogin && window.localStorage.getItem(GUEST_SESSION_KEY) === "active") { router.replace("/app/home/"); return; }
       if (params.get("chatgpt") === "1") {
         try {
           const result = await authRequest<LoginResponse>("/api/v1/auth/chatgpt", { method: "POST", body: JSON.stringify(accountLoginPayload()) });
-          finishAccountLogin(result.data); router.replace("/app/home/"); return;
+          finishAccountLogin(result.data); router.replace(safeReturn); return;
         } catch (cause) { if (active) setError(message(cause)); }
       } else if (!forceLogin) {
         try { await authRequest("/api/v1/auth/session"); router.replace("/app/home/"); return; } catch { /* show login */ }
@@ -61,7 +65,7 @@ export function LifeMirrorGateway() {
         setStep("code");
       } else {
         const result = await authRequest<LoginResponse>("/api/v1/auth/verify-code", { method: "POST", body: JSON.stringify({ email: normalizedEmail, code, ...accountLoginPayload() }) });
-        finishAccountLogin(result.data); router.replace("/app/home/");
+        finishAccountLogin(result.data); router.replace(returnTo);
       }
     } catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
@@ -83,7 +87,7 @@ export function LifeMirrorGateway() {
         <button className={styles.primary} disabled={busy || (step === "code" && code.length !== 6)}>{busy ? <CircleNotch className={styles.spin} /> : step === "email" ? "发送验证码" : "验证并登录"}</button>
         {step === "code" && <button className={styles.switcher} type="button" onClick={() => { setStep("email"); setCode(""); setError(""); }}><ArrowLeft /> 更换邮箱</button>}
         <div className={styles.divider}><span>其他方式</span></div>
-        <a className={styles.chatgpt} href="/signin-with-chatgpt?return_to=/app/?chatgpt=1"><ChatCircleDots /> 使用 ChatGPT 登录（可选）</a>
+        <a className={styles.chatgpt} href={`/signin-with-chatgpt?return_to=${encodeURIComponent(`/app/?chatgpt=1&return=${encodeURIComponent(returnTo)}`)}`}><ChatCircleDots /> 使用 ChatGPT 登录（可选）</a>
         <button className={styles.guest} type="button" onClick={enterAsGuest}>以游客身份进入 <ArrowRight /></button>
       </form>
     </section>
