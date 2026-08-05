@@ -77,7 +77,24 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   const [variant, setVariant] = useState<Variant>("paper");
   const [status, setStatus] = useState("");
 
-  const current = contentByVariant?.[variant] ?? { title, quote, meta };
+  const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
+  const current = { ...supplied, title: variant === "paper" ? undefined : supplied.title };
+
+  async function createRelationshipLink() {
+    try {
+      const response = await fetch("/api/v1/social/shares", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ shareKind: variant === "character" ? "compare" : "relationship", mirrorKind: theme, quote: current.quote, meta: current.meta }) });
+      if (response.status === 401) { setStatus("登录后即可生成能让对方回应的关系链接"); return; }
+      if (!response.ok) throw new Error();
+      const payload = await response.json() as { path: string };
+      const url = new URL(payload.path, window.location.origin).toString();
+      if (typeof navigator.share === "function") await navigator.share({ title: "LifeMirror · 关系镜像", text: current.quote, url });
+      else await navigator.clipboard.writeText(url);
+      setStatus(typeof navigator.share === "function" ? "已打开分享面板" : "回应链接已复制");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setStatus("暂时无法生成回应链接，请稍后再试");
+    }
+  }
 
   async function createCard(action: "share" | "save") {
     try {
@@ -191,7 +208,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
         </button>)}
       </div>
       <div className={styles.actions}>
-        <button type="button" onClick={() => createCard("share")}><ShareNetwork />分享当前款</button>
+        <button type="button" onClick={() => variant === "paper" ? createCard("share") : void createRelationshipLink()}><ShareNetwork />{variant === "paper" ? "分享当前款" : "生成回应链接"}</button>
         <button type="button" onClick={() => createCard("save")}><DownloadSimple />保存当前款</button>
       </div>
       {status && <p role="status">{status}</p>}
