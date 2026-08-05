@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, Camera, Check, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, X } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, Check, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -75,7 +75,7 @@ export function ProfileHub() {
 
   return <main className={styles.shell}>
     {accountEmail && <AccountDataSync />}
-    <header><UserCircle weight="thin" /><small>MY LIFE MIRROR</small><h1>我的</h1><p>{guest ? "当前以游客身份使用，记录仅保存在这台设备。" : "管理你的身份、镜像记录与隐私选择。"}</p></header>
+    <header><UserCircle weight="thin" /><small>MY LIFE MIRROR</small>{!guest && <h1>{displayName}</h1>}<p>{guest ? "当前以游客身份使用，记录仅保存在这台设备。" : "管理你的身份、镜像记录与隐私选择。"}</p></header>
     <section className={styles.identityCard} aria-labelledby="personal-profile-title">
       <div className={styles.avatar} style={{ background: profile.avatar.startsWith("preset:") ? profile.avatar.slice(7) : avatarPresets[0] }}>
         {profile.avatar && !profile.avatar.startsWith("preset:") ? <img src={profile.avatar} alt="我的头像" /> : <span>{[...displayName][0]?.toUpperCase() || "我"}</span>}
@@ -97,6 +97,7 @@ export function ProfileHub() {
     <section className={styles.accountSection}>
       <article><DeviceMobile /><div><small>当前身份</small><h2>{guest ? "游客 · 本机模式" : accountEmail || "正在确认账户"}</h2><p>{guest ? "记录仅保存在这台设备；登录后会自动合并到你的账户。" : "个人镜像、明确记忆与设置已启用跨设备同步。"}</p></div></article>
       <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
+      <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>邀请朋友、处理申请与查看双方关系镜像</small></span><ArrowRight /></Link>
       {guest ? <Link href="/app/?login=1"><LockKey /><span><b>登录并同步</b><small>进入邮箱登录，不再跳回聊天首页</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
       {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
     </section>
