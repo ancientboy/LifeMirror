@@ -330,7 +330,7 @@ async function shiguang(request, env) {
 
 function mirrorResultSystem(input) {
   const label = input.kind === "tarot" ? "塔罗" : input.kind === "bazi" ? "四柱命盘" : "本命星盘";
-  return "你是 LifeMirror 的长期陪伴者拾光。请基于系统已经计算出的" + label + "事实，生成结构化解读。只能使用 <mirror_facts> 中的事实，不补造盘面、用户经历或确定性未来。headline 先给一句明确具体的结论；interpretation 映射现实中可验证的助力、阻力或张力；action 只给一个小而可执行、可撤回的下一步；reflectionQuestion 只问一个现实核对问题；shareCards.warm、roast、witty 分别是同一结论的清醒版、轻毒舌版、朋友版，脱离报告也能看懂，不能只换标题，禁止以翻译一下或人话版开头，毒舌版不羞辱用户。只返回 JSON，不要 Markdown。字段必须是 headline, interpretation, action, reflectionQuestion, shareCards；shareCards 必须包含 warm, roast, witty。文化表达：" + (input.theme === "east" ? "克制、清醒的东方语感。" : "温暖、清晰但不神秘化的西方象征语感。") + "\n<mirror_facts>\n" + input.context + "\n</mirror_facts>";
+  return "你是 LifeMirror 的长期陪伴者拾光。请基于系统已经计算出的" + label + "事实，生成结构化解读。只能使用 <mirror_facts> 中的事实，不补造盘面、用户经历或确定性未来。headline 先给一句明确具体的结论；interpretation 映射现实中可验证的助力、阻力或张力；action 只给一个小而可执行、可撤回的下一步；reflectionQuestion 只问一个现实核对问题。三张分享卡服务于三种不同传播场景，每张只能是一句 12–30 个汉字、脱离报告也能看懂的话，三句不得复用相同句式或近义改写：warm 是发自己，要让用户觉得被说中；roast 是发给关系中的某个人，要留下一个对方愿意回应的关系张力但不指控；witty 是邀请对照，要自然邀请对方也生成结果并比较。禁止术语、说教、客套话，以及翻译一下、人话版等前缀。只返回 JSON，不要 Markdown。字段必须是 headline, interpretation, action, reflectionQuestion, shareCards；shareCards 必须包含 warm, roast, witty。文化表达：" + (input.theme === "east" ? "克制、清醒的东方语感。" : "温暖、清晰但不神秘化的西方象征语感。") + "\n<mirror_facts>\n" + input.context + "\n</mirror_facts>";
 }
 
 function extractJson(text) {
@@ -357,8 +357,20 @@ function cleanGeneratedText(value, max) {
 
 function cleanShareQuote(value, fallback) {
   const cleaned = cleanGeneratedText(value, 120)
-    .replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|轻毒舌(?:版)?)[：:\s]+/u, "");
-  return cleaned.length >= 8 ? cleaned : cleanGeneratedText(fallback, 120);
+    .replace(/^(?:翻译(?:一下|成人话)?|人话(?:版)?|暖心(?:版)?|清醒(?:版)?|轻?毒舌(?:版)?|朋友(?:版)?)[：:\s]+/u, "");
+  const source = cleaned.length >= 8 ? cleaned : cleanGeneratedText(fallback, 120);
+  const sentence = source.match(/^.*?[。！？!?](?=\s|$|[^。！？!?])/u)?.[0] || source;
+  const characters = [...sentence.replace(/[。！？!?]+$/u, "")];
+  if (characters.length > 46) return characters.slice(0, 45).join("").replace(/[，、；：,:;\s]+$/u, "") + "…";
+  const result = characters.join("");
+  return result && !/[。！？!?…]$/u.test(result) ? result + "。" : result;
+}
+
+function shareSimilarity(first, second) {
+  const signature = (value) => new Set([...String(value).replace(/[\s，。！？、；：,.!?;:'“”‘’…—-]/gu, "")]);
+  const a = signature(first), b = signature(second);
+  if (!a.size || !b.size) return 0;
+  return [...a].filter((character) => b.has(character)).length / Math.min(a.size, b.size);
 }
 
 function normalizeEffect(value) {
@@ -404,6 +416,11 @@ function sanitizeReflection(value, context) {
     quote: cleanShareQuote(source?.quote, fallback),
     meta: cleanGeneratedText(source?.meta, 80) || names,
   });
+  const warmCard = card(rawCards.warm, "拾光的清醒提醒", shareableReflection);
+  let roastCard = card(rawCards.roast, "拾光轻轻毒舌", "别让卦替你补齐现实条件，少脑补一步，答案会清楚一点。");
+  let wittyCard = card(rawCards.witty, "说给朋友听", "先看现实怎么回应，再决定下一步往哪走。");
+  if (shareSimilarity(warmCard.quote, roastCard.quote) >= 0.82) roastCard = card(null, "拾光轻轻毒舌", "别让卦替你补齐现实条件，少脑补一步，答案会清楚一点。");
+  if (shareSimilarity(warmCard.quote, wittyCard.quote) >= 0.82 || shareSimilarity(roastCard.quote, wittyCard.quote) >= 0.82) wittyCard = card(null, "说给朋友听", "先看现实怎么回应，再决定下一步往哪走。");
   const reflection = {
     traditionalJudgment,
     reasoningExplanation,
@@ -412,9 +429,9 @@ function sanitizeReflection(value, context) {
     evidenceCards: evidenceCards.slice(0, 4),
     shareableReflection,
     shareCards: {
-      warm: card(rawCards.warm, "拾光的温柔提醒", shareableReflection),
-      witty: card(rawCards.witty, "卦象翻译器", shiguangInterpretation),
-      roast: card(rawCards.roast, "拾光轻轻毒舌", practicalGuidance),
+      warm: warmCard,
+      witty: wittyCard,
+      roast: roastCard,
     },
   };
   if (value.closing && ["banter", "follow_up", "observation", "reflection"].includes(value.closing.type)) {
@@ -446,7 +463,7 @@ async function liuyaoReflection(request, env) {
     "不得输出内部英文枚举、规则 ID、数值评分或置信度。不要宿命化，不承诺事件必然发生。健康、法律、投资问题保留现实专业边界。",
     "traditionalJudgment 以‘先说结论：’或轻松问题的‘先说结果：’开头；reasoningExplanation 用 2-4 个最关键事实串成清楚故事；shiguangInterpretation 必须具体贴合用户问题，禁止客套话；practicalGuidance 给 1-2 条能马上理解的提醒。",
     "evidenceCards 必须从输入 evidence 中选 2-4 条，title/technical/plain 全部用自然中文，effect 只能是 positive、negative、mixed。",
-    "shareCards 必须是同一卦理结论的三种真正不同社交表达：warm 是克制清醒、适合公开分享的版本；witty 是不懂六爻的朋友也能直接看懂的版本；roast 是有刺、自嘲式但不羞辱人的毒舌版本。三者不能只是换标题或颜色，也不能为了造梗改变结论。每项包含 title、quote、meta。quote 必须脱离报告仍能独立成立，直接写成品文案，禁止以‘翻译一下：’‘人话版：’或风格名称开头。",
+    "shareCards 是三种不同传播场景，不是语气换皮。每项包含 title、quote、meta；quote 只能写一句 12–30 个汉字的成品文案。warm 是发自己，要让用户觉得被说中；roast 是发给关系中的某个人，要留下可回应的关系张力但不指控；witty 是邀请对照，要自然邀请对方也生成结果并比较。三句不得同义改写、复用句式、使用六爻术语或为了传播改变结论。",
     "只返回一个 JSON 对象，字段为 traditionalJudgment, reasoningExplanation, shiguangInterpretation, practicalGuidance, evidenceCards, 可选 closing, 可选 reflectionQuestion, shareableReflection, shareCards。closing 若有，type 只能是 banter/follow_up/observation/reflection，另含 text。",
     deep ? "这是深度分析：明确主要信号、最强反向信号和条件边界。" : "这是清晰解读：简洁、具体、自然，不写学术报告。",
   ].join("\n");
