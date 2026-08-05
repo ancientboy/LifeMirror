@@ -110,6 +110,14 @@ function humanizeLiuyaoFactor(factor: string) {
   if (separator < 0) return cleanLiuyaoText(factor);
   return `${humanizeLiuyaoRule(factor.slice(0, separator))}：${cleanLiuyaoText(factor.slice(separator + 1))}`;
 }
+function verdictPresentation(direction: LiuyaoResult["judgment"]["verdicts"][number]["direction"]) {
+  return ({
+    favorable: { label: "吉", detail: "势可借，宜顺势推进", tone: "good" },
+    mixed: { label: "平", detail: "有机会，也有拉扯", tone: "steady" },
+    unfavorable: { label: "慎", detail: "阻力偏多，先守后动", tone: "careful" },
+    undetermined: { label: "待定", detail: "条件未齐，暂不下断", tone: "unknown" },
+  } as const)[direction];
+}
 const castingPhaseClass: Record<CastingPhase, string> = {
   idle: "",
   shaking: styles.coinShaking,
@@ -777,6 +785,10 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
         <section className={styles.resultScreen}>
           <button className={styles.backButton} onClick={() => setStage("cast")}><ArrowLeft /> 返回</button>
           <div className={styles.resultHeader}><span>03 · YOUR HEXAGRAM</span><h1>你的卦象</h1><p>先看清本卦、动爻与变卦，再进入传统解释。</p></div>
+          <div className={styles.verdictStrip} aria-label="本次卦象倾向">
+            {hexagram.judgment.verdicts.map((verdict) => { const display = verdictPresentation(verdict.direction); return <article className={styles[display.tone]} key={verdict.intentId}><b>{display.label}</b><div><small>{verdict.label} · 整体倾向</small><strong>{display.detail}</strong><p>{verdict.shortReason}</p></div></article>; })}
+            <span>这是卦象的阶段性倾向，不替代现实核验与决定。</span>
+          </div>
           <div className={styles.hexagramReveal}>
             <article><span className={styles.hexSymbol}>{hexagram.originalHexagram.symbol}</span><small>本卦 · 第 {hexagram.originalHexagram.number} 卦</small><h2>{hexagram.originalHexagram.name}</h2><p>{hexagram.originalHexagram.upperTrigram.nature}上 · {hexagram.originalHexagram.lowerTrigram.nature}下</p></article>
             <div className={styles.revealLines}>{[...hexagram.lines].reverse().map((line) => <div key={line.position}><small>{lineNames[line.position - 1]}</small><LineGlyph polarity={line.polarity} moving={line.moving} /></div>)}</div>
@@ -833,7 +845,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
             <article className={styles.understandingCard}><small>现实里的助力与阻力</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>
             <article className={styles.guidanceCard}><small>给你的建议</small><h2>接下来可以怎么做</h2><p>{reflectionResult.reflection.practicalGuidance}</p></article>
           </div>
-          {reflectionResult.reflection.closing && <article className={styles.guidanceCard}><small>拾光收个尾</small><p>{reflectionResult.reflection.closing.text}</p></article>}
+          {reflectionResult.reflection.closing && <article className={styles.closingCard}><div><Sparkle /><span>留给你的下一步</span></div><p>{reflectionResult.reflection.closing.text}</p><small>不用马上得出答案，先让现实给你一个回应。</small></article>}
           <ShareQuoteCard theme="east" title="我的六爻镜像" quote={reflectionResult.reflection.shareableReflection} meta={`${reflectionResult.hexagram.originalHexagram.symbol} ${reflectionResult.hexagram.originalHexagram.name} → ${reflectionResult.hexagram.changedHexagram.symbol} ${reflectionResult.hexagram.changedHexagram.name}`} image={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} contentByVariant={reflectionResult.reflection.shareCards ? {
             paper: { kicker: "我的此刻 · FOR ME", ...reflectionResult.reflection.shareCards.warm },
             night: { kicker: "关系回应 · FOR US", ...reflectionResult.reflection.shareCards.roast },
