@@ -216,6 +216,11 @@
 .resultHeader { margin: 52px auto 0; text-align: center; }
 .resultHeader h1 { margin: 0; font: 400 clamp(48px, 5vw, 70px)/1.2 Georgia, "Songti SC", serif; }
 .resultHeader p { margin-left: auto; margin-right: auto; }
+.verdictStrip { max-width: 920px; margin: 38px auto 0; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+.verdictStrip article { min-height: 105px; display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 18px; padding: 18px 24px; border: 1px solid rgba(49,95,87,.16); border-radius: 18px; background: rgba(255,253,247,.72); box-shadow: 0 14px 35px rgba(38,63,59,.06); }
+.verdictStrip article > b { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 50%; color: #fffaf0; background: var(--jade-dark); font: 400 27px/1 Georgia, "Songti SC", serif; }
+.verdictStrip .good > b { background: #2f695b; }.verdictStrip .steady > b { background: #a57937; }.verdictStrip .careful > b { background: #8c5140; }.verdictStrip .unknown > b { background: #697573; }
+.verdictStrip small { display: block; color: var(--gold); font-size: 9px; letter-spacing: .12em; }.verdictStrip strong { display: block; margin-top: 6px; font: 400 18px/1.4 Georgia, "Songti SC", serif; }.verdictStrip p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }.verdictStrip > span { grid-column: 1/3; padding-left: 4px; color: var(--muted); font-size: 10px; }
 .hexagramReveal { margin-top: 55px; display: grid; grid-template-columns: 1fr 220px 90px 1fr; align-items: center; gap: 32px; }
 .hexagramReveal article { text-align: center; }
 .hexSymbol { display: block; color: var(--jade-dark); font: 92px/1 Georgia, serif; }
@@ -253,6 +258,8 @@
 .judgmentCard small, .reasoningCard small { color: var(--gold); font-size: 9px; letter-spacing: .16em; }
 .judgmentCard h2 { margin: 18px 0 12px; color: var(--muted); font: 400 17px/1.7 Georgia, "Songti SC", serif; }
 .judgmentCard p { margin: 0; color: var(--ink); font: 400 clamp(25px, 3.2vw, 38px)/1.6 Georgia, "Songti SC", serif; }
+.closingCard { max-width: 920px; position: relative; overflow: hidden; margin: 16px auto 0; padding: 26px 29px; border: 1px solid rgba(180,138,77,.24); border-radius: 18px; background: linear-gradient(110deg, rgba(246,239,219,.82), rgba(250,249,245,.7)); box-shadow: 0 16px 38px rgba(72,57,33,.06); }
+.closingCard::after { content: "✦"; position: absolute; right: 28px; top: -38px; color: rgba(180,138,77,.13); font: 130px Georgia, serif; }.closingCard > div { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; color: var(--gold); font-size: 10px; letter-spacing: .12em; }.closingCard svg { width: 16px; height: 16px; }.closingCard p { position: relative; z-index: 1; max-width: 690px; margin: 15px 0 8px; color: var(--ink); font: 400 20px/1.65 Georgia, "Songti SC", serif; }.closingCard > small { position: relative; z-index: 1; color: var(--muted); font-size: 10px; }
 .reasoningCard { max-width: 920px; margin: 14px auto 0; padding: 30px 34px; border: 1px solid rgba(49,95,87,.14); border-radius: 18px; background: rgba(250,249,245,.68); }
 .reasoningCard h2 { margin: 15px 0 10px; font: 400 23px/1.5 Georgia, "Songti SC", serif; }
 .reasoningCard p { margin: 0; color: var(--muted); font: 16px/1.9 Georgia, "Songti SC", serif; }
@@ -428,6 +435,7 @@
   .changeArrow svg { transform: rotate(90deg); }
   .traditionalCard { margin-top: 43px; padding: 28px 23px; }
   .hexagramSummary, .classicalGrid, .allLines > div { grid-template-columns: 1fr; }
+  .verdictStrip { grid-template-columns: 1fr; }.verdictStrip > span { grid-column: 1; }.verdictStrip article { grid-template-columns: 58px 1fr; padding: 16px; gap: 13px; }.verdictStrip article > b { width: 48px; height: 48px; font-size: 23px; }
   .classicalGrid .classicalPrimary { grid-row: auto; }
   .judgmentCard { padding: 29px 24px; }
   .reasoningCard { padding: 25px 22px; }
