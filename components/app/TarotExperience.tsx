@@ -69,9 +69,9 @@ export function TarotExperience() {
   const mirrorFacts = `用户问题：${question}\n牌阵：${spread.name}\n牌面：${cards.map((card, index) => `${spread.positions[index]?.label ?? `位置${index + 1}`}为${card.name}${orientationLabel[card.orientation]}，基础牌义：${cardMeaning(card)}`).join("；")}\n牌间关系：${professionalReading?.relationship ?? relations.headline}\n反向信号：${relations.counterSignal}`;
   const mirrorFallback: MirrorResult = {
     headline: professionalReading?.overview ?? relations.headline,
-    interpretation: professionalReading?.shiguang ?? "这些牌提供的是观察假设，不是替你决定未来的结论。请把最有共鸣的一张放回现实证据中核对。",
-    action: professionalReading?.action ?? "选一张最贴近现实的牌，今天只做一个最小验证行动。",
-    reflectionQuestion: professionalReading?.reflectionQuestion ?? "哪一张牌描述的状态，最近已经在现实里出现过？",
+    interpretation: "牌阵的专业部分只说明牌面结构；拾光在这里负责把你关心的现实处境拿来逐一核对，不替牌面宣告结果。",
+    action: "先写下一条支持当前判断的现实证据，以及一条相反证据，再决定是否行动。",
+    reflectionQuestion: "哪一张牌所说的状态，最近已经在现实里出现过？",
     shareCards: {
       warm: "牌没有替我选，它只是照亮我一直不敢承认的倾向。",
       roast: "我不想让牌替我们回答，只想知道你有没有同样的感觉。",
@@ -288,12 +288,11 @@ export function TarotExperience() {
             {professionalReading.structure.centralTension && <article><small>本次主要张力</small><p>{professionalReading.structure.centralTension}</p></article>}
             <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
             <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
-            <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
-            <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
+            <article><small>规则来源</small><p>{professionalReading.sources.join("；")}</p></article>
             <article><small>解读方法与边界</small><p>{professionalReading.method}</p></article>
           </section>}
           </details>
-          <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
+          <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。专业规则总结：${professionalReading?.relationship ?? relations.headline}。规则来源：${professionalReading?.sources.join("；") ?? "固定塔罗规则库"}。`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
             <button onClick={saveReading} disabled={saved}>
