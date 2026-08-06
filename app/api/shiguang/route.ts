@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 const requestSchema = z.object({
   theme: z.enum(["east", "west"]),
-  mode: z.enum(["chat", "mirror_result"]).default("chat"),
+  mode: z.enum(["chat", "mirror_result", "daily_guidance"]).default("chat"),
   kind: z.enum(["tarot", "bazi", "astrology"]).optional(),
   context: z.string().max(10_000),
   memory: z.object({
@@ -43,6 +43,10 @@ function systemPrompt(theme: "east" | "west", context: string, memory?: z.infer<
 function mirrorResultPrompt(kind: "tarot" | "bazi" | "astrology", theme: "east" | "west", context: string) {
   const label = kind === "tarot" ? "塔罗" : kind === "bazi" ? "四柱命盘" : "本命星盘";
   return `${personality}\n\n你现在要基于系统已经计算出的${label}事实生成一次结构化拾光解读。${theme === "east" ? "使用克制、清醒的东方语感。" : "使用温暖、清晰但不神秘化的西方象征语感。"}\n\n规则：\n- 只能使用 <mirror_facts> 中的事实，不补造盘面、用户经历或确定性未来。\n- headline 先给一句明确、具体的结论，不能是客套话。\n- interpretation 把盘面结构映射为现实中可验证的助力、阻力或张力。\n- action 只给一个小而可执行、可撤回的下一步。\n- reflectionQuestion 只问一个能帮助用户核对现实的问题。\n- 三张分享卡服务于三种不同传播场景，每张只能是一句 12～30 个汉字、脱离报告也能看懂的话，三句不得复用相同句式或近义改写：shareCards.warm 是“发自己”，要让用户觉得被说中；shareCards.roast 是“发给关系中的某个人”，要留下一个对方愿意回应的关系张力，但不指控；shareCards.witty 是“邀请对照”，要自然邀请对方也生成结果并比较。禁止术语、说教、客套话，以及“翻译一下”“人话版”等前缀。\n- 只返回 JSON，不要 Markdown。字段必须是 headline, interpretation, action, reflectionQuestion, shareCards；shareCards 必须包含 warm, roast, witty。\n\n<mirror_facts>\n${context}\n</mirror_facts>`;
+}
+
+function dailyGuidancePrompt(context: string) {
+  return `${personality}\n\n你现在要生成“今日拾光”：它是个人每日导航，不是每日塔罗，也不是泛化运势。\n\n规则：\n- 只使用 <daily_context> 中提供的日期、出生底图、近期对话或已保存镜像；缺少的资料不要补造。\n- 优先结合长期个人底图与近期未完成主题；只有用户近期主动做过塔罗时，才可将它作为补充来源，但正文不得堆叠牌名或术语。\n- theme 是一句明确、自然的今日判断；reason 说明为什么这句话与这个用户有关；action 只给一个今天能完成的小动作。\n- 不做吉凶预测，不写“宇宙提示”“命中注定”，不扮演盯着用户的人生导师，不反问用户。\n- sources 返回 1～3 个简短来源标签，只能从“个人底图”“今日节律”“近期对话”“近期镜像”中选择有数据支持的项。\n- 只返回 JSON，不要 Markdown。字段必须是 theme, reason, action, sources。\n\n<daily_context>\n${context}\n</daily_context>`;
 }
 
 function contentText(value: unknown): string {
@@ -120,7 +124,11 @@ export async function POST(request: Request) {
       temperature: .72,
       max_tokens: 900,
       messages: [
-        { role: "system", content: parsed.data.mode === "mirror_result" && parsed.data.kind ? mirrorResultPrompt(parsed.data.kind, parsed.data.theme, parsed.data.context) : systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory) },
+        { role: "system", content: parsed.data.mode === "mirror_result" && parsed.data.kind
+          ? mirrorResultPrompt(parsed.data.kind, parsed.data.theme, parsed.data.context)
+          : parsed.data.mode === "daily_guidance"
+            ? dailyGuidancePrompt(parsed.data.context)
+            : systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory) },
         ...parsed.data.messages,
       ],
     }),
