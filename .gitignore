@@ -6,6 +6,5 @@ out/
 *.log
 .env
 .env.local
-.openai/hosting.json
 dist/
 *.tsbuildinfo
