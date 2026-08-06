@@ -56,6 +56,19 @@ function deriveDnaPatterns(events: MirrorEvent[]): PatternMemory[] {
   }).sort((left, right) => right.signalCount - left.signalCount || right.confidence - left.confidence);
 }
 
+function dnaObservation(pattern: PatternMemory, latest?: MirrorEvent) {
+  const source = latest?.sourceLabel ?? "最近一次镜像";
+  const clue = pattern.summary.replace(/^这是第一次记录形成的初始观察：/u, "").replace(/。它还不是[\s\S]*$/u, "").replace(/。当前只把[\s\S]*$/u, "").slice(0, 78);
+  const repeated = pattern.signalCount >= 2;
+  return {
+    focus: `最近反复牵动你的，是${pattern.title}。`,
+    response: repeated ? `这条线索已经出现 ${pattern.signalCount} 次：你会先把局面想清楚，再决定把话说到什么程度。` : `这还是第一次出现，但你没有把它轻轻带过。`,
+    changing: repeated ? "它正在从“一个当下的问题”，慢慢变成值得认真对待的习惯或关系方式。" : "再有新的经历时，拾光会先看它是在被印证，还是应该被推翻。",
+    evidence: clue || `${source}留下了一条与它相关的记录。`,
+    source,
+  };
+}
+
 export function PersonalMirrorDashboard() {
   const [mode, setMode] = useState<DashboardMode>("loading");
   const [events, setEvents] = useState<MirrorEvent[]>([]);
@@ -63,6 +76,7 @@ export function PersonalMirrorDashboard() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "career" | "relationship">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [dnaFeedback, setDnaFeedback] = useState<"yes" | "no" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -88,6 +102,7 @@ export function PersonalMirrorDashboard() {
   const latest = events[0];
   const displayPatterns = useMemo(() => patterns.length ? patterns : deriveDnaPatterns(events), [events, patterns]);
   const strongestPatterns = displayPatterns.slice(0, 3);
+  const primaryDna = strongestPatterns[0] ? dnaObservation(strongestPatterns[0], latest) : null;
   const repeatedPatterns = displayPatterns.filter((pattern) => pattern.signalCount >= 2);
   const sourceStart = (event: MirrorEvent) => event.sourceLabel ?? event.hexagram?.originalHexagram?.name ?? "镜像";
   const sourceEnd = (event: MirrorEvent) => event.meta ?? event.hexagram?.changedHexagram?.name ?? "成长";
@@ -114,8 +129,8 @@ export function PersonalMirrorDashboard() {
       </article>
 
       <article className={`${styles.card} ${styles.dna}`}>
-        <header><span><Eye /> Mirror DNA</span><small>持续演化 · 非固定标签</small></header>
-        {strongestPatterns.length ? <><div className={styles.dnaMap}>{strongestPatterns.map((pattern) => <span key={pattern.id} style={{ "--size": `${Math.max(35, Math.round(pattern.confidence * 100))}%` } as React.CSSProperties}>{pattern.title}</span>)}</div><p>{strongestPatterns.every((pattern) => pattern.signalCount === 1) ? "第一次保存就会形成初始 Mirror DNA；它只是暂时观察。后续对话与镜像会持续加强、修正或推翻这些线索。" : "这些线索会随新的对话和镜像持续演化，不是固定人格标签。你可以在记忆控制中纠正、隐藏或删除。"}</p></> : <div className={stateStyles.empty}><h2>Mirror DNA 等待第一次记录。</h2><p>保存第一次镜像后，这里就会出现明确标注的初始观察。</p></div>}
+        <header><span><Eye /> Mirror DNA</span><small>拾光目前读到的你</small></header>
+        {primaryDna ? <><div className={styles.dnaInsight}><article><small>此刻主线</small><b>{primaryDna.focus}</b></article><article><small>你的应对方式</small><p>{primaryDna.response}</p></article><article><small>正在变化</small><p>{primaryDna.changing}</p></article></div><div className={styles.dnaEvidence}><span>来自 {primaryDna.source}</span><p>“{primaryDna.evidence}”</p></div><div className={styles.dnaFeedback}><span>这像你吗？</span><button className={dnaFeedback === "yes" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("yes")}>像</button><button className={dnaFeedback === "no" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("no")}>不太像</button>{dnaFeedback && <small>{dnaFeedback === "yes" ? "记下了，我会继续用新的经历来核对它。" : "记下了，这条观察不会被当成你的标签。"}</small>}</div></> : <div className={stateStyles.empty}><h2>Mirror DNA 等待第一次记录。</h2><p>保存第一次镜像后，这里会出现拾光对你当下状态的具体观察。</p></div>}
       </article>
 
       <article className={`${styles.card} ${styles.patterns}`}>
