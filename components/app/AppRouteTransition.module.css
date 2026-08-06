@@ -1,0 +1,6 @@
+.overlay { position:fixed; z-index:9999; inset:0; display:grid; place-content:center; justify-items:center; gap:12px; color:#315d52; background:linear-gradient(155deg,#f7f4eb,#edf3ee); animation:appear .12s ease-out both; }
+.overlay svg { width:48px; height:48px; animation:pulse 1.1s ease-in-out infinite; }
+.overlay span { color:#68716c; font:12px/1.4 Inter,"PingFang SC",sans-serif; letter-spacing:.08em; }
+@keyframes appear { from { opacity:0 } to { opacity:1 } }
+@keyframes pulse { 50% { opacity:.4; transform:scale(.94) } }
+@media (prefers-reduced-motion:reduce) { .overlay,.overlay svg { animation:none } }
