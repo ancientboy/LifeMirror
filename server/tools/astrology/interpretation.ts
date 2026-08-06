@@ -84,20 +84,29 @@ function formatDegree(value: number) {
   return `${degree}°${String(minute === 60 ? 0 : minute).padStart(2, "0")}′`;
 }
 
+// Older saved payloads can contain the planet name inside the sign field
+// (for example, "金星金牛座").  Display it only once while keeping the
+// calculated placement itself unchanged.
+function displaySignName(planet: PlanetPosition) {
+  const name = planet.sign.name.trim();
+  return name.startsWith(planet.name) ? name.slice(planet.name.length).trim() : name;
+}
+
 /** Produces one deterministic professional reading from one calculated planet. */
 export function explainPlanet(planet: PlanetPosition): PlanetInsight {
   const planetRule = PLANET_RULES[planet.key] ?? { domain: "个人经验中的重要主题", principle: "这颗星代表一项需要结合全盘判断的心理功能。", strength: "它可以成为一项可练习的资源。", excess: "它也可能在压力下失去平衡。" };
-  const signRule = SIGN_RULES[planet.sign.name] ?? { style: "呈现出这组星座的表达方式", resource: "形成可被使用的资源", blindSpot: "在压力下失衡" };
+  const signName = displaySignName(planet);
+  const signRule = SIGN_RULES[signName] ?? { style: "呈现出这组星座的表达方式", resource: "形成可被使用的资源", blindSpot: "在压力下失衡" };
   const houseRule = planet.house ? HOUSE_RULES[planet.house] : null;
-  const location = `${planet.sign.name} ${formatDegree(planet.degreeInSign)}${planet.house ? ` · 第 ${planet.house} 宫` : ""}${planet.retrograde ? " · 逆行" : ""}`;
+  const location = `${signName} ${formatDegree(planet.degreeInSign)}${planet.house ? ` · 第 ${planet.house} 宫` : ""}${planet.retrograde ? " · 逆行" : ""}`;
   return {
     key: planet.key,
     title: `${planet.name}：${planetRule.domain}`,
     evidence: `${planet.name} ${location}`,
     principle: planetRule.principle,
-    signReading: `落在${planet.sign.name}，${planetRule.domain}会${signRule.style}。它的可用资源是${signRule.resource}；在压力下则要留意${signRule.blindSpot}。`,
+    signReading: `落在${signName}，${planetRule.domain}会${signRule.style}。它的可用资源是${signRule.resource}；在压力下则要留意${signRule.blindSpot}。`,
     houseReading: houseRule ? `位于第 ${planet.house} 宫，这个议题更常通过「${houseRule.field}」发生。重点问题是：${houseRule.question}${houseRule.risk}。` : "出生时间未知，因此不把这颗星延伸为宫位判断；它仍可从星座与相位阅读。",
-    synthesis: `把${planet.name}、${planet.sign.name}${planet.house ? `与第 ${planet.house} 宫` : ""}放在一起看：${planetRule.strength} ${planetRule.excess}`,
+    synthesis: `把${planet.name}、${signName}${planet.house ? `与第 ${planet.house} 宫` : ""}放在一起看：${planetRule.strength} ${planetRule.excess}`,
     retrogradeNote: planet.retrograde ? `${planet.name}逆行不是凶象，也不等于“作用变弱”。传统现代占星通常将它读作：这项功能更需要先在内在反复检视、形成自己的标准，再选择对外表达。` : null,
   };
 }
@@ -124,11 +133,11 @@ function planetOf(planets: PlanetPosition[], key: string) {
 }
 
 function compactPosition(planet: PlanetPosition) {
-  return `${planet.name}${planet.sign.name}${planet.house ? `第${planet.house}宫` : ""}${planet.retrograde ? "逆行" : ""}`;
+  return `${planet.name}${displaySignName(planet)}${planet.house ? `第${planet.house}宫` : ""}${planet.retrograde ? "逆行" : ""}`;
 }
 
 function houseEvidence(planet: PlanetPosition, topic: string) {
-  return planet.house ? `${compactPosition(planet)}：这颗星会把${topic}带到更具体的日常情境里。` : `${planet.name}${planet.sign.name}：出生时间未提供，因此这里不把${topic}延伸为宫位结论。`;
+  return planet.house ? `${compactPosition(planet)}：这颗星会把${topic}带到更具体的日常情境里。` : `${planet.name}${displaySignName(planet)}：出生时间未提供，因此这里不把${topic}延伸为宫位结论。`;
 }
 
 function firstRelatedAspect(result: AstrologyResult, names: string[]) {
