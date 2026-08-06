@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarBlank, CircleNotch, Eye, Funnel, LockKey, Sparkle } from "@phosphor-icons/react";
 import styles from "./PersonalMirrorDashboard.module.css";
+import lifeStyles from "./PersonalMirrorLife.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
 import { AppBottomNav } from "./AppBottomNav";
 import { AccountDataSync } from "./AccountDataSync";
 import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
+import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
@@ -34,6 +36,26 @@ const dnaTopics = [
   { key: "decision", title: "重要选择与内在取舍", match: /选择|决定|要不要|是否|纠结|犹豫/ },
   { key: "emotion", title: "情绪消耗与自我照顾", match: /焦虑|压力|难过|疲惫|害怕|情绪|失眠/ },
 ] as const;
+
+const lifeFields = [
+  { key: "self", title: "我如何成为我", subtitle: "外在表达、核心驱动力与个人节奏", match: /自我|性格|我自己|表达|状态/, fallback: "先从你的出生镜像开始，观察你想怎样被看见、又如何确认自己。" },
+  { key: "emotion", title: "情绪与安全感", subtitle: "压力反应、恢复方式与真正需要", match: /焦虑|压力|难过|疲惫|害怕|情绪|失眠/, fallback: "还没有足够的当下记录；下一次情绪明显时，试着把当时发生的事也留下一句。" },
+  { key: "relationship", title: "爱情与亲密关系", subtitle: "靠近、回应、边界与连接方式", match: /关系|感情|伴侣|朋友|家人|对方|彼此|爱|复合/, fallback: "关系不是“合不合”的单选题；先看你在连接里最需要被怎样回应。" },
+  { key: "career", title: "事业与天赋", subtitle: "工作方式、成就感与长期方向", match: /工作|职业|事业|创业|项目|面试|升职|方向/, fallback: "事业镜像会同时看你的长期节奏，和眼下这一步真正卡在哪里。" },
+  { key: "value", title: "金钱与价值感", subtitle: "安全感、资源、交换与自我认可", match: /钱|收入|消费|价值|资源|报酬/, fallback: "这不只关乎钱，也关乎你愿意为自己留出怎样的空间与选择。" },
+  { key: "growth", title: "家庭、人际与成长", subtitle: "归属、社群与正在展开的人生方向", match: /家庭|父母|孩子|朋友|社群|成长|学习|未来/, fallback: "你不必马上定义未来；持续留下经历，方向会在反复出现的选择里慢慢显影。" },
+] as const;
+
+function natalSummary(kind: "bazi" | "astrology", mirror?: SavedNatalMirror) {
+  if (!mirror) return null;
+  if (kind === "astrology") {
+    const result = mirror.result as { headline?: string; themes?: string[] };
+    return result.headline ?? result.themes?.[0] ?? "星盘已读入，等待与你的真实经历一起核对。";
+  }
+  const result = mirror.result as { fiveElementProfile?: { dayMaster?: string; dayMasterElement?: string; strengthBand?: string } };
+  const profile = result.fiveElementProfile;
+  return profile?.dayMaster ? `${profile.dayMaster}日主 · ${profile.dayMasterElement} · 初步${profile.strengthBand}。命盘已读入，等待与你的真实经历一起核对。` : "命盘已读入，等待与你的真实经历一起核对。";
+}
 
 function deriveDnaPatterns(events: MirrorEvent[]): PatternMemory[] {
   const grouped = new Map<string, { title: string; events: MirrorEvent[] }>();
@@ -77,6 +99,7 @@ export function PersonalMirrorDashboard() {
   const [filter, setFilter] = useState<"all" | "career" | "relationship">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [dnaFeedback, setDnaFeedback] = useState<"yes" | "no" | null>(null);
+  const [natalMirrors, setNatalMirrors] = useState<Partial<Record<"bazi" | "astrology", SavedNatalMirror>>>({});
 
   useEffect(() => {
     let active = true;
@@ -93,7 +116,8 @@ export function PersonalMirrorDashboard() {
       }
     }
     void load();
-    const refresh = () => setEvents(readGuestEvents());
+    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); };
+    setNatalMirrors(getLatestSavedNatalMirrors());
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
     return () => { active = false; window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh); };
   }, []);
@@ -106,6 +130,10 @@ export function PersonalMirrorDashboard() {
   const repeatedPatterns = displayPatterns.filter((pattern) => pattern.signalCount >= 2);
   const sourceStart = (event: MirrorEvent) => event.sourceLabel ?? event.hexagram?.originalHexagram?.name ?? "镜像";
   const sourceEnd = (event: MirrorEvent) => event.meta ?? event.hexagram?.changedHexagram?.name ?? "成长";
+  const natalCards = [
+    { key: "astrology", label: "星盘 · 稳定底图", summary: natalSummary("astrology", natalMirrors.astrology), href: "/app/astrology/" },
+    { key: "bazi", label: "命盘 · 稳定底图", summary: natalSummary("bazi", natalMirrors.bazi), href: "/app/chart/" },
+  ] as const;
 
   return <main className={styles.shell}>
     {mode === "authenticated" && <AccountDataSync />}
@@ -121,6 +149,15 @@ export function PersonalMirrorDashboard() {
     </section>
 
     {error && <p className={stateStyles.notice}>{error}</p>}
+    <section className={lifeStyles.lifeMirror} aria-labelledby="life-mirror-title">
+      <header><div><small>YOUR LIFE MIRROR</small><h2 id="life-mirror-title">先看你，再看工具。</h2><p>命盘和星盘回答“你的长期底色”；塔罗与六爻记录“你此刻正在经历什么”。拾光只负责把这些线索放回你的真实生活。</p></div><Link href="/app/home/">从一个问题开始 <ArrowRight /></Link></header>
+      <div className={lifeStyles.natalGrid}>{natalCards.map((card) => <article key={card.key}><small>{card.label}</small><p>{card.summary ?? "还没有读入这张稳定底图。完成一次出生资料测算后，它会与之后的镜像一起留在这里。"}</p><Link href={card.href}>{card.summary ? "回看这张盘" : "建立这张盘"} <ArrowRight /></Link></article>)}</div>
+      <div className={lifeStyles.lifeFieldGrid}>{lifeFields.map((field) => {
+        const event = events.find((item) => field.match.test(item.question));
+        const summary = event?.reflection?.shareableReflection ?? event?.reflection?.shiguangInterpretation ?? field.fallback;
+        return <article key={field.key}><small>{field.subtitle}</small><h3>{field.title}</h3><p>{summary}</p>{event ? <span>来自 {event.sourceLabel ?? "最近一次镜像"} · {new Date(event.savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</span> : <Link href="/app/home/">和拾光从这里聊起 <ArrowRight /></Link>}</article>;
+      })}</div>
+    </section>
     <section className={styles.grid}>
       <article className={`${styles.card} ${styles.current}`}>
         <header><span><Sparkle /> 当前反思</span><small>{latest ? new Date(latest.savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" }) : "等待第一次记录"}</small></header>
