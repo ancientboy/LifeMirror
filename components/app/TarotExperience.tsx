@@ -284,6 +284,8 @@ export function TarotExperience() {
           {professionalReading && <section className={styles.professionalDetail}>
             <header><small>PROFESSIONAL READING · 专业解读</small><h2>先读整体，再看每张牌如何共同回答。</h2></header>
             <article><small>整体判断</small><p>{professionalReading.overview}</p></article>
+            <div className={styles.nextStep}><article><small>本次判读结构</small><p>{professionalReading.structure.positionLogic}</p></article><article><small>核心牌 · {professionalReading.structure.dominantCard.title}</small><p>{professionalReading.structure.dominantCard.reason}</p></article></div>
+            {professionalReading.structure.centralTension && <article><small>本次主要张力</small><p>{professionalReading.structure.centralTension}</p></article>}
             <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
             <article><small>牌间关系与反向信号</small><p>{professionalReading.relationship}</p></article>
             <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
