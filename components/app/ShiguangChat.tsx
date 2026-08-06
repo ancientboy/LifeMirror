@@ -8,6 +8,8 @@ import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 import { CHAT_HISTORY_CHANGED_EVENT, createChatThread, deleteChatThread, getChatThreads, saveChatThread, type ChatMessage, type ChatThread } from "@/lib/shiguang-chat-history";
 import styles from "./ShiguangChat.module.css";
 
+type ResearchSource = { title: string; url: string; publishedAt?: string };
+
 type Props = { theme: "east" | "west"; context: string; opening?: string; mode?: "home" | "result" };
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
@@ -29,6 +31,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const [memorySettings, setMemorySettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
   const [temporary, setTemporary] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [sources, setSources] = useState<ResearchSource[]>([]);
   const messagesRef = useRef<HTMLDivElement>(null);
   const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi-v2.png" : "/characters/shiguang/shiguang-west-chibi-v2.png";
   const quickPrompts = mode === "home" ? ["有件事我不知道该跟谁说", "我想理清一段关系", "我不知道该怎么开口", "我只是想先说说"] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
@@ -73,11 +76,15 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     const pending: ChatMessage = { id: assistantId, role: "assistant", text: "", createdAt: now };
     const nextMessages = [...messages, userMessage, pending];
     setMessages(nextMessages); if (!temporary) setThread(saveChatThread({ ...thread, messages: nextMessages }));
-    setInput(""); setStreaming(true);
+    setInput(""); setSources([]); setStreaming(true);
     let finalText = "";
     try {
       const response = await fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ theme, context, memory, messages: [...messages, userMessage].map(({ role, text }) => ({ role, content: text })) }) });
       if (!response.ok || !response.body) throw new Error("llm_unavailable");
+      const sourceHeader = response.headers.get("x-shiguang-sources");
+      if (sourceHeader) {
+        try { const value = JSON.parse(decodeURIComponent(sourceHeader)); if (Array.isArray(value)) setSources(value.filter((item): item is ResearchSource => Boolean(item && typeof item.title === "string" && typeof item.url === "string"))); } catch {}
+      }
       setResponseMode("llm"); const reader = response.body.getReader(); const decoder = new TextDecoder();
       while (true) { const { done, value } = await reader.read(); if (done) break; const chunk = decoder.decode(value, { stream: true }); finalText += chunk; setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, text: message.text + chunk } : message)); }
       if (!finalText.trim()) throw new Error("empty_llm_response");
@@ -92,6 +99,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     <header><img src={assetPath(avatar)} alt={`Q版${theme === "east" ? "东方" : "西方"}拾光`} /><div><small><Sparkle /> {mode === "home" ? "拾光在这里" : "继续和拾光聊聊"}</small><h2>{mode === "home" ? "慢慢说，我在听。" : "这件事后来怎么样了？"}</h2></div><div className={styles.headerActions}><button className={styles.historyButton} type="button" onClick={() => setHistoryOpen((value) => !value)} aria-expanded={historyOpen}><ClockCounterClockwise /><span>聊天记录</span></button>{mode === "home" && <button className={`${styles.memoryMode} ${temporary || !memorySettings.enabled ? styles.memoryOff : ""}`} type="button" onClick={() => setTemporary((value) => !value)} aria-pressed={temporary}><Brain /><span>{temporary ? "这次不留下" : memorySettings.enabled ? "记忆已开启" : "记忆未开启"}</span></button>}</div></header>
     {historyOpen && <aside className={styles.historyPanel}><div><b>聊天记录</b><button type="button" onClick={startNew}><Plus /> 新对话</button></div>{threads.length ? <ul>{threads.map((item) => <li key={item.id} className={item.id === thread?.id ? styles.currentThread : ""}><button type="button" onClick={() => openThread(item)}><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })}</small></button><button type="button" onClick={(event) => removeThread(item.id, event)} aria-label={`删除对话：${item.title}`}><Trash /></button></li>)}</ul> : <p>还没有保存的对话。</p>}</aside>}
     <div className={styles.messages} aria-live="polite" ref={messagesRef}>{messages.map((message) => <div className={message.role === "assistant" ? styles.assistant : styles.user} key={message.id}>{message.role === "assistant" && <img src={assetPath(avatar)} alt="" />}<p>{message.text}{streaming && message.id === messages.at(-1)?.id && <i />}</p></div>)}</div>
+    {sources.length > 0 && <aside className={styles.sources} aria-label="拾光本次查证的来源"><small>我刚刚核对的来源</small>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}{source.publishedAt ? <span>{source.publishedAt.slice(0, 10)}</span> : null}</a>)}</aside>}
     <div className={styles.quickPrompts}>{quickPrompts.map((prompt) => <button type="button" key={prompt} disabled={streaming} onClick={() => setInput(prompt)}>{prompt}</button>)}</div>
     <div className={styles.composer}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={mode === "home" ? "说说今天发生了什么，或哪件事一直在心里转……" : "追问、说说困惑，或问下一步怎么做……"} maxLength={300} /><button type="button" disabled={!input.trim() || streaming} onClick={() => void send()} aria-label="发送给拾光">{streaming ? <CircleNotch className={styles.spin} /> : <ArrowUp />}</button></div>
     <footer>{savedNotice ? "已记下这件事；你可以随时在“我的”中删除。" : temporary ? "这次对话不会留在记录里。" : responseMode === "local" ? "这段对话已保存。" : memorySettings.enabled ? "这段对话已保存；拾光只会在相关时想起你授权保留的线索。" : "这段对话已保存。"}</footer>
