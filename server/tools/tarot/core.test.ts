@@ -55,15 +55,14 @@ test("relation analysis exposes emphasis and counter-signals without predicting 
   assert.equal(typeof relation.interaction, "string");
 });
 
-test("professional synthesis separates evidence, interpretation, Shiguang reflection and action", () => {
+test("professional synthesis is fixed-rule based and exposes its sources", () => {
   const spread = getSpread("timeline");
   const cards = drawSpread(spread, [0, 1, 2, 0, 1, 0]);
   const reading = synthesizeTarotReading("我要不要换工作？", spread, cards);
   assert.equal(reading.cardInsights.length, 3);
   assert.match(reading.cardInsights[0].evidence, /大阿尔卡那|元素/);
-  assert.match(reading.shiguang, /拾光/);
-  assert.match(reading.action, /24 小时/);
-  assert.ok(reading.reflectionQuestion.endsWith("？"));
+  assert.ok(reading.sources.length >= 2);
+  assert.match(reading.method, /固定规则库/);
   assert.match(reading.method, /Rider–Waite–Smith/);
   assert.equal(reading.structure.questionDomain, "career");
   assert.match(reading.structure.positionLogic, /形成背景/);
@@ -76,5 +75,5 @@ test("tarot reading uses spread-specific logic instead of treating all questions
   const reading = synthesizeTarotReading("这段关系该不该联系？", spread, cards);
   assert.equal(reading.structure.questionDomain, "relationship");
   assert.match(reading.structure.positionLogic, /分开看你、对方/);
-  assert.match(reading.action, /互动事实/);
+  assert.match(reading.structure.positionLogic, /互动|关系/);
 });
