@@ -26,6 +26,8 @@ type Props = {
   meta: string;
   image: string;
   onResolved?: (result: MirrorResult) => void;
+  initialResult?: MirrorResult;
+  historical?: boolean;
 };
 
 const labels: Record<MirrorKind, string> = {
@@ -40,13 +42,22 @@ function clean(value: unknown, fallback: string, max = 700) {
   return text.length >= 4 ? text : fallback;
 }
 
-function shareLine(value: unknown, fallback: string, used: string[]) {
+function shareLine(value: unknown, fallback: string, used: string[], variant: "warm" | "roast" | "witty") {
   const source = clean(value, fallback, 80)
     .replace(/[。！？!?]+$/u, "")
     .replace(/\s+/g, " ");
   const line = [...source].slice(0, 46).join("");
   const normalized = line.replace(/[，。！？、\s]/g, "");
-  if (used.some((item) => item === normalized || item.includes(normalized) || normalized.includes(item))) {
+  const overlap = (left: string, right: string) => {
+    const grams = (text: string) => new Set(Array.from({ length: Math.max(0, text.length - 1) }, (_, index) => text.slice(index, index + 2)));
+    const a = grams(left), b = grams(right);
+    const common = [...a].filter((item) => b.has(item)).length;
+    return common / Math.max(1, Math.min(a.size, b.size));
+  };
+  const wrongScene = variant === "warm" ? /(?:对照|回应|发给|TA)/u.test(line)
+    : variant === "roast" ? !/(?:你|我们|回应|说清|沉默|一起)/u.test(line)
+      : !/(?:你|对照|也看看|一起)/u.test(line);
+  if (wrongScene || used.some((item) => item === normalized || item.includes(normalized) || normalized.includes(item) || overlap(item, normalized) >= 0.72)) {
     const replacement = [...fallback.replace(/[。！？!?]+$/u, "")].slice(0, 46).join("");
     used.push(replacement.replace(/[，。！？、\s]/g, ""));
     return replacement;
@@ -75,9 +86,9 @@ function sanitize(value: unknown, fallback: MirrorResult): MirrorResult {
     action: clean(input.action, fallback.action, 420),
     reflectionQuestion: clean(input.reflectionQuestion, fallback.reflectionQuestion, 300),
     shareCards: {
-      warm: shareLine(cards.warm, fallback.shareCards.warm, used),
-      roast: shareLine(cards.roast, fallback.shareCards.roast, used),
-      witty: shareLine(cards.witty, fallback.shareCards.witty, used),
+      warm: shareLine(cards.warm, fallback.shareCards.warm, used, "warm"),
+      roast: shareLine(cards.roast, fallback.shareCards.roast, used, "roast"),
+      witty: shareLine(cards.witty, fallback.shareCards.witty, used, "witty"),
     },
   };
 }
@@ -99,15 +110,22 @@ function contextualFallback(fallback: MirrorResult, question: string, facts: str
   };
 }
 
-export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, title, meta, image, onResolved }: Props) {
-  const [result, setResult] = useState(fallback);
-  const [mode, setMode] = useState<"loading" | "ai" | "basic">("loading");
+export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, title, meta, image, onResolved, initialResult, historical = false }: Props) {
+  const [result, setResult] = useState(initialResult ?? fallback);
+  const [mode, setMode] = useState<"loading" | "ai" | "basic">(historical ? "ai" : "loading");
   const [saved, setSaved] = useState(false);
   const requestKey = useMemo(() => JSON.stringify({ kind, question, facts }), [facts, kind, question]);
   const resultFallback = useMemo(() => contextualFallback(fallback, question, facts), [fallback, facts, question]);
   const factPack = useMemo(() => buildJudgmentFactPack(kind, facts), [facts, kind]);
 
   useEffect(() => {
+    if (historical) {
+      const saved = initialResult ? sanitize(initialResult, resultFallback) : resultFallback;
+      setResult(saved);
+      setMode("ai");
+      onResolved?.(saved);
+      return;
+    }
     const controller = new AbortController();
     setResult(resultFallback);
     setMode("loading");
@@ -138,7 +156,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     return () => controller.abort();
     // fallback and callback intentionally follow the deterministic request key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, resultFallback, theme]);
+  }, [historical, initialResult, requestKey, resultFallback, theme]);
 
   function saveToMirror() {
     saveMirrorHistory({ source: kind, sourceLabel: labels[kind], question, summary: result.headline, factIds: factPack.facts.map((fact) => fact.id) });
@@ -146,7 +164,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
   }
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
-    <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
+    <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
     {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时离线，先按这次结果给你一版专属解读。</p>}
     <div className={styles.grid}>
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>

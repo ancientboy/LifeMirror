@@ -52,7 +52,7 @@ function NatalWheel({ result }: { result: AstrologyResult }) {
   </div>;
 }
 
-export function AstrologyChart({ result }: { result: AstrologyResult }) {
+export function AstrologyChart({ result, savedReflection, historical, onReflection }: { result: AstrologyResult; savedReflection?: MirrorResult; historical: boolean; onReflection: (reflection: MirrorResult) => void }) {
   const sun = result.planets[0], moon = result.planets[1], asc = result.angles[0];
   const meta = `太阳 ${sun.sign.name} · 月亮 ${moon.sign.name}${asc ? ` · 上升 ${asc.sign.name}` : " · 上升未知"}`;
   const facts = `可确认盘面：${meta}。主题线索：${result.themes.join("；")}。主要相位：${result.aspects.slice(0, 5).map((aspect) => `${aspect.first}${aspect.name}${aspect.second}，容许度${aspect.orb}°`).join("；") || "当前容许度内未识别主要相位"}。${asc ? "出生时间已知，可以使用宫位与上升点。" : "出生时间未知，禁止生成宫位或上升相关结论。"}`;
@@ -70,7 +70,7 @@ export function AstrologyChart({ result }: { result: AstrologyResult }) {
   const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
     <header className={styles.header}><div><small>NATAL MIRROR</small><h2>拾光先说你的星盘</h2><p>{meta}</p></div></header>
-    <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={(reflection) => { setMirrorSummary(reflection.headline); onReflection(reflection); }} />
     <details className={styles.professionalDetails}><summary>展开查看轮盘、行星、宫位与相位</summary><p className={styles.detailsIntro}>以下内容是本命星盘的计算事实与象征依据，用来复核拾光的结论；它不是固定人格或未来预测。</p>
     <div className={styles.overview}><NatalWheel result={result} /><div className={styles.bigThree}>
       <small>核心三要素</small>

@@ -22,3 +22,4 @@
 :global(body) .elementBars i{background:#e2e5df}
 .notice p{flex:1}.notice>svg:last-child{color:#6f9c7e}.profileLoaded{border:1px solid #7ca78b4a;background:#7ca78b12}
 .professionalDetails{margin-top:20px;padding:16px 0 0;border-top:1px solid #ffffff14}.professionalDetails>summary{cursor:pointer;font-weight:700}.detailsIntro{margin:12px 0 18px;font-size:12px;line-height:1.7;opacity:.65}
+.resultNotice { width:min(760px, 92%); margin:20px auto -4px; padding:11px 14px; border-radius:12px; color:#3d665e; background:rgba(221,239,225,.72); border:1px solid rgba(63,112,100,.22); font-size:13px; line-height:1.55; }
