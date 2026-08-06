@@ -8,3 +8,4 @@
 :global(body) .bigThree article>b{background:#e8e4f0;color:#4f496b}:global(body) .planetGrid b,:global(body) .aspectGrid b{color:#625d82}
 :global(body) .dataSection,:global(body) .evidence{border-color:#d9d3df}
 .professionalDetails{margin-top:20px;padding:16px 0 0;border-top:1px solid #ffffff14}.professionalDetails>summary{cursor:pointer;font-weight:700}.detailsIntro{margin:12px 0 18px;font-size:12px;line-height:1.7;opacity:.65}
+.reliabilityNote{margin:12px 0 0;color:#8b7659;font-size:11px;line-height:1.65}

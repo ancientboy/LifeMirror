@@ -48,7 +48,7 @@ function NatalWheel({ result }: { result: AstrologyResult }) {
       <circle cx="180" cy="180" r="48" className={styles.coreCircle} />
       <text x="180" y="176" className={styles.coreTitle}>LIFE</text><text x="180" y="193" className={styles.coreTitle}>MIRROR</text>
     </svg>
-    <p>{result.engine.zodiac} · {result.engine.houseSystem}</p>
+    <p>现代西方占星 · 热带黄道 · 整宫制</p>
   </div>;
 }
 
@@ -71,7 +71,7 @@ export function AstrologyChart({ result, savedReflection, historical, onReflecti
   return <section className={styles.chart} aria-live="polite">
     <header className={styles.header}><div><small>NATAL MIRROR</small><h2>拾光先说你的星盘</h2><p>{meta}</p></div></header>
     <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={(reflection) => { setMirrorSummary(reflection.headline); onReflection(reflection); }} />
-    <details className={styles.professionalDetails}><summary>展开查看轮盘、行星、宫位与相位</summary><p className={styles.detailsIntro}>以下内容是本命星盘的计算事实与象征依据，用来复核拾光的结论；它不是固定人格或未来预测。</p>
+    <details className={styles.professionalDetails}><summary>查看星盘依据</summary><p className={styles.detailsIntro}>这里保留盘面位置、宫位与相位，方便你回看拾光的解读从哪里来。</p>
     <div className={styles.overview}><NatalWheel result={result} /><div className={styles.bigThree}>
       <small>核心三要素</small>
       {[sun, moon].map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><span>{planet.name}</span><strong>{planet.sign.name}</strong><em>{formatDegree(planet.degreeInSign)}{planet.house ? ` · 第 ${planet.house} 宫` : ""}</em></div></article>)}
@@ -80,7 +80,7 @@ export function AstrologyChart({ result, savedReflection, historical, onReflecti
     <div className={styles.themes}>{result.themes.map((theme, index) => <article key={theme}><span>0{index + 1}</span><p>{theme}</p></article>)}</div>
     <section className={styles.dataSection}><h3>行星落座与宫位</h3><div className={styles.planetGrid}>{result.planets.map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><strong>{planet.name}</strong><span>{planet.sign.name} {formatDegree(planet.degreeInSign)}</span><em>{planet.house ? `第 ${planet.house} 宫` : "宫位未知"}{planet.retrograde ? " · 逆行" : ""}</em></div></article>)}</div></section>
     <section className={styles.dataSection}><h3>主要相位</h3>{result.aspects.length ? <div className={styles.aspectGrid}>{result.aspects.map((aspect) => <article key={aspect.key}><b>{aspect.glyph}</b><span>{aspect.first} {aspect.name} {aspect.second}</span></article>)}</div> : <p className={styles.empty}>当前没有识别到主要相位。</p>}</section>
-    <div className={styles.evidence}><dl><div><dt>计算时间</dt><dd>{result.utcTime.replace("T", " ").replace(".000Z", " UTC")}</dd></div><div><dt>星历模型</dt><dd>{result.engine.model} · {result.engine.version}</dd></div><div><dt>黄道与宫制</dt><dd>{result.engine.zodiac} · {result.engine.houseSystem}</dd></div></dl><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></div>
+    <div className={styles.evidence}><dl><div><dt>解读体系</dt><dd>现代西方占星</dd></div><div><dt>星盘口径</dt><dd>热带黄道 · 整宫制</dd></div><div><dt>出生时间</dt><dd>{result.timeKnown ? "已用于上升点与宫位" : "未提供，不显示宫位结论"}</dd></div></dl><p className={styles.reliabilityNote}>请确认出生地当日的时区选择无误；它会影响上升点和宫位的位置。</p></div>
     </details>
     <MirrorSaveButton source="astrology" title="占星镜像" question="我的本命星盘" summary={mirrorSummary} meta={meta} payload={result} />
     <ShiguangChat theme="west" context={`这次星盘的可确认事实是：${meta}。最紧密主要相位为${result.aspects[0] ? `${result.aspects[0].first}${result.aspects[0].name}${result.aspects[0].second}，容许度 ${result.aspects[0].orb}°` : "当前容许度内未识别"}。请始终区分盘面事实、象征解释和现实证据。`} opening="星盘已经展开。如果你想追问某颗行星、某个宫位或一组相位，我会先指出盘面证据，再陪你把象征放回真实生活。" />
