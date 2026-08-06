@@ -25,7 +25,7 @@
 
 .appShell button, .appShell input, .appShell textarea { font: inherit; }
 .appShell button { color: inherit; }
-.appShell button:focus-visible, .appShell a:focus-visible, .appShell input:focus-visible, .appShell textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.appShell button:focus-visible, .appShell a:focus-visible, .appShell input:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
 .brandBar, .appHeader {
   height: 84px;
@@ -504,6 +504,3 @@
 .readingFocus p b{color:#8b672f}
 .secondaryButton{border-color:rgba(49,93,82,.24);color:var(--jade-dark);background:rgba(255,255,255,.55)}
 .appFooter{border-top-color:rgba(49,93,82,.13);background:rgba(248,245,238,.7)}
-
-/* Text fields rely on the caret; preserve visible focus for links and buttons. */
-.appShell input:focus-visible, .appShell textarea:focus-visible { outline: none; }
