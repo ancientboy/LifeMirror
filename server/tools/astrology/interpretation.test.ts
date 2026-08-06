@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateAstrology } from "./core.js";
-import { buildAspectInsights, buildPlanetInsights } from "./interpretation.js";
+import { buildAspectInsights, buildLifeDomainInsights, buildPlanetInsights } from "./interpretation.js";
 
 test("each planet explanation is bound to its own calculated position", () => {
   const result = calculateAstrology({ year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 });
@@ -32,4 +32,21 @@ test("aspect readings retain their calculated pair and a practical reading rule"
     assert.match(insight.evidence, new RegExp(aspect.name));
     assert.ok(insight.practice.length > 15);
   }
+});
+
+test("life-domain reading is a fixed six-part synthesis of the calculated chart", () => {
+  const result = calculateAstrology({ year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 });
+  const insights = buildLifeDomainInsights(result);
+  assert.deepEqual(insights.map((item) => item.key), ["self", "emotions", "love", "career", "value", "belonging"]);
+  assert.ok(insights.every((item) => item.reading.length > 80 && item.evidence.length > 0 && item.reflection.length > 15));
+  assert.match(insights.find((item) => item.key === "self")!.reading, new RegExp(result.planets[0].sign.name));
+  assert.match(insights.find((item) => item.key === "emotions")!.evidence.join(" "), /月亮/);
+  assert.match(insights.find((item) => item.key === "love")!.evidence.join(" "), /金星/);
+});
+
+test("life-domain reading never invents houses or axes when birth time is unknown", () => {
+  const result = calculateAstrology({ year: 2000, month: 1, day: 1, hour: null, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 });
+  const text = buildLifeDomainInsights(result).flatMap((item) => [item.reading, ...item.evidence]).join(" ");
+  assert.match(text, /出生时间未知|出生时间未提供/);
+  assert.doesNotMatch(text, /上升.*：整宫制/);
 });
