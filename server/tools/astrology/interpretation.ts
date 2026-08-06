@@ -1,4 +1,4 @@
-import type { NatalAspect, PlanetPosition } from "./types.js";
+import type { AstrologyResult, NatalAspect, PlanetPosition } from "./types.js";
 
 export type PlanetInsight = {
   key: string;
@@ -12,6 +12,14 @@ export type PlanetInsight = {
 };
 
 export type AspectInsight = { key: string; title: string; evidence: string; interpretation: string; practice: string };
+export type LifeDomainInsight = {
+  key: "self" | "emotions" | "love" | "career" | "value" | "belonging";
+  title: string;
+  question: string;
+  reading: string;
+  evidence: string[];
+  reflection: string;
+};
 
 type PlanetRule = { domain: string; principle: string; strength: string; excess: string };
 type SignRule = { style: string; resource: string; blindSpot: string };
@@ -108,3 +116,80 @@ export function explainAspect(aspect: NatalAspect): AspectInsight {
 }
 
 export function buildAspectInsights(aspects: NatalAspect[]) { return aspects.map(explainAspect); }
+
+function planetOf(planets: PlanetPosition[], key: string) {
+  const planet = planets.find((item) => item.key === key);
+  if (!planet) throw new Error(`缺少本命盘行星：${key}`);
+  return planet;
+}
+
+function compactPosition(planet: PlanetPosition) {
+  return `${planet.name}${planet.sign.name}${planet.house ? `第${planet.house}宫` : ""}${planet.retrograde ? "逆行" : ""}`;
+}
+
+function houseEvidence(planet: PlanetPosition, topic: string) {
+  return planet.house ? `${compactPosition(planet)}：这颗星会把${topic}带到更具体的日常情境里。` : `${planet.name}${planet.sign.name}：出生时间未提供，因此这里不把${topic}延伸为宫位结论。`;
+}
+
+function firstRelatedAspect(result: AstrologyResult, names: string[]) {
+  return result.aspects.find((aspect) => names.includes(aspect.first) || names.includes(aspect.second));
+}
+
+/**
+ * The product-facing reading layer. These are deterministic combinations of
+ * calculated placements, axes and aspects—not prose selected by an LLM. It is
+ * intentionally shorter than the professional report: users meet their life
+ * themes first and can open the rule-level evidence only when they need it.
+ */
+export function buildLifeDomainInsights(result: AstrologyResult): LifeDomainInsight[] {
+  const sun = planetOf(result.planets, "sun");
+  const moon = planetOf(result.planets, "moon");
+  const venus = planetOf(result.planets, "venus");
+  const mars = planetOf(result.planets, "mars");
+  const jupiter = planetOf(result.planets, "jupiter");
+  const saturn = planetOf(result.planets, "saturn");
+  const asc = result.angles.find((angle) => angle.key === "asc");
+  const mc = result.angles.find((angle) => angle.key === "mc");
+  const identityAspect = firstRelatedAspect(result, [sun.name, moon.name]);
+  const relationshipAspect = firstRelatedAspect(result, [venus.name, mars.name, moon.name]);
+  const careerAspect = firstRelatedAspect(result, [sun.name, saturn.name]);
+
+  return [
+    {
+      key: "self", title: "我如何成为我", question: "你最希望以怎样的方式被看见？",
+      reading: `你的核心驱动力由${compactPosition(sun)}定调：你会倾向用${SIGN_RULES[sun.sign.name]?.style ?? "自己的方式"}来确认“这件事是我真正认同的”。${asc ? `上升${asc.sign.name}让你初见世界时更容易呈现出${SIGN_RULES[asc.sign.name]?.style ?? "鲜明的个人风格"}。` : "出生时间未知，因此不以第一印象或人生起点替你下结论。"}`,
+      evidence: [houseEvidence(sun, "自我认同与主动选择"), ...(asc ? [`上升${asc.sign.name}：整宫制下的第一宫起点。`] : []), ...(identityAspect ? [`${identityAspect.first}${identityAspect.name}${identityAspect.second}，容许度${identityAspect.orb}°：核心感受与行动之间还有一层需要一起理解的互动。`] : [])],
+      reflection: "当你最有力量时，是在迎合期待，还是在表达一个自己真正认可的选择？",
+    },
+    {
+      key: "emotions", title: "情绪与安全感", question: "你在压力里真正想被满足的是什么？",
+      reading: `月亮在${moon.sign.name}提示：你会更需要${SIGN_RULES[moon.sign.name]?.resource ?? "被理解与安放"}，而不是只靠“想开一点”让情绪过去。${moon.house ? `它落在第${moon.house}宫，所以这份需要常会在${HOUSE_RULES[moon.house]?.field ?? "日常生活"}中被触发。` : "由于出生时间未知，这里不把情绪触发点限定到某个生活领域。"}`,
+      evidence: [houseEvidence(moon, "情绪反应与恢复方式")],
+      reflection: "下一次情绪上来时，先问自己：我现在需要的是空间、回应、秩序，还是允许自己慢一点？",
+    },
+    {
+      key: "love", title: "爱情与亲密关系", question: "你怎样靠近，又怎样守住自己？",
+      reading: `金星${compactPosition(venus)}说明你会以${SIGN_RULES[venus.sign.name]?.style ?? "自己的偏好"}来感受喜欢与被珍惜；火星${compactPosition(mars)}则显示你在想争取、说不或处理摩擦时更容易采用的节奏。把两者放在一起看，你既需要关系里有真实的吸引与回应，也需要能清楚表达界限。`,
+      evidence: [houseEvidence(venus, "喜欢、交换与亲密"), houseEvidence(mars, "行动、欲望与边界"), ...(relationshipAspect ? [`${relationshipAspect.first}${relationshipAspect.name}${relationshipAspect.second}，容许度${relationshipAspect.orb}°：这组关系功能值得结合真实互动优先核对。`] : [])],
+      reflection: "在一段关系里，你更容易先照顾气氛，还是先说明自己的真实偏好？",
+    },
+    {
+      key: "career", title: "事业与天赋", question: "什么样的投入会让你有长期成就感？",
+      reading: `太阳${compactPosition(sun)}指出你想把生命力投向的方向；土星${compactPosition(saturn)}则指出需要靠时间、结构与重复练习成熟的能力。${mc ? `天顶${mc.sign.name}补充了你希望在公共世界承担的角色风格。` : "出生时间未知，因此不把职业方向简化为单一宫位或天顶结论。"} 对你来说，更有价值的不是迅速被定义“适合什么职业”，而是找到既能承担责任、又能持续表达自我的工作方式。`,
+      evidence: [houseEvidence(sun, "主动投入"), houseEvidence(saturn, "长期责任与专业能力"), ...(mc ? [`天顶${mc.sign.name}：公众角色与长期方向的辅助证据。`] : []), ...(careerAspect ? [`${careerAspect.first}${careerAspect.name}${careerAspect.second}，容许度${careerAspect.orb}°：意志与责任之间的关键结构。`] : [])],
+      reflection: "什么事即使短期没人鼓掌，你仍愿意慢慢练到更专业？",
+    },
+    {
+      key: "value", title: "金钱与价值感", question: "你靠什么建立“我值得、我有底气”的感觉？",
+      reading: `金星${compactPosition(venus)}与木星${compactPosition(jupiter)}共同提示：你的价值感既来自能够享受、交换和选择，也来自看见更大的可能与资源流动。${venus.house === 2 || jupiter.house === 2 ? "其中有一颗星直接落入第二宫，这让金钱、拥有感与自我评价更需要被有意识地区分开来。" : "它们不等于收入预测；更适合用来观察你如何定价、消费、积累，以及何时把外部资源误当成自我证明。"}`,
+      evidence: [houseEvidence(venus, "价值、关系与愉悦"), houseEvidence(jupiter, "成长、资源与信念")],
+      reflection: "最近一次让你觉得“我不够好”的时刻，真正缺的是资源、认可，还是对自己的信任？",
+    },
+    {
+      key: "belonging", title: "家庭、人际与成长", question: "你从哪里获得归属，又向哪里扩展？",
+      reading: `月亮${compactPosition(moon)}保留着你对熟悉、家与情感归属的需求；木星${compactPosition(jupiter)}则推动你走向更大的世界、信念或社群。${moon.house === 4 ? "月亮落入第四宫，让私人空间与原生经验尤其值得温柔地整理。" : jupiter.house === 9 || jupiter.house === 11 ? "木星落在扩展视野或社群主题的宫位，成长常来自走出熟悉圈层、与不同人连接。" : "这条线索更适合从你如何在熟悉感与探索欲之间来回调节去观察。"}`,
+      evidence: [houseEvidence(moon, "归属与情感根基"), houseEvidence(jupiter, "成长、远景与社群")],
+      reflection: "你最近最需要的是回到让自己安定的地方，还是去一个能打开新视野的环境？",
+    },
+  ];
+}
