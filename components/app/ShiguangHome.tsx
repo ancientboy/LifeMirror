@@ -101,13 +101,14 @@ export function ShiguangHome() {
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
     <section className={styles.welcome}>
-      <div><small>你和拾光的私人空间</small><h1>有些话，不想急着跟谁解释。<br />先和拾光聊聊。</h1><p>不用把话想得很完整。你可以从一件小事、一个感觉，或一个你暂时不知道该跟谁说的问题开始。</p></div>
+      <div><small>你和拾光的私人空间</small><h1>先不用选工具。<br />说说你想理解的事。</h1><p>拾光会先陪你把问题说清；只有确实有帮助时，才建议命盘、星盘、塔罗或六爻作为补充视角。</p></div>
       <div className={styles.entryPoints} aria-label="选择一个想聊的方向">
         {[
+          ["我想更了解自己", "我想从我的长期模式开始，更了解自己。"],
           ["有段关系让我有点乱", "我想理清一段关系。"],
-          ["我不知道该怎么开口", "有件事我不知道该怎么开口。"],
-          ["有件事一直压在心里", "有件事一直压在我心里，我想先说说。"],
           ["我正卡在一个选择里", "我正卡在一个选择里，不知道怎么往前走。"],
+          ["我最近有点累或焦虑", "我最近有点累或焦虑，想知道自己真正需要什么。"],
+          ["我有一件具体的事想问", "我有一件具体的事想慢慢理清。"],
         ].map(([label, seed]) => <button type="button" key={label} onClick={() => seedChat(seed)}>{label}<ArrowRight /></button>)}
       </div>
     </section>
