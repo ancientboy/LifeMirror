@@ -25,7 +25,11 @@
 
 .appShell button, .appShell input, .appShell textarea { font: inherit; }
 .appShell button { color: inherit; }
-.appShell button:focus-visible, .appShell a:focus-visible, .appShell input:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.appShell button:focus-visible, .appShell a:focus-visible, .appShell input:focus-visible, .appShell textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+/* Writing should feel calm: the caret is sufficient feedback for text fields.
+    Keep the visible focus indicator for links and buttons so keyboard navigation
+    remains discoverable. */
+.appShell input:focus-visible, .appShell textarea:focus-visible { outline: none; }
 
 .brandBar, .appHeader {
   height: 84px;
