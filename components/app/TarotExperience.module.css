@@ -276,6 +276,18 @@
     "Songti SC",
     serif;
 }
+.professionalReading {
+  padding: 15px 18px;
+  border: 1px solid rgba(225, 184, 111, 0.24);
+  border-radius: 18px;
+  background: rgba(17, 18, 47, 0.46);
+}
+.professionalReading > summary { cursor: pointer; color: var(--gold); font: 13px Georgia, "Songti SC", serif; }
+.readingGuide { margin: 12px 0 4px; color: #898493; font: 12px/1.7 Georgia, "Songti SC", serif; }
+.professionalDetail { margin-top: 26px; }
+:global(body) .professionalReading { border-color: rgba(98,93,130,.2); background: rgba(255,252,246,.78); }
+:global(body) .professionalReading > summary { color: #625d82; }
+:global(body) .readingGuide { color: #716c7c; }
 .cards {
   width: min(920px, 82%);
   margin-top: 38px;
