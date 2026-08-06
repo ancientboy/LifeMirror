@@ -18,19 +18,25 @@
 .followUp b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:16px/1.35 Georgia,"Songti SC",serif; }
 .followUp p { margin:0; color:#68716c; font-size:12px; }
 .followUp div { display:flex; gap:7px; margin-top:5px; }.followUp button { padding:6px 10px; border:1px solid rgba(49,93,82,.2); border-radius:999px; color:#315d52; background:#fffdf7; font-size:11px; cursor:pointer; }.followUp button:hover { color:#fff; background:#315d52; }
-.today { width:min(900px,calc(100% - 32px)); margin:22px auto 0; padding:24px; display:grid; grid-template-columns:1fr auto; gap:24px; align-items:end; border:1px solid rgba(49,93,82,.2); border-radius:24px; background:linear-gradient(135deg,rgba(255,252,246,.94),rgba(199,220,209,.8)); box-shadow:0 18px 50px rgba(49,93,82,.12); }
-.today small { display:flex; align-items:center; gap:7px; color:#8b7444; font-size:10px; letter-spacing:.1em; }
-.today h1 { max-width:650px; margin:10px 0 7px; font:400 clamp(22px,3.2vw,34px)/1.45 Georgia,"Songti SC",serif; }
-.today p { margin:0; color:#68716c; font-size:12px; }
-.dailyCopy { min-width:0; }
-.dailyCopy>p { max-width:650px; font-size:13px; line-height:1.75; }
-.dailyAction { max-width:650px; margin-top:16px; padding:12px 14px; display:flex; gap:10px; align-items:flex-start; border-left:2px solid #a9823d; border-radius:0 12px 12px 0; background:rgba(255,252,246,.55); }
+.welcome { width:min(900px,calc(100% - 32px)); margin:24px auto 0; padding:32px; display:grid; gap:26px; border:1px solid rgba(49,93,82,.18); border-radius:26px; background:linear-gradient(135deg,rgba(255,252,246,.95),rgba(207,225,215,.76)); box-shadow:0 18px 50px rgba(49,93,82,.1); }
+.welcome small,.dailyHeading small { display:flex; align-items:center; gap:7px; color:#8b7444; font-size:10px; letter-spacing:.1em; }
+.welcome h1 { max-width:700px; margin:10px 0 10px; font:400 clamp(25px,3.4vw,38px)/1.4 Georgia,"Songti SC",serif; letter-spacing:.01em; }
+.welcome p { max-width:610px; margin:0; color:#68716c; font-size:13px; line-height:1.8; }
+.entryPoints { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.entryPoints button { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 15px; border:1px solid rgba(49,93,82,.18); border-radius:15px; color:#315d52; background:rgba(255,253,247,.74); font:13px/1.35 inherit; text-align:left; cursor:pointer; transition:.18s ease; }
+.entryPoints button:hover { transform:translateY(-1px); border-color:#719786; background:#fffdf7; box-shadow:0 7px 18px rgba(49,93,82,.09); }
+.entryPoints svg { flex:none; width:16px; height:16px; }
+.daily { width:min(900px,calc(100% - 32px)); margin:0 auto 106px; padding:22px 24px; display:grid; grid-template-columns:1fr auto; gap:16px 28px; align-items:start; border:1px solid #dfd8cb; border-radius:20px; background:rgba(255,252,246,.62); }
+.dailyHeading { min-width:0; }
+.daily h2 { max-width:650px; margin:9px 0 5px; font:400 clamp(18px,2.4vw,25px)/1.45 Georgia,"Songti SC",serif; }
+.daily p { margin:0; color:#68716c; font-size:12px; line-height:1.7; }
+.dailyAction { max-width:300px; padding:12px 14px; display:grid; gap:5px; border-left:2px solid #a9823d; border-radius:0 12px 12px 0; background:rgba(255,252,246,.55); }
 .dailyAction b { flex:none; color:#8b7444; font-size:10px; letter-spacing:.06em; }
 .dailyAction span { color:#3f4a45; font-size:12px; line-height:1.55; }
-.dailyCopy details { max-width:650px; margin-top:12px; color:#68716c; font-size:11px; }
-.dailyCopy summary { width:max-content; cursor:pointer; color:#526c62; }
-.dailyCopy details>p { margin-top:9px; font-size:10px; line-height:1.6; }
-.dailyCopy details>a { display:inline-flex; align-items:center; gap:4px; margin-top:8px; color:#315d52; font-weight:700; }
+.daily details { grid-column:1/-1; max-width:650px; color:#68716c; font-size:11px; }
+.daily summary { width:max-content; cursor:pointer; color:#526c62; }
+.daily details>p { margin-top:9px; font-size:10px; line-height:1.6; }
+.daily details>a { display:inline-flex; align-items:center; gap:4px; margin-top:8px; color:#315d52; font-weight:700; }
 .sources { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .sources span { padding:5px 8px; border-radius:999px; color:#596862; background:rgba(49,93,82,.09); font-size:9px; }
 .checkIn { min-width:235px; display:grid; gap:9px; }
@@ -51,6 +57,9 @@
   .identity b { font-size:16px; }
   .topbar>a span { display:none; }
   .chatSection { min-height:calc(100dvh - 58px); padding:8px 0 92px; }
-  .today { margin-top:14px; padding:18px; grid-template-columns:1fr; gap:18px; }
-  .checkIn { min-width:0; }
+  .welcome { margin-top:14px; padding:23px 19px; gap:20px; }
+  .welcome h1 { font-size:26px; }
+  .entryPoints { grid-template-columns:1fr; }
+  .daily { margin-bottom:88px; padding:18px; grid-template-columns:1fr; gap:14px; }
+  .dailyAction { max-width:none; }
 }
