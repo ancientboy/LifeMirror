@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleNotch, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { ArrowRight, CircleNotch, Sparkle, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
@@ -124,9 +124,9 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
     </div>
-    <aside><small>留给你的问题</small><p>{result.reflectionQuestion}</p></aside>
+    <aside><small>把它说具体一点</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
-      paper: { kicker: `我的此刻 · ${labels[kind]}`, title: "这句话有点像我", quote: result.shareCards.warm, meta },
+      paper: { kicker: `我的此刻 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
       night: { kicker: `关系回应 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
       character: { kicker: `邀请对照 · ${labels[kind]}`, quote: result.shareCards.witty, meta: "生成你的镜像，和我对照看看" },
     }} />

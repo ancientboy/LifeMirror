@@ -17,6 +17,7 @@
 .followUp small { color:#7b817d; font-size:10px; letter-spacing:.08em; }
 .followUp b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:16px/1.35 Georgia,"Songti SC",serif; }
 .followUp p { margin:0; color:#68716c; font-size:12px; }
+.followUp div { display:flex; gap:7px; margin-top:5px; }.followUp button { padding:6px 10px; border:1px solid rgba(49,93,82,.2); border-radius:999px; color:#315d52; background:#fffdf7; font-size:11px; cursor:pointer; }.followUp button:hover { color:#fff; background:#315d52; }
 .today { width:min(900px,calc(100% - 32px)); margin:22px auto 0; padding:24px; display:grid; grid-template-columns:1fr auto; gap:24px; align-items:end; border:1px solid rgba(49,93,82,.2); border-radius:24px; background:linear-gradient(135deg,rgba(255,252,246,.94),rgba(199,220,209,.8)); box-shadow:0 18px 50px rgba(49,93,82,.12); }
 .today small { display:flex; align-items:center; gap:7px; color:#8b7444; font-size:10px; letter-spacing:.1em; }
 .today h1 { max-width:650px; margin:10px 0 7px; font:400 clamp(22px,3.2vw,34px)/1.45 Georgia,"Songti SC",serif; }

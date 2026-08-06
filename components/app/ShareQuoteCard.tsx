@@ -6,232 +6,66 @@ import styles from "./ShareQuoteCard.module.css";
 
 type Variant = "paper" | "night" | "character";
 type CardContent = { kicker?: string; title?: string; quote: string; meta: string };
-type Props = {
-  title: string;
-  quote: string;
-  meta: string;
-  theme: "east" | "west";
-  image: string;
-  contentByVariant?: Partial<Record<Variant, CardContent>>;
-};
-
+type Props = { title: string; quote: string; meta: string; theme: "east" | "west"; image: string; contentByVariant?: Partial<Record<Variant, CardContent>> };
+const persona = "/characters/card/shiguang-share-v1.png";
 const variants: Array<{ id: Variant; label: string; note: string }> = [
-  { id: "paper", label: "发自己", note: "像我，所以想留下" },
-  { id: "night", label: "发给 TA", note: "让对方回应关系" },
-  { id: "character", label: "邀请对照", note: "看看彼此哪里不同" },
+  { id: "paper", label: "留给自己", note: "一张此刻的镜像信" },
+  { id: "night", label: "发给 TA", note: "邀请对方回应" },
+  { id: "character", label: "邀请对照", note: "生成彼此镜像" },
 ];
 
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement | null>((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = src;
-  });
-}
-
-function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
-  const lines: string[] = [];
-  let line = "";
-  for (const char of [...text]) {
-    if (context.measureText(line + char).width > maxWidth && line) {
-      lines.push(line);
-      line = char;
-    } else line += char;
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 5);
-}
-
-/** A share card is a glimpse, not a compressed analysis report. */
-function compactQuote(value: string) {
-  const clean = value.replace(/\s+/g, "").replace(/^(?:翻译(?:一下|成人话)?|人话版)[：:]/, "").replace(/[。！？!?]+$/u, "");
-  return [...clean].slice(0, 32).join("");
-}
-
-function exportCanvas(canvas: HTMLCanvasElement) {
-  return new Promise<Blob>((resolve, reject) => {
-    if (typeof canvas.toBlob === "function") {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("empty_canvas")), "image/png");
-      return;
-    }
-    try {
-      const [header, bytes] = canvas.toDataURL("image/png").split(",");
-      const binary = atob(bytes);
-      const array = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) array[index] = binary.charCodeAt(index);
-      resolve(new Blob([array], { type: header.match(/data:(.*?);/)?.[1] ?? "image/png" }));
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-function downloadBlob(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
+function loadImage(src: string) { return new Promise<HTMLImageElement | null>((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = src; }); }
+function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) { const lines: string[] = []; let line = ""; for (const char of [...text]) { if (context.measureText(line + char).width > maxWidth && line) { lines.push(line); line = char; } else line += char; } if (line) lines.push(line); return lines.slice(0, 5); }
+function compactQuote(value: string) { return [...value.replace(/\s+/g, "").replace(/^(?:翻译(?:一下|成人话)?|人话版)[：:]/, "").replace(/[。！？!?]+$/u, "")].slice(0, 32).join(""); }
+function exportCanvas(canvas: HTMLCanvasElement) { return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("empty_canvas")), "image/png")); }
+function downloadBlob(blob: Blob, name: string) { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1500); }
 
 export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVariant }: Props) {
   const [variant, setVariant] = useState<Variant>("paper");
   const [status, setStatus] = useState("");
-
   const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
-  const current = { ...supplied, quote: compactQuote(supplied.quote), title: variant === "paper" ? undefined : supplied.title };
+  const current = { ...supplied, quote: compactQuote(supplied.quote) };
+  const visualImage = persona;
 
   async function createRelationshipLink() {
     try {
       const response = await fetch("/api/v1/social/shares", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ shareKind: variant === "character" ? "compare" : "relationship", mirrorKind: theme, quote: current.quote, meta: current.meta }) });
-      if (response.status === 401) { setStatus("登录后即可生成能让对方回应的关系链接"); return; }
+      if (response.status === 401) { setStatus("登录后即可生成让对方回应的关系链接"); return; }
       if (!response.ok) throw new Error();
-      const payload = await response.json() as { path: string };
-      const url = new URL(payload.path, window.location.origin).toString();
-      if (typeof navigator.share === "function") await navigator.share({ title: "LifeMirror · 关系镜像", text: current.quote, url });
-      else await navigator.clipboard.writeText(url);
+      const payload = await response.json() as { path: string }; const url = new URL(payload.path, window.location.origin).toString();
+      if (typeof navigator.share === "function") await navigator.share({ title: "LifeMirror · 关系镜像", text: current.quote, url }); else await navigator.clipboard.writeText(url);
       setStatus(typeof navigator.share === "function" ? "已打开分享面板" : "回应链接已复制");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setStatus("暂时无法生成回应链接，请稍后再试");
-    }
+    } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; setStatus("暂时无法生成回应链接，请稍后再试"); }
   }
 
   async function createCard(action: "share" | "save") {
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1080;
-      canvas.height = 1350;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error();
-
-      const east = theme === "east";
-      if (variant === "paper") {
-        const paper = context.createLinearGradient(0, 0, 1080, 1350);
-        paper.addColorStop(0, east ? "#fcfaf3" : "#f8f5ff");
-        paper.addColorStop(1, east ? "#e9e5d8" : "#e9e1f5");
-        context.fillStyle = paper;
-        context.fillRect(0, 0, 1080, 1350);
-        context.fillStyle = east ? "rgba(49,95,87,.08)" : "rgba(89,75,130,.09)";
-        context.beginPath(); context.arc(902, 230, 270, 0, Math.PI * 2); context.fill();
-        context.beginPath(); context.arc(815, 1030, 385, 0, Math.PI * 2); context.fill();
-        context.strokeStyle = east ? "rgba(49,95,87,.48)" : "rgba(89,75,130,.48)";
-        context.lineWidth = 2;
-        context.strokeRect(58, 58, 964, 1234);
-        context.strokeStyle = east ? "rgba(180,138,77,.55)" : "rgba(142,116,196,.54)";
-        context.beginPath(); context.arc(860, 230, 150, 0, Math.PI * 2); context.stroke();
-        context.beginPath(); context.arc(860, 230, 92, 0, Math.PI * 2); context.stroke();
-      } else {
-        const gradient = context.createLinearGradient(0, 0, 1080, 1350);
-        gradient.addColorStop(0, east ? "#214f47" : "#47356f");
-        gradient.addColorStop(1, east ? "#071d1c" : "#111126");
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 1080, 1350);
-        context.strokeStyle = east ? "rgba(218,196,129,.34)" : "rgba(203,184,255,.34)";
-        context.lineWidth = 2;
-        if (variant === "night") {
-          [150, 230, 315].forEach((radius) => {
-            context.beginPath();
-            context.arc(540, 650, radius, 0, Math.PI * 2);
-            context.stroke();
-          });
-        }
-      }
-
-      const light = variant !== "paper";
-      const ink = light ? "#f7f3e9" : east ? "#173b35" : "#2e2548";
-      const accent = east ? "#cbb576" : "#bba7e8";
-      context.fillStyle = accent;
-      context.font = "600 24px sans-serif";
-      context.fillText(current.kicker ?? "LIFE MIRROR · MOMENT NOTE", 90, 110);
-      context.fillStyle = ink;
-      if (current.title) {
-        context.font = "52px serif";
-        context.fillText(current.title, 90, 210);
-      }
-
-      const portrait = variant === "character" ? await loadImage(image) : null;
-      const textWidth = portrait ? 650 : 780;
-      context.font = variant === "paper" ? "52px serif" : "46px serif";
-      const lines = wrapText(context, `“${current.quote}”`, textWidth);
-      let y = current.title ? 382 : 310;
-      lines.forEach((line) => {
-        context.fillText(line, 90, y);
-        y += 78;
-      });
-
-      if (portrait) {
-        context.save();
-        context.globalAlpha = .9;
-        const ratio = portrait.width / portrait.height;
-        const height = 520;
-        context.drawImage(portrait, 680, 720, height * ratio, height);
-        context.restore();
-      }
-
-      if (variant === "paper") {
-        context.fillStyle = east ? "#b48a4d" : "#8e74c4";
-        context.fillRect(90, 1060, 112, 3);
-      }
-      context.fillStyle = light ? "rgba(247,243,233,.62)" : east ? "rgba(23,59,53,.62)" : "rgba(46,37,72,.62)";
-      context.font = "25px sans-serif";
-      context.fillText(current.meta.slice(0, 42), 90, 1160);
-      context.font = "600 21px sans-serif";
-      context.fillText(variant === "paper" ? "LIFE MIRROR · 拾光" : "打开 LifeMirror，回应这张镜像", 90, 1230);
-
-      const blob = await exportCanvas(canvas);
-      const name = `lifemirror-${theme}-${variant}.png`;
-      if (action === "share" && typeof File !== "undefined" && typeof navigator.share === "function") {
-        const file = new File([blob], name, { type: "image/png" });
-        let canShare = true;
-        try {
-          canShare = typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] });
-        } catch {
-          canShare = false;
-        }
-        if (canShare) {
-          try {
-            await navigator.share({ files: [file], title: current.title || "LifeMirror · 拾光", text: `${current.quote}\n${current.meta}` });
-            setStatus("已打开系统分享面板");
-            return;
-          } catch (error) {
-            if (error instanceof DOMException && error.name === "AbortError") {
-              setStatus("已取消分享，卡片仍可保存");
-              return;
-            }
-          }
-        }
-      }
-      downloadBlob(blob, name);
-      setStatus(action === "share" ? "当前浏览器不支持直接分享，已为你保存图片" : "这款分享卡已保存");
-    } catch {
-      setStatus("暂时无法生成分享卡，请稍后再试");
-    }
+      const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1350;
+      const context = canvas.getContext("2d"); if (!context) throw new Error();
+      const east = theme === "east"; const dark = variant !== "character";
+      const colors = east ? { deep: "#103735", mid: "#246155", accent: "#e6c56e", paper: "#e7f0e7", ink: "#173b35" } : { deep: "#251b48", mid: "#5c4788", accent: "#d2b4fa", paper: "#eee9fb", ink: "#352952" };
+      const background = context.createLinearGradient(0, 0, 1080, 1350);
+      if (variant === "paper") { background.addColorStop(0, colors.mid); background.addColorStop(1, colors.deep); }
+      else if (variant === "night") { background.addColorStop(0, east ? "#183e48" : "#49356f"); background.addColorStop(1, east ? "#071d27" : "#151126"); }
+      else { background.addColorStop(0, colors.paper); background.addColorStop(1, east ? "#83ab91" : "#998bc1"); }
+      context.fillStyle = background; context.fillRect(0, 0, 1080, 1350);
+      context.strokeStyle = dark ? `${colors.accent}99` : "#8c7240a6"; context.lineWidth = 2; context.strokeRect(56, 56, 968, 1238);
+      context.fillStyle = dark ? `${colors.accent}22` : "#fff8"; context.beginPath(); context.arc(850, 190, 260, 0, Math.PI * 2); context.fill();
+      context.fillStyle = dark ? colors.accent : colors.ink; context.font = "600 25px sans-serif"; context.fillText(current.kicker ?? "LIFE MIRROR · 拾光", 92, 120);
+      context.fillStyle = dark ? "#fbf6ea" : colors.ink; context.font = "52px serif"; const lines = wrapText(context, `“${current.quote}”`, 650); let y = 268; lines.forEach((line) => { context.fillText(line, 92, y); y += 82; });
+      context.fillStyle = dark ? "#f7f0dfb8" : "#283d37b8"; context.font = "25px sans-serif"; context.fillText(current.meta.slice(0, 42), 92, 1055);
+      context.fillStyle = dark ? colors.accent : "#806d43"; context.font = "600 22px sans-serif"; context.fillText(variant === "paper" ? "拾光 · 此刻的镜像信" : "打开 LifeMirror，回应这张镜像", 92, 1220);
+      const portrait = await loadImage(visualImage); if (portrait) { const ratio = portrait.width / portrait.height; const height = variant === "character" ? 680 : 640; context.drawImage(portrait, variant === "character" ? 650 : 640, 570, height * ratio, height); }
+      const blob = await exportCanvas(canvas); const name = `lifemirror-${theme}-${variant}.png`;
+      if (action === "share" && typeof File !== "undefined" && typeof navigator.share === "function") { const file = new File([blob], name, { type: "image/png" }); if (typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "LifeMirror · 拾光", text: `${current.quote}\n${current.meta}` }); setStatus("已打开系统分享面板"); return; } catch (error) { if (error instanceof DOMException && error.name === "AbortError") { setStatus("已取消分享，卡片仍可保存"); return; } } } }
+      downloadBlob(blob, name); setStatus(action === "share" ? "当前浏览器不支持直接分享，已为你保存图片" : "这款分享卡已保存");
+    } catch { setStatus("暂时无法生成分享卡，请稍后再试"); }
   }
 
   return <section className={`${styles.card} ${styles[theme]} ${styles[variant]}`}>
-    <div className={styles.content}>
-      <small><Sparkle /> {current.kicker ?? "三款镜像卡片"}</small>
-      {current.title && <h3>{current.title}</h3>}
-      <blockquote>“{current.quote}”</blockquote>
-      <span>{current.meta}</span>
-      <div className={styles.variants} aria-label="选择分享卡风格">
-        {variants.map((item) => <button type="button" className={variant === item.id ? styles.selected : ""} aria-pressed={variant === item.id} onClick={() => { setVariant(item.id); setStatus(""); }} key={item.id}>
-          {variant === item.id && <Check />}
-          <b>{item.label}</b><em>{item.note}</em>
-        </button>)}
-      </div>
-      <div className={styles.actions}>
-        <button type="button" onClick={() => variant === "paper" ? createCard("share") : void createRelationshipLink()}><ShareNetwork />{variant === "paper" ? "分享当前款" : "生成回应链接"}</button>
-        <button type="button" onClick={() => createCard("save")}><DownloadSimple />保存当前款</button>
-      </div>
-      {status && <p role="status">{status}</p>}
-    </div>
-    <img src={image} alt="" />
+    <div className={styles.content}><small><Sparkle /> {current.kicker ?? "三封来自拾光的信"}</small><blockquote>“{current.quote}”</blockquote><span>{current.meta}</span>
+      <div className={styles.variants} aria-label="选择分享卡风格">{variants.map((item) => <button type="button" className={variant === item.id ? styles.selected : ""} aria-pressed={variant === item.id} onClick={() => { setVariant(item.id); setStatus(""); }} key={item.id}>{variant === item.id && <Check />}<b>{item.label}</b><em>{item.note}</em></button>)}</div>
+      <div className={styles.actions}><button type="button" onClick={() => variant === "paper" ? createCard("share") : void createRelationshipLink()}><ShareNetwork />{variant === "paper" ? "分享这封信" : "生成回应链接"}</button><button type="button" onClick={() => createCard("save")}><DownloadSimple />保存卡片</button></div>{status && <p role="status">{status}</p>}</div>
+    <img src={visualImage || image} alt="Q版拾光" />
   </section>;
 }
