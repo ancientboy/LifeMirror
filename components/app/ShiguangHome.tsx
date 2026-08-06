@@ -10,13 +10,24 @@ import { AccountDataSync } from "./AccountDataSync";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
 
 type DailyGuidance = { theme: string; reason: string; action: string; sources: string[] };
-type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
+type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; summary?: string; feedback?: "resonates" | "needs_correction"; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
+type WeeklyReflection = { count: number; themes: string[]; summary: string } | null;
 
 const fallbackDaily: DailyGuidance[] = [
   { theme: "今天先处理最消耗你的那一件。", reason: "有些疲惫不是事情太多，而是一个悬着的问题一直占着注意力。", action: "给它留十分钟：推进一步，或明确今天先不处理。", sources: ["今日节律"] },
   { theme: "今天不必把所有答案一次想完。", reason: "当现实信息还不完整时，继续推演只会让心里更吵。", action: "只确认下一步需要的一个事实。", sources: ["今日节律"] },
   { theme: "今天适合把感受和事实分开。", reason: "你在意的事值得认真对待，但不必让最坏的猜测先替现实下结论。", action: "写下一句已发生的事实，再决定是否回应。", sources: ["今日节律"] },
 ];
+
+function buildWeeklyReflection(history: MirrorHistoryItem[]): WeeklyReflection {
+  const recent = history.filter((item) => item.savedAt && Date.now() - Date.parse(item.savedAt) <= 7 * 86_400_000);
+  if (recent.length < 2) return null;
+  const themes = [
+    { name: "关系与回应", match: /关系|感情|伴侣|朋友|家人|对方|联系|复合/u },
+    { name: "事业与行动", match: /工作|职业|事业|项目|面试|方向|行动/u },
+  ].filter((theme) => recent.filter((item) => theme.match.test(`${item.question ?? ""} ${item.summary ?? ""}`)).length >= 2).map((theme) => theme.name);
+  return { count: recent.length, themes, summary: themes.length ? `这一周，你反复回到${themes.join("、")}。这不是标签，只是一条值得慢慢核对的线。` : `这一周保存了 ${recent.length} 次镜像。先把它们放在一起看，再决定哪一件最值得继续回应。` };
+}
 
 function extractJson(text: string): unknown {
   const source = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? text;
@@ -40,10 +51,13 @@ const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}$
 export function ShiguangHome() {
   const [ready, setReady] = useState(false);
   const [latestQuestion, setLatestQuestion] = useState("");
+  const [latestClue, setLatestClue] = useState("");
   const [followUpDue, setFollowUpDue] = useState(false);
   const [daily, setDaily] = useState<DailyGuidance>(fallbackDaily[0]);
   const [dailyLoading, setDailyLoading] = useState(true);
   const [hasBirthProfile, setHasBirthProfile] = useState(false);
+  const [weeklyReflection, setWeeklyReflection] = useState<WeeklyReflection>(null);
+  const [weeklyDismissed, setWeeklyDismissed] = useState(false);
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % fallbackDaily.length;
@@ -62,8 +76,10 @@ export function ShiguangHome() {
     try {
       const history = JSON.parse(window.localStorage.getItem("life-mirror:guest-history:v1") ?? "[]") as MirrorHistoryItem[];
       setLatestQuestion(history[0]?.question?.trim() ?? "");
+      setLatestClue(history[0]?.reflection?.shareableReflection?.trim() ?? history[0]?.reflection?.shiguangInterpretation?.trim() ?? history[0]?.reflection?.traditionalJudgment?.trim() ?? "");
       const savedAt = history[0]?.savedAt ? Date.parse(history[0].savedAt) : Number.NaN;
       setFollowUpDue(Number.isFinite(savedAt) && Date.now() - savedAt >= 3 * 86_400_000);
+      setWeeklyReflection(buildWeeklyReflection(history));
       const profile = getSavedBirthProfile();
       setHasBirthProfile(Boolean(profile));
       const base = fallbackDaily[dayIndex];
@@ -103,6 +119,7 @@ export function ShiguangHome() {
       <div className={styles.checkIn}><small>10 秒告诉拾光，你现在怎样？</small><span>{["紧绷", "犹豫", "期待", "疲惫"].map((mood) => <button type="button" key={mood} onClick={() => seedChat(`我今天有点${mood}。${latestQuestion ? `可能还和“${latestQuestion}”有关。` : ""}`)}>{mood}</button>)}</span></div>
     </section>
     {latestQuestion && followUpDue && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>拾光在等一次回访</small><b>{latestQuestion}</b><p>三天前的这件事，后来怎么样了？只要点一个状态，拾光会从这里接着理解你。</p><div>{["更好", "没变", "更糟"].map((state) => <button type="button" key={state} onClick={() => seedChat(`关于“${latestQuestion}”，现在是${state}。`)}>{state}</button>)}</div></span></aside>}
+    {weeklyReflection && !weeklyDismissed && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>这一周的镜像线索 · {weeklyReflection.count} 条记录</small><b>{weeklyReflection.themes.length ? weeklyReflection.themes.join(" · ") : "想一起回看这一周吗？"}</b><p>{weeklyReflection.summary}</p><div><Link href="/app/review/">查看本周回顾</Link><button type="button" onClick={() => setWeeklyDismissed(true)}>暂不需要</button></div></span></aside>}
     <section className={styles.chatSection}><ShiguangChat mode="home" theme="east" context={`这是 LifeMirror 的常规聊天首页。用户尚未选择具体工具。先自然回应近况；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。你可以直接从此刻最想说的那件事开始。"} /></section>
     <AppBottomNav active="home" />
   </main>;
