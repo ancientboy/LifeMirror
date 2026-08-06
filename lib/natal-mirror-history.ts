@@ -33,6 +33,15 @@ function write(items: SavedNatalMirror[]) {
   window.localStorage.setItem(KEY, JSON.stringify(items.slice(0, 12)));
 }
 
+/** The dashboard only needs the latest saved chart for each system. */
+export function getLatestSavedNatalMirrors(): Partial<Record<NatalKind, SavedNatalMirror>> {
+  return read().reduce<Partial<Record<NatalKind, SavedNatalMirror>>>((latest, item) => {
+    const current = latest[item.kind];
+    if (!current || Date.parse(item.calculatedAt) > Date.parse(current.calculatedAt)) latest[item.kind] = item;
+    return latest;
+  }, {});
+}
+
 export function getSavedNatalMirror<T extends NatalResult>(kind: NatalKind, profile: SavedBirthProfile): SavedNatalMirror & { result: T } | null {
   const match = read().find((item) => item.kind === kind && item.profileKey === profileKey(profile));
   return match as (SavedNatalMirror & { result: T }) | null;
