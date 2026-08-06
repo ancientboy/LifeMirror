@@ -7,7 +7,6 @@ import styles from "./ShareQuoteCard.module.css";
 type Variant = "paper" | "night" | "character";
 type CardContent = { kicker?: string; title?: string; quote: string; meta: string };
 type Props = { title: string; quote: string; meta: string; theme: "east" | "west"; image: string; contentByVariant?: Partial<Record<Variant, CardContent>> };
-const persona = "/characters/card/shiguang-share-v1.png";
 const variants: Array<{ id: Variant; label: string; note: string }> = [
   { id: "paper", label: "留给自己", note: "一张此刻的镜像信" },
   { id: "night", label: "发给 TA", note: "邀请对方回应" },
@@ -25,7 +24,9 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   const [status, setStatus] = useState("");
   const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
   const current = { ...supplied, quote: compactQuote(supplied.quote) };
-  const visualImage = persona;
+  // Use the active East/West Q-version Shiguang passed by the experience.
+  // Do not replace it with a generic card asset.
+  const visualImage = image;
 
   async function createRelationshipLink() {
     try {
