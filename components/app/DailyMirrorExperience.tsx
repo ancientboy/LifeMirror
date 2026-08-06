@@ -230,6 +230,13 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
   const playful = hexagram.judgment.tone === "playful";
   const investment = analysisContext?.scenario === "investment" || analysisContext?.intents?.some((intent) => intent.scenario === "investment");
   const careful = hexagram.judgment.tone === "careful";
+  const relationshipQuestion = /关系|对方|彼此|感情|伴侣|朋友|联系|复合/u.test(question);
+  const shareAnchor = (plainStory || verdictText || `${knowledge.original.name}走向${knowledge.changed.name}`).replace(/[。；].*/u, "").slice(0, 30);
+  const shareCards = {
+    warm: { title: "", quote: playful ? "今天值得赢到开心，不必把快乐也做成绩效" : `${shareAnchor}。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻` },
+    witty: { title: "", quote: playful ? "换你来照一次，看看谁更会把快乐想复杂" : `我这次看见的是“${shareAnchor.slice(0, 16)}”，也看看你的。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照` },
+    roast: { title: "", quote: playful ? "我想要的是一起开心，不是再比一次谁输谁赢" : relationshipQuestion ? "这件事悬着，不只因为沉默，也因为没人先认真回应。" : "别让猜测替你做决定，现实的回应才算数。", meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应` },
+  };
   const reflection: Reflection = {
     traditionalJudgment: `${playful ? "先说结果" : "先说结论"}：${verdictText || "暂时还不能定"}。`,
     reasoningExplanation: technicalStory || `${hexagram.originalHexagram.name}之${hexagram.changedHexagram.name}，目前只保留卦象层面的方向。`,
@@ -238,23 +245,7 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
     evidenceCards,
     closing: playful ? { type: "follow_up", text: "真去了回来跟我说说，这卦到底猜中了几分。" } : { type: "observation", text: "先看现实有没有回应卦里这股力，再决定下一步。" },
     shareableReflection: playful ? "今天更值得赢到开心，不必把每一分输赢都算得太重。" : `${knowledge.original.name}走向${knowledge.changed.name}：先按眼前最清楚的条件，决定下一步。`,
-    shareCards: {
-      warm: {
-        title: "",
-        quote: playful ? "今天值得赢到开心，不必把快乐也做成绩效" : `我不是没有答案，只是还想给变化留一点余地`,
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻`,
-      },
-      witty: {
-        title: "",
-        quote: playful ? "换你来照一次，看看谁更会把快乐想复杂" : `也生成一次你的镜像，看看我们会不会困在同一处`,
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照`,
-      },
-      roast: {
-        title: "",
-        quote: playful ? "我想要的是一起开心，不是再比一次谁输谁赢" : "我们都在等对方先靠近，所以这件事才一直悬着",
-        meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应`,
-      },
-    },
+    shareCards,
   };
   return {
     question: question.trim(),
@@ -707,8 +698,8 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
 
       {stage === "home" && (
         <section className={styles.companionHome}>
-          <div className={styles.companionWelcome}><div><p>今日镜像 · 拾光在这里</p><h1>先说你心里<br />最放不下的事。</h1><span>不用先懂工具。直接说近况；需要另一种观察角度时，拾光再陪你选择。</span></div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /></div>
-          <div className={styles.homeConversation}><ShiguangChat mode="home" theme="east" context="这是用户进入 LifeMirror 后的常规陪伴首页。当前还没有选择六爻、命盘、塔罗或占星；先自然回应用户当下的困惑，帮助澄清问题，不主动制造占卜结论。" opening="我在。你不必先选择工具——可以直接告诉我，今天哪件事最留在心里。我们先把它说清楚，再决定要不要借一种镜像来看。" /></div>
+          <div className={styles.companionWelcome}><div><p>今日镜像 · 拾光在这里</p><h1>先说你心里<br />最放不下的事。</h1><span>不用先选工具。把近况告诉拾光；需要时，她会替你找到合适的角度。</span></div><img src={assetPath("/characters/shiguang/shiguang-hero.webp")} alt="拾光" /></div>
+          <div className={styles.homeConversation}><ShiguangChat mode="home" theme="east" context="这是用户进入 LifeMirror 后的常规陪伴首页。当前还没有选择六爻、命盘、塔罗或占星；先自然回应用户当下的困惑，不主动制造占卜结论，也不把分析和选择任务交还给用户。" opening="我在。今天哪件事最让你放不下？" /></div>
           <section className={styles.toolHub}><header><div><small>需要时再用工具</small><h2>换一个角度看此刻</h2></div><span>不确定选哪个，就先和拾光聊</span></header><div>
             <button type="button" onClick={startMirror}><Hexagon /><span><b>六爻</b><small>适合具体事件与变化中的选择</small></span><ArrowRight /></button>
             <Link href="/app/chart/"><ChartPolar /><span><b>命盘</b><small>从出生时间结构理解长期节奏</small></span><ArrowRight /></Link>
