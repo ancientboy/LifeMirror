@@ -778,6 +778,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
           <div className={styles.resultHeader}><span>03 · YOUR HEXAGRAM</span><h1>你的卦象</h1><p>先看清本卦、动爻与变卦，再进入传统解释。</p></div>
           <div className={styles.verdictStrip} aria-label="本次卦象倾向">
             {hexagram.judgment.verdicts.map((verdict) => { const display = verdictPresentation(verdict.direction); return <article className={styles[display.tone]} key={verdict.intentId}><b>{display.label}</b><div><small>{verdict.label} · 整体倾向</small><strong>{display.detail}</strong><p>{verdict.shortReason}</p></div></article>; })}
+            <span>这是卦象的阶段性倾向，不替代现实核验与决定。</span>
           </div>
           <div className={styles.hexagramReveal}>
             <article><span className={styles.hexSymbol}>{hexagram.originalHexagram.symbol}</span><small>本卦 · 第 {hexagram.originalHexagram.number} 卦</small><h2>{hexagram.originalHexagram.name}</h2><p>{hexagram.originalHexagram.upperTrigram.nature}上 · {hexagram.originalHexagram.lowerTrigram.nature}下</p></article>
@@ -798,7 +799,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
       {stage === "traditional" && reflectionResult && hexagram && knowledge && (
         <section className={styles.resultScreen}>
           <button className={styles.backButton} onClick={() => setStage("hexagram")}><ArrowLeft /> 返回卦象</button>
-          <div className={styles.resultHeader}><span>04 · LIUYAO READING</span><h1>先回答你的问题。</h1><p>拾光先说重点，想看卦辞与动爻时再展开。</p></div>
+          <div className={styles.resultHeader}><span>04 · LIUYAO READING</span><h1>先回答你的问题。</h1><p>先给结果，再说这卦怎么看。反思不会抢在答案前面。</p></div>
           <article className={styles.judgmentCard}><small>拾光先说</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.reflection.traditionalJudgment}</p></article>
           {reflectionResult.generationMode === "basic" && reflectionResult.generationNotice && <div className={styles.basicNotice} role="status">{reflectionResult.generationNotice}</div>}
           <section className={styles.reasoningCard}><small>这卦怎么看 · LIUYAO REASONING</small><h2>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</h2><p>{reflectionResult.reflection.reasoningExplanation}</p></section>
@@ -841,6 +842,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
             night: { kicker: "关系回应 · FOR US", ...reflectionResult.reflection.shareCards.roast },
             character: { kicker: "邀请对照 · COMPARE", ...reflectionResult.reflection.shareCards.witty },
           } : undefined} />
+          <div className={styles.sourceNote}><Sparkle /><span><b>拾光提供的是理解与行动线索</b><small>{reflectionResult.knowledge.framing} 决定仍然属于你。</small></span></div>
           <ShiguangChat theme="east" context={`本次卦象为${reflectionResult.hexagram.originalHexagram.name}变${reflectionResult.hexagram.changedHexagram.name}；页面中的传统依据与规则证据可供复核。`} />
           <details className={styles.explanationTrace}>
             <summary>为什么拾光这样说 · 查看传统依据</summary>

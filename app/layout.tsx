@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { AppRouteTransition } from "@/components/app/AppRouteTransition";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body><AppRouteTransition />{children}</body></html>;
+  return <html lang="zh-CN"><body>{children}</body></html>;
 }
