@@ -34,6 +34,14 @@ test("aspect readings retain their calculated pair and a practical reading rule"
   }
 });
 
+test("planet reading removes a duplicated planet prefix from legacy sign data", () => {
+  const result = calculateAstrology({ year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 });
+  const venus = result.planets.find((planet) => planet.key === "venus")!;
+  const insight = buildPlanetInsights([{ ...venus, sign: { ...venus.sign, name: `${venus.name}${venus.sign.name}` } }])[0]!;
+  assert.match(insight.evidence, new RegExp(`${venus.name} ${venus.sign.name}`));
+  assert.doesNotMatch(insight.evidence, new RegExp(`${venus.name}${venus.name}`));
+});
+
 test("life-domain reading is a fixed six-part synthesis of the calculated chart", () => {
   const result = calculateAstrology({ year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 });
   const insights = buildLifeDomainInsights(result);
