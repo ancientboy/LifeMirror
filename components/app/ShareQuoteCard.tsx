@@ -24,9 +24,9 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   const [status, setStatus] = useState("");
   const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
   const current = { ...supplied, quote: compactQuote(supplied.quote) };
-  // The caller selects the active Shiguang skin. Do not replace it with a
-  // generic card asset: exported cards and on-screen cards must show the same
-  // companion the user has just been talking to.
+  // The card must always use the active Shiguang persona supplied by the
+  // experience (East for Liuyao/Bazi, West for Tarot/Astrology). A former
+  // default asset here silently replaced that persona with an unrelated boy.
   const visualImage = image;
 
   async function createRelationshipLink() {
