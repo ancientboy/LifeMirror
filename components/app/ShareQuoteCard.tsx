@@ -24,8 +24,9 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
   const [status, setStatus] = useState("");
   const supplied = contentByVariant?.[variant] ?? { title, quote, meta };
   const current = { ...supplied, quote: compactQuote(supplied.quote) };
-  // Use the active East/West Q-version Shiguang passed by the experience.
-  // Do not replace it with a generic card asset.
+  // The caller selects the active Shiguang skin. Do not replace it with a
+  // generic card asset: exported cards and on-screen cards must show the same
+  // companion the user has just been talking to.
   const visualImage = image;
 
   async function createRelationshipLink() {
