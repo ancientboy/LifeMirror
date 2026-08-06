@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CITY_COORDINATES, resolveCityCoordinate } from "../../lib/city-coordinates";
 import type { ChinaLocation } from "../../lib/china-locations";
 import { calculateBazi } from "../../server/tools/bazi/engine";
+import { BAZI_REFERENCE, ELEMENT_MEANING, PILLAR_SCOPE, TEN_GOD_MEANING } from "../../server/tools/bazi/knowledge";
 import type { BaziResult, LuckGender } from "../../server/tools/bazi/types";
 import { calculateAstrology } from "../../server/tools/astrology/core";
 import type { AstrologyResult } from "../../server/tools/astrology/types";
@@ -168,23 +169,19 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   </>;
 }
 
-const pillarScope: Record<string, string> = { year: "早年环境、家族脉络与进入社会时的外部背景", month: "成长环境、季节气势与更常被使用的社会角色", day: "日主自身，以及亲密关系中最贴身的立场", time: "后期发展、内在愿望、作品或后辈议题" };
-const tenGodMeaning: Record<string, string> = { 比肩: "同类、并行与自主", 劫财: "竞争、分配与行动同伴", 食神: "表达、创造与稳定输出", 伤官: "突破、批判与不愿受限的表达", 偏财: "机会、流动资源与外部连接", 正财: "现实责任、稳定资源与可执行经营", 七杀: "压力、决断与必须面对的挑战", 正官: "规则、责任、秩序与可被信任的角色", 偏印: "非主流学习、直觉与独处吸收", 正印: "支持、学习、保护与系统资源" };
-const elementMeaning: Record<string, string> = { 木: "生长、规划与向外展开", 火: "表达、热度与行动显化", 土: "承载、边界与现实稳定", 金: "判断、规则与收束取舍", 水: "流动、学习与资源连接" };
-
 function BaziProfessionalReading({ result }: { result: BaziResult }) {
   const profile = result.fiveElementProfile;
   const dominantGods = Object.entries(result.tenGodProfile.scores).filter(([, score]) => score > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
   return <section className={styles.professionalSection}>
-    <header><div><small>PROFESSIONAL FOUR PILLARS READING</small><h3>完整专业解读</h3></div><b>以四柱结构为依据</b></header>
+    <header><div><small>PROFESSIONAL FOUR PILLARS READING</small><h3>完整专业解读</h3></div><b>固定规则库 · {BAZI_REFERENCE.edition}</b></header>
     <p>四柱不是四个孤立的字：年、月、日、时分别提供不同层次的信息；月令决定季节气势，日主是比较十神与五行关系的基准。以下先解释盘面，再说明传统阅读的边界。</p>
-    <h4>一、四柱逐项说明</h4><div className={styles.interactions}>{result.pillars.map((pillar) => pillar ? <article key={pillar.key}><small>{pillar.label}柱 · {pillarScope[pillar.key]}</small><b>{pillar.ganZhi}</b><p>天干 {pillar.stem} 对日主为{pillar.stemTenGod}（{tenGodMeaning[pillar.stemTenGod]}）；地支 {pillar.branch} 藏干 {pillar.hiddenStems.join("、")} ，对应 {pillar.branchTenGods.map((item) => `${item}（${tenGodMeaning[item]}）`).join("、")}。五行归属为{pillar.fiveElements}，纳音为{pillar.naYin}；纳音只作传统辅助意象，不单独下结论。</p></article> : <article key="time"><small>时柱 · 后期发展与内在愿望</small><b>未提供</b><p>出生时间未知，系统不补造时柱，也不据此计算起运与大运。</p></article>)}</div>
+    <h4>一、四柱逐项说明</h4><div className={styles.interactions}>{result.pillars.map((pillar) => pillar ? <article key={pillar.key}><small>{pillar.label}柱 · {PILLAR_SCOPE[pillar.key]}</small><b>{pillar.ganZhi}</b><p>天干 {pillar.stem} 对日主为{pillar.stemTenGod}（{TEN_GOD_MEANING[pillar.stemTenGod]}）；地支 {pillar.branch} 藏干 {pillar.hiddenStems.join("、")} ，对应 {pillar.branchTenGods.map((item) => `${item}（${TEN_GOD_MEANING[item]}）`).join("、")}。五行归属为{pillar.fiveElements}，纳音为{pillar.naYin}；纳音只作传统辅助意象，不单独下结论。</p></article> : <article key="time"><small>时柱 · 后期发展与内在愿望</small><b>未提供</b><p>出生时间未知，系统不补造时柱，也不据此计算起运与大运。</p></article>)}</div>
     <h4>二、月令、日主与五行结构</h4><div className={styles.interactions}><article><small>盘面事实 · 月令</small><b>{result.seasonalProfile.monthBranch}月 · {result.seasonalProfile.monthElement}旺</b><p>月令决定这张盘的季节背景。对{profile.dayMaster}{profile.dayMasterElement}日主而言，当前关系为{result.seasonalProfile.relationToDayMaster}；它是判断日主受生扶或泄耗的起点，而不是单独的强弱结论。</p></article><article><small>盘面事实 · 日主与比例</small><b>{profile.dayMaster}{profile.dayMasterElement} · 初步{profile.strengthBand}</b><p>五行比例为{Object.entries(profile.scores).map(([key, value]) => `${key}${value}%`).join("、")}。生扶占比 {profile.supportiveShare}% 只是这套可复核算法的基础指标；格局、通关、调候与不同流派取用仍需综合判断。</p></article></div>
-    <div className={styles.interactions}>{Object.entries(profile.scores).map(([element, score]) => <article key={element}><small>五行分布 · {score}%</small><b>{element}：{elementMeaning[element]}</b><p>{score === 0 ? `原局统计中未见${element}，不等于人生“缺少”这一部分；传统判断仍要看藏干、岁运及能否形成通关。` : `${element}在原局的基础权重为 ${score}%。它反映的是盘内结构的相对分布，必须和月令、透干与生克关系一起读。`}</p></article>)}</div>
-    <h4>三、十神：资源、表达、现实与压力如何分配</h4><div className={styles.interactions}>{dominantGods.map(([god, score]) => <article key={god}><small>盘面事实 · 权重 {score}</small><b>{god}：{tenGodMeaning[god]}</b><p>这是按四柱干支相对日主的基础统计，不等同于性格标签。应结合它出现在哪一柱、是否透干、是否受合冲，以及月令是否支持来阅读。</p></article>)}</div>
+    <div className={styles.interactions}>{Object.entries(profile.scores).map(([element, score]) => <article key={element}><small>五行分布 · {score}%</small><b>{element}：{ELEMENT_MEANING[element]}</b><p>{score === 0 ? `原局统计中未见${element}，不等于人生“缺少”这一部分；传统判断仍要看藏干、岁运及能否形成通关。` : `${element}在原局的基础权重为 ${score}%。它反映的是盘内结构的相对分布，必须和月令、透干与生克关系一起读。`}</p></article>)}</div>
+    <h4>三、十神：资源、表达、现实与压力如何分配</h4><div className={styles.interactions}>{dominantGods.map(([god, score]) => <article key={god}><small>盘面事实 · 权重 {score}</small><b>{god}：{TEN_GOD_MEANING[god]}</b><p>这是按四柱干支相对日主的基础统计，不等同于性格标签。应结合它出现在哪一柱、是否透干、是否受合冲，以及月令是否支持来阅读。</p></article>)}</div>
     <h4>四、刑冲合害：结构之间怎样彼此牵动</h4>{result.interactions.length ? <div className={styles.interactions}>{result.interactions.map((item) => <article key={`${item.kind}-${item.members}`}><small>盘面事实 · 地支{item.kind}</small><b>{item.members}{item.kind}</b><p>{item.note}。{item.kind === "合" ? "合表示两股条件容易相互牵连，是否形成助力还要看五行关系与是否被冲开。" : item.kind === "冲" ? "冲表示动态、调整或两端拉扯；落在哪两柱决定它更接近环境、关系、自我或时间议题。" : item.kind === "刑" ? "刑更适合被理解为结构性摩擦或反复卡点，不能直接断作坏事。" : "害往往提示不易直接看见的消耗或误会，需回到具体关系和事实核对。"}</p></article>)}</div> : <p className={styles.methodNote}>当前没有识别到基础六合、六冲、刑害结构；不代表盘中没有其他关系，也不以此延伸断语。</p>}
-    <h4>五、大运与流年：时间结构如何阅读</h4>{result.luck ? <><p className={styles.methodNote}>本盘按{result.luck.direction}排运，约{result.luck.startsAfter}起运。大运用于观察十年左右的结构背景；流年是当年触发点，两者都不能脱离原局单独预测事件。</p><div className={styles.cycles}>{result.luck.cycles.map((cycle) => <article key={`${cycle.ganZhi}-${cycle.startYear}`}><small>{cycle.startYear}–{cycle.endYear} · {cycle.startAge}–{cycle.endAge} 岁</small><b>{cycle.ganZhi}</b><p>天干为{cycle.stemTenGod}（{tenGodMeaning[cycle.stemTenGod]}），地支为{cycle.branchTenGod}（{tenGodMeaning[cycle.branchTenGod]}）。它描述这一阶段更容易被激活的主题，不预设具体结果。</p></article>)}</div></> : <p className={styles.methodNote}>未选择传统排运参数或出生时间未知，因此不生成起运与大运序列，避免用缺失条件补造时间结论。</p>}
-    <p className={styles.methodNote}>阅读边界：这是一种传统象征系统，不用于断言吉凶或替代现实决策。完整判断需结合出生时间准确性、节气边界、用神与流派方法，并由真实经历验证。</p>
+    <h4>五、大运与流年：时间结构如何阅读</h4>{result.luck ? <><p className={styles.methodNote}>本盘按{result.luck.direction}排运，约{result.luck.startsAfter}起运。大运用于观察十年左右的结构背景；流年是当年触发点，两者都不能脱离原局单独预测事件。</p><div className={styles.cycles}>{result.luck.cycles.map((cycle) => <article key={`${cycle.ganZhi}-${cycle.startYear}`}><small>{cycle.startYear}–{cycle.endYear} · {cycle.startAge}–{cycle.endAge} 岁</small><b>{cycle.ganZhi}</b><p>天干为{cycle.stemTenGod}（{TEN_GOD_MEANING[cycle.stemTenGod]}），地支为{cycle.branchTenGod}（{TEN_GOD_MEANING[cycle.branchTenGod]}）。它描述这一阶段更容易被激活的主题，不预设具体结果。</p></article>)}</div></> : <p className={styles.methodNote}>未选择传统排运参数或出生时间未知，因此不生成起运与大运序列，避免用缺失条件补造时间结论。</p>}
+    <h4>六、规则来源与阅读边界</h4><p className={styles.methodNote}>本报告的术语、柱位、十神与五行说明来自固定规则库（{BAZI_REFERENCE.edition}），不会由拾光或 LLM 即时编写；来源：{BAZI_REFERENCE.sources.join("；")}。这是一种传统象征系统，不用于断言吉凶或替代现实决策。格局、用神、调候和合化属于流派差异较大的部分，当前不伪装为唯一结论。</p>
   </section>;
 }
 
