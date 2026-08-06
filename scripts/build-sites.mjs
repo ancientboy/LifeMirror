@@ -126,7 +126,9 @@ function snapshot(input) {
   const facts = Array.isArray(source.facts) ? source.facts.filter(Boolean).slice(0, 50) : [];
   const history = Array.isArray(source.history) ? source.history.filter(Boolean).slice(0, 50) : [];
   const tarot = Array.isArray(source.tarot) ? source.tarot.filter(Boolean).slice(0, 12) : [];
-  return { settings, facts, history, tarot };
+  const chats = Array.isArray(source.chats) ? source.chats.filter(Boolean).slice(0, 20) : (Array.isArray(settings.chatThreads) ? settings.chatThreads.filter(Boolean).slice(0, 20) : []);
+  delete settings.chatThreads;
+  return { settings, facts, history, tarot, chats };
 }
 
 function mergeById(serverItems, localItems, limit) {
@@ -158,17 +160,20 @@ function mergeSnapshot(serverData, localData) {
     facts: mergeById(server.facts, local.facts, 50),
     history: mergeById(server.history, local.history, 50),
     tarot: mergeById(server.tarot, local.tarot, 12),
+    chats: mergeById(server.chats, local.chats, 20),
   };
 }
 
 async function readAccountData(db, userId) {
   const row = await db.prepare("SELECT settings_json, facts_json, history_json, tarot_json, updated_at FROM account_data WHERE user_id = ?").bind(userId).first();
-  if (!row) return { settings: {}, facts: [], history: [], tarot: [], updatedAt: null };
+  if (!row) return { settings: {}, facts: [], history: [], tarot: [], chats: [], updatedAt: null };
+  const settings = safeParse(row.settings_json, {});
   return {
-    settings: safeParse(row.settings_json, {}),
+    settings: settings,
     facts: safeParse(row.facts_json, []),
     history: safeParse(row.history_json, []),
     tarot: safeParse(row.tarot_json, []),
+    chats: Array.isArray(settings.chatThreads) ? settings.chatThreads : [],
     updatedAt: row.updated_at,
   };
 }
@@ -177,7 +182,7 @@ async function writeAccountData(db, userId, data) {
   const clean = snapshot(data);
   const now = new Date().toISOString();
   await db.prepare("INSERT INTO account_data (user_id, settings_json, facts_json, history_json, tarot_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET settings_json = excluded.settings_json, facts_json = excluded.facts_json, history_json = excluded.history_json, tarot_json = excluded.tarot_json, updated_at = excluded.updated_at")
-    .bind(userId, JSON.stringify(clean.settings), JSON.stringify(clean.facts), JSON.stringify(clean.history), JSON.stringify(clean.tarot), now).run();
+    .bind(userId, JSON.stringify({ ...clean.settings, chatThreads: clean.chats }), JSON.stringify(clean.facts), JSON.stringify(clean.history), JSON.stringify(clean.tarot), now).run();
   return { ...clean, updatedAt: now };
 }
 
