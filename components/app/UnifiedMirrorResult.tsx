@@ -80,14 +80,32 @@ function sanitize(value: unknown, fallback: MirrorResult): MirrorResult {
   };
 }
 
+function contextualFallback(fallback: MirrorResult, question: string, facts: string): MirrorResult {
+  const anchor = clean(fallback.headline, "此刻有一件事值得认真对待", 52).replace(/[。！？!?]+$/u, "");
+  const detail = clean(fallback.interpretation, anchor, 120)
+    .split(/[。；]/u).map((item) => item.trim()).find((item) => item.length >= 8) ?? anchor;
+  const relationship = /关系|对方|彼此|感情|伴侣|朋友|联系|复合/u.test(`${question}${facts}`);
+  const career = /工作|职业|事业|项目|面试|方向|行动/u.test(`${question}${facts}`);
+  const subject = relationship ? "我们" : career ? "这一步" : "这件事";
+  return {
+    ...fallback,
+    shareCards: {
+      warm: `${anchor}。`,
+      roast: relationship ? `${subject}卡住的，不只是沉默，还有谁先认真回应。` : `${subject}别只停在猜测里，愿意说清才有下一步。`,
+      witty: `我的镜像落在“${detail.slice(0, 18)}”，也看看你的会指向哪里。`,
+    },
+  };
+}
+
 export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, title, meta, image, onResolved }: Props) {
   const [result, setResult] = useState(fallback);
   const [mode, setMode] = useState<"loading" | "ai" | "basic">("loading");
   const requestKey = useMemo(() => JSON.stringify({ kind, question, facts }), [facts, kind, question]);
+  const resultFallback = useMemo(() => contextualFallback(fallback, question, facts), [fallback, facts, question]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setResult(fallback);
+    setResult(resultFallback);
     setMode("loading");
     void fetch("/api/shiguang", {
       method: "POST",
@@ -102,29 +120,29 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       signal: controller.signal,
     }).then(async (response) => {
       if (!response.ok) throw new Error("mirror_ai_unavailable");
-      const next = sanitize(extractJson(await response.text()), fallback);
+      const next = sanitize(extractJson(await response.text()), resultFallback);
       setResult(next);
       setMode("ai");
       onResolved?.(next);
     }).catch((error) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setResult(fallback);
+      setResult(resultFallback);
       setMode("basic");
-      onResolved?.(fallback);
+      onResolved?.(resultFallback);
     });
     return () => controller.abort();
     // fallback and callback intentionally follow the deterministic request key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, theme]);
+  }, [requestKey, resultFallback, theme]);
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
-    {mode === "basic" && <p className={styles.notice}><WarningCircle /> AI 暂时未完成改写，先显示可靠的基础解读。</p>}
+    {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时离线，先按这次结果给你一版专属解读。</p>}
     <div className={styles.grid}>
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
     </div>
-    <aside><small>把它说具体一点</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
+    <aside><small>想接着说的话</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
       paper: { kicker: `我的此刻 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
       night: { kicker: `关系回应 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
