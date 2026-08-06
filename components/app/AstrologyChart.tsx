@@ -1,6 +1,7 @@
 "use client";
 
 import type { AstrologyResult } from "../../server/tools/astrology/types";
+import { buildPlanetInsights } from "../../server/tools/astrology/interpretation";
 import { useState } from "react";
 import { ShiguangChat } from "./ShiguangChat";
 import { MirrorSaveButton } from "./MirrorSaveButton";
@@ -72,9 +73,13 @@ const aspectReading: Record<string, string> = {
 function AstrologyProfessionalReading({ result }: { result: AstrologyResult }) {
   const elements = Object.entries(result.elementBalance).sort((a, b) => b[1] - a[1]);
   const modalities = Object.entries(result.modalityBalance).sort((a, b) => b[1] - a[1]);
+  // Keep the displayed evidence and its wording on the same planet object.  This
+  // deliberately avoids index-based template lookup, which previously allowed a
+  // correct heading to be paired with another planet's explanation.
+  const planetInsights = buildPlanetInsights(result.planets);
   return <section className={styles.professionalReading}>
     <header><small>PROFESSIONAL INTERPRETATION</small><h3>完整专业解读</h3><p>先解释每个结构，再说明它们如何共同作用；盘面事实与象征解释分开呈现。</p></header>
-    <section className={styles.readingSection}><h4>一、行星落座与宫位</h4><p className={styles.readingIntro}>行星回答“什么心理功能”，星座回答“它以什么风格表达”，宫位回答“它更常在哪个生活领域发生”。</p><div className={styles.interpretationGrid}>{result.planets.map((planet) => <article key={planet.key}><small>盘面事实 · {planet.name} {planet.sign.name} {formatDegree(planet.degreeInSign)}{planet.house ? ` · 第 ${planet.house} 宫` : ""}</small><h5>{planet.name}：{planetMeaning[planet.name]}</h5><p>{signStyle[planet.sign.name]}。{planet.house ? `落在第 ${planet.house} 宫，这使它尤其容易通过「${houseThemes[planet.house - 1]}」被经验到。` : "出生时间未知，因此这里只解释落座，不把它延伸到具体宫位。"}{planet.retrograde ? "逆行提示这项功能更容易先在内在反复推敲，再形成外在表达；它不代表好或坏。" : ""}</p></article>)}</div></section>
+    <section className={styles.readingSection}><h4>一、行星落座与宫位</h4><p className={styles.readingIntro}>行星回答“什么心理功能”，星座回答“它以什么风格表达”，宫位回答“它更常在哪个生活领域发生”。</p><div className={styles.interpretationGrid}>{planetInsights.map((insight) => <article key={insight.key}><small>盘面事实 · {insight.evidence}</small><h5>{insight.title}</h5><p>{insight.interpretation}</p></article>)}</div></section>
     <section className={styles.readingSection}><h4>二、主要相位：哪些心理功能会彼此配合或拉扯</h4>{result.aspects.length ? <div className={styles.interpretationGrid}>{result.aspects.map((aspect) => <article key={aspect.key}><small>盘面事实 · {aspect.first}{aspect.name}{aspect.second} · 容许度 {aspect.orb}°</small><h5>{aspectReading[aspect.name]}</h5><p>{planetMeaning[aspect.first] ?? aspect.first}与{planetMeaning[aspect.second] ?? aspect.second}在同一张盘里相遇。容许度 {aspect.orb}° 表示它与精确相位的距离；数值越小，越值得优先用现实经历核对。</p></article>)}</div> : <p className={styles.readingIntro}>当前容许度内没有识别主要相位。本报告不会因此补造隐藏结论，而会以行星落座与宫位作为主要阅读线索。</p>}</section>
     <section className={styles.readingSection}><h4>三、元素与模式：你的能量从哪里来、怎样推进</h4><div className={styles.interpretationGrid}><article><small>盘面事实 · 元素分布</small><h5>{elements[0][0]}元素相对突出（{elements[0][1]}/10）</h5><p>火偏向行动与热情，土偏向现实与稳定，风偏向思考与沟通，水偏向感受与联结。突出不等于更好；最少的{elements.at(-1)?.[0]}元素也不是缺陷，而是需要有意识补足的观察角度。</p></article><article><small>盘面事实 · 行动模式</small><h5>{modalities[0][0]}型相对突出（{modalities[0][1]}/10）</h5><p>基本型擅长启动，固定型擅长坚持，变动型擅长调整。留意它在压力下是否走向过度推动、过度坚持或反复变动；这是把星盘翻回现实最有用的方式。</p></article></div></section>
     {result.angles.length > 0 && <section className={styles.readingSection}><h4>四、四轴：你如何进入世界、走向公众方向</h4><div className={styles.interpretationGrid}>{result.angles.map((angle) => <article key={angle.key}><small>盘面事实 · {angle.name} {angle.sign.name} {formatDegree(angle.degreeInSign)}</small><h5>{angle.key === "asc" ? "上升点：初见方式与人生起点" : "天顶：公众角色与长期方向"}</h5><p>{signStyle[angle.sign.name]}。{angle.key === "asc" ? "它也是整宫制第一宫的起点，因此会影响所有宫位主题的分配。" : "天顶会补充你希望在外部世界承担或被看见的方向，但不单独替代第十宫的完整判断。"}</p></article>)}</div></section>}
