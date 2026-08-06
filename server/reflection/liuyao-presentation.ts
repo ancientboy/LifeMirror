@@ -119,6 +119,11 @@ export function buildLiuyaoPresentation(input: {
   return {
     question: input.question.trim(),
     method: "三枚铜钱纳甲六爻；经典阅读规则与纳甲判断分层呈现",
+    sources: [
+      "《周易》卦辞、象辞与爻辞：本卦、变卦和动爻原文来源",
+      "京房纳甲体系：六亲、世应、六神、地支与五行装配规则",
+      "《增删卜易》《卜筮正宗》常用的取用、旺衰、生克、动变与世应用法（作为规则来源）",
+    ],
     original: {
       number: input.knowledge.original.number,
       name: input.knowledge.original.name,
