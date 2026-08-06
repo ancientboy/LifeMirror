@@ -15,6 +15,7 @@ import { MirrorSaveButton } from "./MirrorSaveButton";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
 import { formatSavedBirthProfile, getSavedBirthProfile, saveBirthProfile } from "../../lib/birth-profile";
+import { getSavedNatalMirror, saveNatalMirror, saveNatalMirrorReflection, type SavedNatalMirror } from "../../lib/natal-mirror-history";
 
 type Props = { tradition: "east" | "west"; profileOnly?: boolean };
 const currentYear = new Date().getFullYear();
@@ -44,6 +45,8 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   const [error, setError] = useState("");
   const [bazi, setBazi] = useState<BaziResult | null>(null);
   const [astrology, setAstrology] = useState<AstrologyResult | null>(null);
+  const [savedProfile, setSavedProfile] = useState<ReturnType<typeof getSavedBirthProfile>>(null);
+  const [savedMirror, setSavedMirror] = useState<SavedNatalMirror | null>(null);
   const maxDay = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
   const validDay = Math.min(day, maxDay);
 
@@ -65,6 +68,13 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
     setUseTrueSolarTime(profile.useTrueSolarTime);
     setCoordinateStatus(`已从你的出生资料载入：${formatSavedBirthProfile(profile)}`);
     setProfileLoaded(true);
+    setSavedProfile(profile);
+    const prior = tradition === "east" ? getSavedNatalMirror<BaziResult>("bazi", profile) : getSavedNatalMirror<AstrologyResult>("astrology", profile);
+    if (prior) {
+      setSavedMirror(prior);
+      if (tradition === "east") setBazi(prior.result as BaziResult);
+      else setAstrology(prior.result as AstrologyResult);
+    }
   }, []);
 
   useEffect(() => {
@@ -108,14 +118,20 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
     setSaved(false);
     setLoading(true);
     try {
+      let nextResult: BaziResult | AstrologyResult | null = null;
       if (profileOnly) {
         // The profile editor owns one canonical birth record. Calculations happen only inside a mirror tool.
       } else if (tradition === "west") {
-        setAstrology(calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) }));
+        nextResult = calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) });
+        setAstrology(nextResult);
       } else {
-        setBazi(calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender }));
+        nextResult = calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender });
+        setBazi(nextResult);
       }
-      saveBirthProfile({ year, month, day: validDay, hour, minute, unknownTime, place: place.trim(), utcOffsetMinutes, longitude, latitude, dayBoundary, luckGender, useTrueSolarTime });
+      const profile = saveBirthProfile({ year, month, day: validDay, hour, minute, unknownTime, place: place.trim(), utcOffsetMinutes, longitude, latitude, dayBoundary, luckGender, useTrueSolarTime });
+      setSavedProfile(profile);
+      if (nextResult) saveNatalMirror(tradition === "east" ? "bazi" : "astrology", profile, nextResult);
+      setSavedMirror(null);
       setProfileLoaded(true);
       setSaved(true);
     } catch (reason) {
@@ -144,14 +160,15 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
       {!profileOnly && tradition === "east" && <fieldset><legend>排盘口径 <em>可展开复核</em></legend><div className={styles.ruleGrid}><label><span>换日规则</span><select value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value as "midnight" | "late-zi")}><option value="midnight">午夜 00:00 换日</option><option value="late-zi">子初 23:00 换日</option></select></label><label><span>传统排运参数</span><select value={luckGender ?? ""} onChange={(event) => setLuckGender((event.target.value || null) as LuckGender | null)}><option value="">暂不计算大运</option><option value="male">男命排运</option><option value="female">女命排运</option></select></label><label className={styles.toggle}><input type="checkbox" checked={useTrueSolarTime} onChange={(event) => toggleSolar(event.target.checked)} /><Compass />启用真太阳时校正</label></div><small>排运性别仅作为传统顺逆算法参数，不用于身份判断。用神、格局和具体断语仍需流派与专家复核。</small></fieldset>}
       {!profileOnly && <label className={styles.consent}><input required type="checkbox" />我理解这是一种象征性自我探索工具，不替代医疗、法律或财务建议。</label>}
       {error && <p className={styles.error} role="alert">{error}</p>}
-      <button className={styles.submit} disabled={!place.trim() || loading || ((tradition === "west" || useTrueSolarTime) && (!longitude || !latitude))}>{loading ? <><SpinnerGap className={styles.spin} />正在保存…</> : profileOnly ? saved ? <><Check />出生资料已保存</> : "保存出生资料" : saved ? <><Check />重新计算{tradition === "west" ? "星盘" : "命盘"}</> : tradition === "east" ? "生成完整基础命盘" : "生成本命星盘"}</button>
+      <button className={styles.submit} disabled={!place.trim() || loading || ((tradition === "west" || useTrueSolarTime) && (!longitude || !latitude))}>{loading ? <><SpinnerGap className={styles.spin} />正在保存…</> : profileOnly ? saved ? <><Check />出生资料已保存</> : "保存出生资料" : (saved || savedMirror) ? <><Check />重新测算{tradition === "west" ? "星盘" : "命盘"}</> : tradition === "east" ? "生成完整基础命盘" : "生成本命星盘"}</button>
     </form>
-    {!profileOnly && tradition === "east" && bazi && <BaziChart result={bazi} />}
-    {!profileOnly && tradition === "west" && astrology && <AstrologyChart result={astrology} />}
+    {!profileOnly && savedMirror && <p className={styles.resultNotice}>已展示上次测算结果。若出生资料或排盘口径有变化，再选择“重新测算”即可。</p>}
+    {!profileOnly && tradition === "east" && bazi && <BaziChart result={bazi} savedReflection={savedMirror?.reflection} historical={Boolean(savedMirror)} onReflection={(reflection) => savedProfile && saveNatalMirrorReflection("bazi", savedProfile, reflection)} />}
+    {!profileOnly && tradition === "west" && astrology && <AstrologyChart result={astrology} savedReflection={savedMirror?.reflection} historical={Boolean(savedMirror)} onReflection={(reflection) => savedProfile && saveNatalMirrorReflection("astrology", savedProfile, reflection)} />}
   </>;
 }
 
-function BaziChart({ result }: { result: BaziResult }) {
+function BaziChart({ result, savedReflection, historical, onReflection }: { result: BaziResult; savedReflection?: MirrorResult; historical: boolean; onReflection: (reflection: MirrorResult) => void }) {
   const known = result.pillars.filter(Boolean).map((item) => item!.ganZhi).join(" · ");
   const profile = result.fiveElementProfile;
   const currentAnnual = result.luck?.annual.find((item) => item.year === currentYear);
@@ -170,7 +187,7 @@ function BaziChart({ result }: { result: BaziResult }) {
   const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
     <header><div><small>FOUR PILLARS MIRROR</small><h2>拾光先说你的命盘</h2></div></header>
-    <UnifiedMirrorResult kind="bazi" theme="east" question="我的出生命盘呈现了怎样的资源、张力与节奏？" facts={chatContext} fallback={fallback} title="我的命盘镜像" meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <UnifiedMirrorResult kind="bazi" theme="east" question="我的出生命盘呈现了怎样的资源、张力与节奏？" facts={chatContext} fallback={fallback} title="我的命盘镜像" meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={(reflection) => { setMirrorSummary(reflection.headline); onReflection(reflection); }} />
     <details className={styles.professionalDetails}><summary>展开查看四柱、五行与大运流年</summary><p className={styles.detailsIntro}>以下是这次命盘计算出的结构与传统分析线索，用来复核拾光的结论，而不是给人生下定论。</p>
     <div className={styles.pillars}>{result.pillars.map((pillar, index) => pillar ? <article key={pillar.key}><small>{pillar.label}</small><strong><i>{pillar.stem}</i><i>{pillar.branch}</i></strong><dl><div><dt>十神</dt><dd>{pillar.stemTenGod}</dd></div><div><dt>藏干</dt><dd>{pillar.hiddenStems.join(" · ")}</dd></div><div><dt>藏干十神</dt><dd>{pillar.branchTenGods.join(" · ")}</dd></div><div><dt>五行</dt><dd>{pillar.fiveElements}</dd></div><div><dt>纳音</dt><dd>{pillar.naYin}</dd></div></dl></article> : <article className={styles.emptyPillar} key={index}><small>时柱</small><strong>未知</strong><p>未使用推测时间</p></article>)}</div>
     <section className={styles.analysisSection}><div className={styles.sectionHeading}><div><small>FIVE ELEMENTS · 五行结构</small><h3>{profile.dayMaster}日主 · {profile.dayMasterElement} · 初步{profile.strengthBand}</h3></div><span>生扶占比 {profile.supportiveShare}%</span></div><div className={styles.elementBars}>{Object.entries(profile.scores).map(([element, score]) => <div key={element}><b>{element}</b><i><span style={{ width: `${score}%` }} /></i><em>{score}%</em></div>)}</div><p className={styles.methodNote}>{profile.method}</p></section>
