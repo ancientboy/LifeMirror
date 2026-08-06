@@ -71,7 +71,7 @@ function validateMirrorResult(text: string, pack: JudgmentFactPack) {
 }
 
 function dailyGuidancePrompt(context: string) {
-  return `${personality}\n\n你现在要生成“今日拾光”：它是个人每日导航，不是每日塔罗，也不是泛化运势。\n\n规则：\n- 只使用 <daily_context> 中提供的日期、出生底图、近期对话或已保存镜像；缺少的资料不要补造。\n- 优先结合长期个人底图与近期未完成主题；只有用户近期主动做过塔罗时，才可将它作为补充来源，但正文不得堆叠牌名或术语。\n- theme 是一句明确、自然的今日判断；reason 说明为什么这句话与这个用户有关；action 只给一个今天能完成的小动作。\n- 不做吉凶预测，不写“宇宙提示”“命中注定”，不扮演盯着用户的人生导师，不反问用户。\n- sources 返回 1～3 个简短来源标签，只能从“个人底图”“今日节律”“近期对话”“近期镜像”中选择有数据支持的项。\n- 只返回 JSON，不要 Markdown。字段必须是 theme, reason, action, sources。\n\n<daily_context>\n${context}\n</daily_context>`;
+  return `${personality}\n\n你现在要生成“今日拾光”。当 mode 为 personal_daily_fortune 时，它是一条以本命命盘／本命星盘为底图、以当天行运与流日为变量的个人每日运势；不是随机抽塔罗或随机起卦。当 mode 为 daily_state_note 时，它只是基于近期状态的日常提醒，绝不能冒充运势或命理结论。\n\n规则：\n- 只使用 <daily_context> 内已经计算好的事实；缺少资料不要补造。\n- personal_daily_fortune：把 natal 作为稳定底图，把 today 作为“为什么是今天”的依据；recent 只用于调整现实落点。\n- daily_state_note：正文自然承认当下，不提命盘、行运、星盘或“运势”。\n- 用户主动做过的塔罗或六爻只可作为 recent 中的一条补充线索，不能成为当天推理的主引擎，正文不堆叠术语。\n- theme 是一句明确、自然的今日判断；reason 说明它和用户此刻有什么关系；action 只给一个今天能完成的小动作。\n- 不做吉凶预测，不写“宇宙提示”“命中注定”，不扮演盯着用户的人生导师，不反问用户。\n- sources 只能从“本命底图”“今日行运”“近期状态”“近期镜像”中选择，而且必须与传入事实相符。\n- 只返回 JSON，不要 Markdown。字段必须是 theme, reason, action, sources。\n\n<daily_context>\n${context}\n</daily_context>`;
 }
 
 function contentText(value: unknown): string {

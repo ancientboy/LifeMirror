@@ -1,5 +1,5 @@
 import { AstroTime, Body, Ecliptic, GeoVector, MakeTime, SiderealTime, e_tilt } from "astronomy-engine";
-import type { AstrologyInput, AstrologyResult, ChartAngle, NatalAspect, PlanetPosition, ZodiacSign } from "./types.js";
+import type { AstrologyInput, AstrologyResult, AstrologyTransitResult, ChartAngle, NatalAspect, PlanetPosition, TransitAspect, ZodiacSign } from "./types.js";
 
 export const ZODIAC: ZodiacSign[] = [
   ["白羊座", "♈", "火", "基本"], ["金牛座", "♉", "土", "固定"], ["双子座", "♊", "风", "变动"],
@@ -21,6 +21,16 @@ const ASPECTS = [
   { name: "四分相", glyph: "□", angle: 90, orb: 7 }, { name: "三分相", glyph: "△", angle: 120, orb: 7 },
   { name: "对分相", glyph: "☍", angle: 180, orb: 8 },
 ] as const;
+
+const TRANSIT_WEIGHT: Record<string, number> = { sun: 48, moon: 26, mercury: 36, venus: 40, mars: 54, jupiter: 66, saturn: 76 };
+const NATAL_WEIGHT: Record<string, number> = { sun: 74, moon: 78, mercury: 48, venus: 52, mars: 56, jupiter: 42, saturn: 46, uranus: 34, neptune: 34, pluto: 38, asc: 72, mc: 54 };
+const TRANSIT_WINDOW: Record<string, TransitAspect["window"]> = { sun: "当日", moon: "当日", mercury: "数日", venus: "数日", mars: "数周", jupiter: "数月", saturn: "长期" };
+
+function transitPriority(transitKey: string, natalKey: string, angle: number, orb: number, allowedOrb: number) {
+  const aspectWeight: Record<number, number> = { 0: 1, 60: 0.58, 90: 0.88, 120: 0.68, 180: 0.92 };
+  const closeness = Math.max(0, 1 - orb / allowedOrb);
+  return Math.round(Math.min(100, (TRANSIT_WEIGHT[transitKey] ?? 30) * 0.38 + (NATAL_WEIGHT[natalKey] ?? 36) * 0.38 + 24 * closeness * (aspectWeight[angle] ?? 0.6)));
+}
 
 const SIGN_THEMES: Record<string, string> = {
   白羊座: "主动开创", 金牛座: "稳定与价值", 双子座: "交流与理解", 巨蟹座: "照顾与归属", 狮子座: "表达与创造", 处女座: "辨析与改进",
@@ -63,6 +73,34 @@ function detectAspects(planets: PlanetPosition[]): NatalAspect[] {
     if (match) results.push({ key: `${planets[i].key}-${planets[j].key}-${match.angle}`, name: match.name, glyph: match.glyph, angle: match.angle, orb: round(match.distance), first: planets[i].name, second: planets[j].name });
   }
   return results.sort((a, b) => a.orb - b.orb);
+}
+
+function transitAspects(transits: PlanetPosition[], natal: AstrologyResult): TransitAspect[] {
+  const natalPoints = [
+    ...natal.planets.map((planet) => ({ key: planet.key, name: planet.name, longitude: planet.longitude })),
+    ...natal.angles.map((angle) => ({ key: angle.key, name: angle.name, longitude: angle.longitude })),
+  ];
+  const contacts: TransitAspect[] = [];
+  for (const transit of transits) for (const point of natalPoints) {
+    const separation = Math.abs(signedDelta(transit.longitude, point.longitude));
+    const match = ASPECTS
+      .map((aspect) => ({ ...aspect, distance: Math.abs(separation - aspect.angle) }))
+      .filter((aspect) => aspect.distance <= aspect.orb)
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!match) continue;
+    const priority = transitPriority(transit.key, point.key, match.angle, match.distance, match.orb);
+    contacts.push({
+      key: `${transit.key}-${point.key}-${match.angle}`,
+      transitKey: transit.key, transit: transit.name,
+      natalKey: point.key, natal: point.name,
+      first: transit.name, second: point.name,
+      name: match.name, glyph: match.glyph, angle: match.angle, orb: round(match.distance),
+      priority,
+      window: TRANSIT_WINDOW[transit.key] ?? "数日",
+      rationale: `${transit.name}与本命${point.name}的${match.name}，${match.distance <= match.orb * 0.35 ? "相位较紧" : "仍在容许度内"}；以${TRANSIT_WINDOW[transit.key] ?? "数日"}为主要观察尺度。`,
+    });
+  }
+  return contacts.sort((a, b) => b.priority - a.priority || a.orb - b.orb);
 }
 
 function validate(input: AstrologyInput) {
@@ -124,5 +162,22 @@ export function calculateAstrology(input: AstrologyInput): AstrologyResult {
   return {
     engine: { name: "LifeMirror Natal Core", version: "0.1.0", model: "Astronomy Engine 2.1.19 · VSOP87/NOVAS", zodiac: "热带黄道", houseSystem: "整宫制 Whole Sign" },
     utcTime: date.toISOString(), timeKnown, planets, angles, houseCusps, aspects, elementBalance, modalityBalance, headline, themes, rules, warnings,
+  };
+}
+
+/**
+ * Calculates only the time-sensitive contacts used by the daily layer.  The
+ * natal chart remains the source of identity; this function never invents a
+ * new chart or house placement for a day.
+ */
+export function calculateAstrologyTransits(natal: AstrologyResult, input: AstrologyInput): AstrologyTransitResult {
+  const transitChart = calculateAstrology(input);
+  const transientKeys = new Set(["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"]);
+  const transits = transitChart.planets.filter((planet) => transientKeys.has(planet.key));
+  return {
+    date: transitChart.utcTime.slice(0, 10),
+    transits,
+    contacts: transitAspects(transits, natal).slice(0, 8),
+    method: "以当天当地中午的热带黄道地心行星位置，与本命行星及出生时间已知时的上升点、天顶计算主要相位；按行星速度、作用点与相位紧密度排序，并标注观察时间尺度。",
   };
 }

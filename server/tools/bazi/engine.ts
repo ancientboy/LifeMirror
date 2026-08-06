@@ -1,5 +1,5 @@
 import { Solar, type EightCharValue } from "lunar-javascript";
-import type { BaziInput, BaziPillar, BaziResult } from "./types.js";
+import type { BaziDailyRelation, BaziInput, BaziPillar, BaziResult } from "./types.js";
 
 const ENGINE_VERSION = "bazi-core/0.2.0+lunar-javascript-1.7.7";
 const PILLAR_KEYS = ["year", "month", "day", "time"] as const;
@@ -15,6 +15,8 @@ const STEM_META: Record<string, { element: Element; yang: boolean }> = {
 };
 const GENERATES: Record<Element, Element> = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
 const CONTROLS: Record<Element, Element> = { 木: "土", 火: "金", 土: "水", 金: "木", 水: "火" };
+const TEN_GODS = ["比肩", "劫财", "食神", "伤官", "偏财", "正财", "七杀", "正官", "偏印", "正印"] as const;
+const BRANCH_MAIN_STEM: Record<string, string> = { 子: "癸", 丑: "己", 寅: "甲", 卯: "乙", 辰: "戊", 巳: "丙", 午: "丁", 未: "己", 申: "庚", 酉: "辛", 戌: "戊", 亥: "壬" };
 
 function assertInteger(value: number, name: string, min: number, max: number) {
   if (!Number.isInteger(value) || value < min || value > max) {
@@ -136,17 +138,68 @@ function tenGod(dayStem: string, otherStem: string) {
   return samePolarity ? "七杀" : "正官";
 }
 
-function luckProfile(eightChar: EightCharValue, input: BaziInput, dayStem: string): BaziResult["luck"] {
+function tenGodProfile(pillars: Array<BaziPillar | null>, dayStem: string): BaziResult["tenGodProfile"] {
+  const raw = Object.fromEntries(TEN_GODS.map((god) => [god, 0])) as BaziResult["tenGodProfile"]["scores"];
+  pillars.forEach((item, index) => {
+    if (!item) return;
+    if (index !== 2) raw[tenGod(dayStem, item.stem) as keyof typeof raw] += index === 1 ? 1.2 : 1;
+    const weights = item.hiddenStems.length === 1 ? [1] : item.hiddenStems.length === 2 ? [0.7, 0.3] : [0.6, 0.3, 0.1];
+    item.hiddenStems.forEach((stem, hiddenIndex) => {
+      raw[tenGod(dayStem, stem) as keyof typeof raw] += weights[hiddenIndex] * (index === 1 ? 1.5 : 1);
+    });
+  });
+  const total = Object.values(raw).reduce((sum, value) => sum + value, 0) || 1;
+  const scores = Object.fromEntries(TEN_GODS.map((god) => [god, Number((raw[god] / total * 100).toFixed(1))])) as BaziResult["tenGodProfile"]["scores"];
+  const highest = Math.max(...Object.values(scores));
+  return {
+    scores,
+    dominant: TEN_GODS.filter((god) => scores[god] === highest && highest > 0),
+    method: "以透干与藏干的可见度加权统计十神；月支藏干权重提高。它描述盘内结构分布，不以单一十神直接推断现实事件。",
+  };
+}
+
+function seasonalProfile(pillars: Array<BaziPillar | null>): BaziResult["seasonalProfile"] {
+  const day = pillars[2]!;
+  const month = pillars[1]!;
+  const dayElement = STEM_META[day.stem].element;
+  const monthElement = STEM_META[BRANCH_MAIN_STEM[month.branch]].element;
+  const relationToDayMaster = monthElement === dayElement ? "同类"
+    : GENERATES[monthElement] === dayElement ? "生扶"
+      : GENERATES[dayElement] === monthElement ? "泄耗"
+        : CONTROLS[monthElement] === dayElement ? "受制" : "财耗";
+  return {
+    monthBranch: month.branch,
+    monthElement,
+    relationToDayMaster,
+    method: "以月支主气的五行相对日主，标记月令的基础季节关系。调候、通关、格局取用需结合全局与流派规则，不在此自动裁定。",
+  };
+}
+
+function branchRelationsTo(branch: string, natalBranches: string[]) {
+  const relationKinds: Array<{ kind: "合" | "冲" | "害" | "刑"; pairs: string[] }> = [
+    { kind: "合", pairs: ["子丑", "寅亥", "卯戌", "辰酉", "巳申", "午未"] },
+    { kind: "冲", pairs: ["子午", "丑未", "寅申", "卯酉", "辰戌", "巳亥"] },
+    { kind: "害", pairs: ["子未", "丑午", "寅巳", "卯辰", "申亥", "酉戌"] },
+    { kind: "刑", pairs: ["子卯", "寅巳", "巳申", "寅申", "丑戌", "戌未", "丑未"] },
+  ];
+  return natalBranches.flatMap((natalBranch) => relationKinds
+    .filter(({ pairs }) => pairs.some((pair) => pair.includes(natalBranch) && pair.includes(branch)))
+    .map(({ kind }) => ({ natalBranch, kind })));
+}
+
+function luckProfile(eightChar: EightCharValue, input: BaziInput, dayStem: string, natalBranches: string[]): BaziResult["luck"] {
   if (!input.luckGender || input.hour === null) return null;
   const yun = (eightChar as unknown as { getYun(gender: number, sect: number): any }).getYun(input.luckGender === "male" ? 1 : 0, 2);
-  const cycles = yun.getDaYun(9).slice(1).map((item: any) => ({
-    ganZhi: item.getGanZhi(), startYear: item.getStartYear(), endYear: item.getEndYear(), startAge: item.getStartAge(), endAge: item.getEndAge(),
-  }));
+  const cycles = yun.getDaYun(9).slice(1).map((item: any) => {
+    const ganZhi = item.getGanZhi();
+    return { ganZhi, startYear: item.getStartYear(), endYear: item.getEndYear(), startAge: item.getStartAge(), endAge: item.getEndAge(), stemTenGod: tenGod(dayStem, [...ganZhi][0]), branchTenGod: tenGod(dayStem, BRANCH_MAIN_STEM[[...ganZhi][1]]) };
+  });
   const currentYear = new Date().getUTCFullYear();
   const active = yun.getDaYun(12).find((item: any) => currentYear >= item.getStartYear() && currentYear <= item.getEndYear()) ?? yun.getDaYun(12)[0];
   const annual = active.getLiuNian().filter((item: any) => item.getYear() >= currentYear - 1 && item.getYear() <= currentYear + 8).map((item: any) => {
     const ganZhi = item.getGanZhi();
-    return { year: item.getYear(), ganZhi, age: item.getAge(), tenGod: tenGod(dayStem, [...ganZhi][0]) };
+    const branch = [...ganZhi][1];
+    return { year: item.getYear(), ganZhi, age: item.getAge(), tenGod: tenGod(dayStem, [...ganZhi][0]), branchTenGod: tenGod(dayStem, BRANCH_MAIN_STEM[branch]), branchRelations: branchRelationsTo(branch, natalBranches) };
   });
   return {
     gender: input.luckGender,
@@ -184,8 +237,10 @@ export function calculateBazi(input: BaziInput): BaziResult {
     pillars,
     solarTerms: { previous: previous.getName(), previousAt: previous.getSolar().toYmdHms(), next: next.getName(), nextAt: next.getSolar().toYmdHms() },
     fiveElementProfile: elementProfile(pillars),
+    tenGodProfile: tenGodProfile(pillars, pillars[2]!.stem),
+    seasonalProfile: seasonalProfile(pillars),
     interactions: branchInteractions(pillars),
-    luck: luckProfile(eightChar, input, pillars[2]!.stem),
+    luck: luckProfile(eightChar, input, pillars[2]!.stem, pillars.filter((item): item is BaziPillar => Boolean(item)).map((item) => item.branch)),
     rules: [
       "年柱以立春为界；月柱以十二节（节气）为界。",
       input.dayBoundary === "late-zi" ? "日柱采用子初换日：23:00 后计入次日干支。" : "日柱采用民用午夜换日：00:00 起计入次日干支。",
@@ -193,5 +248,21 @@ export function calculateBazi(input: BaziInput): BaziResult {
       input.luckGender && timeKnown ? "大运顺逆使用用户选择的排运性别；这是传统算法参数，不用于身份判断。" : input.luckGender ? "出生时间未知：不生成可能受时刻影响的起运、大运与流年序列。" : "未选择排运性别：不生成起运、大运与流年序列。",
     ],
     warnings,
+  };
+}
+
+/** Compare a calculated day pillar with an already calculated natal chart.
+ * It deliberately reports traditional structure only, not a lucky/unlucky verdict. */
+export function relateBaziDay(natal: BaziResult, day: BaziResult): BaziDailyRelation {
+  const dayPillar = day.pillars[2];
+  const natalDay = natal.pillars[2];
+  if (!dayPillar || !natalDay) throw new Error("A day pillar is required for daily relation");
+  const natalBranches = natal.pillars.filter((item): item is BaziPillar => Boolean(item)).map((item) => item.branch);
+  const branchRelations = branchRelationsTo(dayPillar.branch, natalBranches);
+  return {
+    dayPillar: dayPillar.ganZhi,
+    dayTenGod: tenGod(natalDay.stem, dayPillar.stem),
+    branchRelations,
+    method: "以当日干支的天干相对于本命日主计算十神，并只标记当日地支与本命四柱地支之间的合、冲、害、刑；不将单日关系直接断为吉凶。",
   };
 }

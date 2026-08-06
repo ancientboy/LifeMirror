@@ -47,6 +47,24 @@ export type NatalAspect = {
   second: string;
 };
 
+export type TransitAspect = NatalAspect & {
+  transitKey: string;
+  transit: string;
+  natalKey: string;
+  natal: string;
+  /** A reproducible relevance score for ordering daily contacts, not a prediction score. */
+  priority: number;
+  window: "当日" | "数日" | "数周" | "数月" | "长期";
+  rationale: string;
+};
+
+export type AstrologyTransitResult = {
+  date: string;
+  transits: PlanetPosition[];
+  contacts: TransitAspect[];
+  method: string;
+};
+
 export type AstrologyResult = {
   engine: { name: string; version: string; model: string; zodiac: string; houseSystem: string };
   utcTime: string;

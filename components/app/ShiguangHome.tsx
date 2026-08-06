@@ -8,15 +8,27 @@ import { ShiguangChat } from "./ShiguangChat";
 import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
+import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
 
-type DailyGuidance = { theme: string; reason: string; action: string; sources: string[] };
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 
-const fallbackDaily: DailyGuidance[] = [
-  { theme: "今天先处理最消耗你的那一件。", reason: "有些疲惫不是事情太多，而是一个悬着的问题一直占着注意力。", action: "给它留十分钟：推进一步，或明确今天先不处理。", sources: ["今日节律"] },
-  { theme: "今天不必把所有答案一次想完。", reason: "当现实信息还不完整时，继续推演只会让心里更吵。", action: "只确认下一步需要的一个事实。", sources: ["今日节律"] },
-  { theme: "今天适合把感受和事实分开。", reason: "你在意的事值得认真对待，但不必让最坏的猜测先替现实下结论。", action: "写下一句已发生的事实，再决定是否回应。", sources: ["今日节律"] },
+const stateFallbacks: DailyGuidance[] = [
+  { theme: "今天先处理最消耗你的那一件。", reason: "先给眼前最悬着的事一个明确的位置，注意力才会慢慢回来。", action: "给它留十分钟：推进一步，或明确今天先不处理。", sources: ["近期状态"] },
+  { theme: "今天不必把所有答案一次想完。", reason: "信息还不完整时，先确认下一步，比反复推演更有用。", action: "只确认下一步需要的一个事实。", sources: ["近期状态"] },
+  { theme: "今天适合把感受和事实分开。", reason: "你在意的事值得认真对待，但先看已经发生了什么，会更容易找到落点。", action: "写下一句已发生的事实，再决定是否回应。", sources: ["近期状态"] },
 ];
+
+function fallbackFor(context: DailyGuidanceContext, index: number): DailyGuidance {
+  const base = stateFallbacks[index];
+  if (context.mode === "daily_state_note") return { ...base, sources: context.evidence.map((item) => item.label).slice(0, 3) };
+  const transit = context.evidence.find((item) => item.label === "今日行运")?.detail ?? "今天的盘面变化";
+  return {
+    theme: "今天先把注意力放回可确认的一步。",
+    reason: `本次参考了你的本命底图与${transit}；先用现实行动验证感受，比急着扩大判断更稳。`,
+    action: "选一件最在意的事，只完成它的下一步。",
+    sources: context.evidence.map((item) => item.label).slice(0, 3),
+  };
+}
 
 function extractJson(text: string): unknown {
   const source = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? text;
@@ -26,28 +38,19 @@ function extractJson(text: string): unknown {
   return JSON.parse(source.slice(start, end + 1));
 }
 
-function cleanDaily(value: unknown, fallback: DailyGuidance): DailyGuidance {
-  if (!value || typeof value !== "object") return fallback;
-  const item = value as Record<string, unknown>;
-  const text = (key: string, base: string, max: number) => typeof item[key] === "string" && item[key].trim().length >= 4 ? [...item[key].trim()].slice(0, max).join("") : base;
-  const allowed = new Set(["个人底图", "今日节律", "近期对话", "近期镜像"]);
-  const sources = Array.isArray(item.sources) ? item.sources.filter((source): source is string => typeof source === "string" && allowed.has(source)).slice(0, 3) : [];
-  return { theme: text("theme", fallback.theme, 52), reason: text("reason", fallback.reason, 120), action: text("action", fallback.action, 80), sources: sources.length ? sources : fallback.sources };
-}
-
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
 export function ShiguangHome() {
   const [ready, setReady] = useState(false);
   const [latestQuestion, setLatestQuestion] = useState("");
-  const [latestClue, setLatestClue] = useState("");
   const [followUpDue, setFollowUpDue] = useState(false);
-  const [daily, setDaily] = useState<DailyGuidance>(fallbackDaily[0]);
+  const [daily, setDaily] = useState<DailyGuidance>(stateFallbacks[0]);
   const [dailyLoading, setDailyLoading] = useState(true);
-  const [hasBirthProfile, setHasBirthProfile] = useState(false);
+  const [dailyMode, setDailyMode] = useState<DailyGuidanceContext["mode"]>("daily_state_note");
+  const [dailyEvidence, setDailyEvidence] = useState<DailyEvidence[]>([]);
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
-  const dayIndex = Math.floor(Date.now() / 86_400_000) % fallbackDaily.length;
+  const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
 
   function seedChat(text: string) {
     window.dispatchEvent(new CustomEvent("life-mirror:chat-seed", { detail: text }));
@@ -64,24 +67,20 @@ export function ShiguangHome() {
     try {
       const history = JSON.parse(window.localStorage.getItem("life-mirror:guest-history:v1") ?? "[]") as MirrorHistoryItem[];
       setLatestQuestion(history[0]?.question?.trim() ?? "");
-      setLatestClue(history[0]?.reflection?.shareableReflection?.trim() ?? history[0]?.reflection?.shiguangInterpretation?.trim() ?? history[0]?.reflection?.traditionalJudgment?.trim() ?? "");
       const savedAt = history[0]?.savedAt ? Date.parse(history[0].savedAt) : Number.NaN;
       setFollowUpDue(Number.isFinite(savedAt) && Date.now() - savedAt >= 3 * 86_400_000);
       const profile = getSavedBirthProfile();
-      setHasBirthProfile(Boolean(profile));
-      const base = fallbackDaily[dayIndex];
+      const dailyContext = buildDailyGuidanceContext(profile, history);
+      const base = fallbackFor(dailyContext, dayIndex);
       setDaily(base);
-      const context = JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
-        birthProfile: profile ? { year: profile.year, month: profile.month, day: profile.day, timeKnown: !profile.unknownTime, place: profile.place } : null,
-        recentMirror: history[0] ? { question: history[0].question, source: history[0].sourceLabel ?? history[0].source, summary: history[0].reflection?.shiguangInterpretation ?? history[0].reflection?.shareableReflection } : null,
-        instruction: "将盘面与近期材料消化成日常语言；不要在正文罗列塔罗牌名、卦名、四柱或相位术语。",
-      });
+      setDailyMode(dailyContext.mode);
+      setDailyEvidence(dailyContext.evidence);
+      const context = JSON.stringify(dailyContext.modelContext);
       void fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "daily_guidance", theme: "east", context, messages: [{ role: "user", content: "生成我今天的个人导航。" }] }) })
-        .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); setDaily(cleanDaily(extractJson(await response.text()), base)); })
-        .catch(() => setDaily({ ...base, sources: history[0] ? ["近期镜像", "今日节律"] : ["今日节律"] }))
+        .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); setDaily(sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence)); })
+        .catch(() => setDaily(base))
         .finally(() => setDailyLoading(false));
-    } catch { setDaily(fallbackDaily[dayIndex]); setDailyLoading(false); }
+    } catch { setDaily(stateFallbacks[dayIndex]); setDailyMode("daily_state_note"); setDailyLoading(false); }
     const hasGuestSession = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     fetch("/api/v1/auth/session", { credentials: "include" })
       .then((response) => { if (!response.ok) throw new Error("signed_out"); window.localStorage.removeItem("life-mirror:guest-session:v1"); setReady(true); })
@@ -115,9 +114,9 @@ export function ShiguangHome() {
     {latestQuestion && followUpDue && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>拾光在等一次回访</small><b>{latestQuestion}</b><p>三天前的这件事，后来怎么样了？只要点一个状态，拾光会从这里接着理解你。</p><div>{["更好", "没变", "更糟"].map((state) => <button type="button" key={state} onClick={() => seedChat(`关于“${latestQuestion}”，现在是${state}。`)}>{state}</button>)}</div></span></aside>}
     <section className={styles.chatSection} id="shiguang-chat"><ShiguangChat mode="home" theme="east" context={`这是 LifeMirror 的常规聊天首页。这里首先是用户可以安全开口的私人空间。先自然回应近况、帮用户把感受或关系中的真实卡点说清；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个作为补充视角，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。今天，有什么事在心里吗？"} /></section>
     <section className={styles.daily} aria-busy={dailyLoading}>
-      <div className={styles.dailyHeading}><small><Sparkle /> {dateLabel} · 给你的轻提醒</small><h2>{daily.theme}</h2><p>{daily.reason}</p></div>
+      <div className={styles.dailyHeading}><small><Sparkle /> {dateLabel} · {dailyMode === "personal_daily_fortune" ? "今日运势" : "给你的轻提醒"}</small><h2>{daily.theme}</h2><p>{daily.reason}</p></div>
       <div className={styles.dailyAction}><b>如果今天只做一件小事</b><span>{daily.action}</span></div>
-      <details><summary>这条提醒从哪里来？</summary><div className={styles.sources}>{daily.sources.map((source) => <span key={source}>{source}</span>)}</div><p>{hasBirthProfile ? "结合你保存的个人底图、今天的时间节律与近期上下文生成。" : "目前主要依据今天的时间节律与近期上下文。补充出生资料后，会加入命盘与本命星盘的长期底图。"}</p>{!hasBirthProfile && <Link href="/app/profile/birth/">补充出生资料 <ArrowRight /></Link>}</details>
+      <details><summary>这条提醒从哪里来？</summary><div className={styles.evidenceList}>{dailyEvidence.filter((item) => daily.sources.includes(item.label)).map((item) => <div key={`${item.label}-${item.detail}`}><b>{item.label}</b><span>{item.detail}</span></div>)}</div>{dailyMode === "daily_state_note" && <Link href="/app/profile/birth/">补充出生资料，开启个人运势 <ArrowRight /></Link>}</details>
     </section>
     <AppBottomNav active="home" />
   </main>;

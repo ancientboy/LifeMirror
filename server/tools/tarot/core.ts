@@ -313,6 +313,12 @@ export function cardMeaning(card: DrawnCard) {
 
 export type TarotReading = {
   overview: string;
+  structure: {
+    questionDomain: "relationship" | "career" | "decision" | "inner";
+    dominantCard: { title: string; reason: string };
+    centralTension: string | null;
+    positionLogic: string;
+  };
   cardInsights: Array<{ position: string; title: string; evidence: string; interpretation: string }>;
   relationship: string;
   shiguang: string;
@@ -320,6 +326,20 @@ export type TarotReading = {
   reflectionQuestion: string;
   method: string;
 };
+
+function classifyQuestion(question: string): TarotReading["structure"]["questionDomain"] {
+  if (/关系|感情|他|她|对方|复合|联系|暧昧|恋爱/.test(question)) return "relationship";
+  if (/工作|职业|面试|offer|创业|项目|老板|同事/.test(question)) return "career";
+  if (/要不要|是否|选择|决定|去不去|换不换/.test(question)) return "decision";
+  return "inner";
+}
+
+function positionLogic(spread: TarotSpread) {
+  if (spread.id === "relationship") return "先分开看你、对方与互动，不把任何一张牌直接当作对方的真实想法。";
+  if (spread.id === "decision") return "先看动机与代价，再比较路径，最后只把牌意落到一个可验证的小行动。";
+  if (spread.id === "timeline") return "形成背景解释惯性，此刻核心定位关键，发展方向只描述延续当前条件时的趋势。";
+  return "单牌只聚焦一个当下主题，不延伸成未来事件的承诺。";
+}
 
 export function synthesizeTarotReading(question: string, spread: TarotSpread, cards: readonly DrawnCard[]): TarotReading {
   if (cards.length !== spread.positions.length) throw new Error("cards must match the selected spread");
@@ -333,16 +353,27 @@ export function synthesizeTarotReading(question: string, spread: TarotSpread, ca
       interpretation: `${position.label}并不是结果预告，而是在“${position.prompt}”这个位置上提醒你关注：${cardMeaning(card)}。`,
     };
   });
-  const strongest = cards.find((card) => card.arcana === "major") ?? cards[0];
-  const pressure = cards.find((card) => card.orientation === "reversed");
+  const questionDomain = classifyQuestion(question);
+  const central = cards.find((card) => card.position === "present" || card.position === "dynamic" || card.position === "cost") ?? cards[0];
+  const strongest = cards.find((card) => card.arcana === "major" && card.position === central.position) ?? cards.find((card) => card.arcana === "major") ?? central;
+  const pressure = cards.find((card) => card.orientation === "reversed" && card.position !== strongest.position) ?? cards.find((card) => card.orientation === "reversed");
+  const centralTension = pressure && pressure.id !== strongest.id
+    ? `${strongest.name}${strongest.orientation === "reversed" ? "逆位" : "正位"}提出的主线，和${pressure.name}逆位提示的卡点需要一起看。`
+    : relations.repeatedElement ? `${relations.repeatedElement}元素反复出现，说明重点在同一层面累积，而不是分散的偶然事件。` : null;
   return {
     overview: relations.majorCount >= 2
       ? `这组牌的大牌密度较高，问题“${question}”更像处在价值选择或阶段转换点；重点不是马上定结果，而是确认你愿意为哪种方向负责。`
       : `这组牌主要落在可观察的现实层面。围绕“${question}”，先把情绪、判断和行动拆开，会比追问唯一答案更有帮助。`,
+    structure: {
+      questionDomain,
+      dominantCard: { title: `${strongest.name}${strongest.orientation === "reversed" ? "逆位" : "正位"}`, reason: strongest.arcana === "major" ? "它是本次牌阵中最能定义阶段主题的大阿尔卡那。" : `它位于「${spread.positions[cards.indexOf(strongest)]?.label ?? "核心"}」，直接对应这次问题的关键位置。` },
+      centralTension,
+      positionLogic: positionLogic(spread),
+    },
     cardInsights,
-    relationship: `${relations.repeatedElement ? `${relations.repeatedElement}元素重复，让多张牌指向同一类课题；它是本次牌阵的主轴。` : `${relations.headline}。`}${relations.interaction}${relations.courtCount ? `宫廷牌出现 ${relations.courtCount} 张，提示角色姿态、沟通方式或成熟度也是问题的一部分。` : ""}${relations.counterSignal}`,
+    relationship: `${centralTension ?? relations.headline} ${relations.interaction}${relations.courtCount ? `宫廷牌出现 ${relations.courtCount} 张，提示角色姿态、沟通方式或成熟度也是问题的一部分。` : ""}${relations.counterSignal}`,
     shiguang: `如果由拾光陪你读，我会先看${strongest.name}：${cardMeaning(strongest)}。${pressure ? `同时，${pressure.name}逆位说明这里可能有尚未表达、尚未准备好，或节奏被卡住的部分。` : "牌面没有明显要求你停下，但仍需要现实证据来确认方向。"}`,
-    action: "写下一个支持当前方向的事实、一个反对它的事实，再选一个 24 小时内可完成且可撤回的小行动。",
+    action: spread.id === "relationship" ? "先确认一件可观察的互动事实，再决定要不要补充解释；不要用猜测替代对方的回应。" : spread.id === "decision" ? "把当前路径和替代路径各写一项真实成本，先做一个可撤回的小测试，再决定是否投入更多。" : "写下一个支持当前方向的事实、一个反对它的事实，再选一个 24 小时内可完成且可撤回的小行动。",
     reflectionQuestion: "如果不要求牌替你保证结果，你现在最愿意为哪一步承担责任？",
     method: "采用 Rider–Waite–Smith 图像传统的现代反思式读法；综合牌位、正逆位、元素、数字／宫廷结构与牌间反向证据。它提供观察假设，不提供确定性预测。",
   };

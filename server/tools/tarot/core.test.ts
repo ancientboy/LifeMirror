@@ -65,4 +65,16 @@ test("professional synthesis separates evidence, interpretation, Shiguang reflec
   assert.match(reading.action, /24 小时/);
   assert.ok(reading.reflectionQuestion.endsWith("？"));
   assert.match(reading.method, /Rider–Waite–Smith/);
+  assert.equal(reading.structure.questionDomain, "career");
+  assert.match(reading.structure.positionLogic, /形成背景/);
+  assert.ok(reading.structure.dominantCard.title.length > 0);
+});
+
+test("tarot reading uses spread-specific logic instead of treating all questions alike", () => {
+  const spread = getSpread("relationship");
+  const cards = drawSpread(spread, [0, 1, 2, 0, 1, 0]);
+  const reading = synthesizeTarotReading("这段关系该不该联系？", spread, cards);
+  assert.equal(reading.structure.questionDomain, "relationship");
+  assert.match(reading.structure.positionLogic, /分开看你、对方/);
+  assert.match(reading.action, /互动事实/);
 });

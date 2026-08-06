@@ -165,7 +165,7 @@ export function TarotExperience() {
           </h1>
           <p>
             从完整 78
-            张牌中随机抽取三张，并保留正逆位。拾光会区分牌面事实、象征解释与现实反思；塔罗不替你预测确定的未来。
+            张牌中随机抽取三张，并保留正逆位。抽完后，拾光会先把这组牌真正想说的重点告诉你。
           </p>
           <label>
             <CardsThree />
@@ -205,7 +205,6 @@ export function TarotExperience() {
           </button>
           <p className={styles.safety}>
             <WarningCircle />{" "}
-            涉及健康、法律、财务或安全的决定，请以专业意见和现实证据为准。
           </p>
         </section>
       )}
@@ -230,7 +229,7 @@ export function TarotExperience() {
           <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} onResolved={(result) => setMirrorSummary(result.headline)} />
           <details className={styles.professionalReading}>
             <summary>展开查看牌阵、牌面与专业解读</summary>
-            <p className={styles.readingGuide}>以下内容呈现这次解读的牌面事实和象征依据；它用来帮助你复核，不替你决定现实选择。</p>
+            <p className={styles.readingGuide}>想知道拾光为什么这样判断，可以继续查看牌面与象征依据。</p>
           <div className={`${styles.cards} ${cards.length === 1 ? styles.singleCard : cards.length > 3 ? styles.wideSpread : ""}`}>
             {cards.map((card, index) => {
               const position = spread.positions.find((item) => item.id === card.position) ?? spread.positions[index];

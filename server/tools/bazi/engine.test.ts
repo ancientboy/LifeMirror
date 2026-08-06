@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateBazi } from "./engine.js";
+import { calculateBazi, relateBaziDay } from "./engine.js";
 
 const base = { utcOffsetMinutes: 480, dayBoundary: "midnight" as const, useTrueSolarTime: false };
 
@@ -41,10 +41,24 @@ test("adds reproducible five-element, branch relation and luck-cycle layers", ()
   assert.ok(result.luck);
   assert.equal(result.luck?.cycles.length, 8);
   assert.ok(result.luck?.annual.length);
+  assert.ok(result.tenGodProfile.dominant.length);
+  assert.equal(result.seasonalProfile.monthBranch, result.pillars[1]?.branch);
+  assert.match(result.seasonalProfile.method, /月支主气/);
+  assert.ok(result.luck?.cycles.every((cycle) => cycle.stemTenGod && cycle.branchTenGod));
+  assert.ok(result.luck?.annual.every((annual) => Array.isArray(annual.branchRelations)));
 });
 
 test("does not fabricate luck-cycle start time when birth time is unknown", () => {
   const result = calculateBazi({ ...base, year: 1990, month: 1, day: 1, hour: null, minute: 0, luckGender: "female" });
   assert.equal(result.luck, null);
   assert.match(result.rules.join(" "), /出生时间未知/);
+});
+
+test("reports daily stem and branch structure without turning it into a verdict", () => {
+  const natal = calculateBazi({ ...base, year: 2005, month: 12, day: 23, hour: 8, minute: 37 });
+  const day = calculateBazi({ ...base, year: 2026, month: 8, day: 6, hour: 12, minute: 0 });
+  const relation = relateBaziDay(natal, day);
+  assert.equal(relation.dayPillar, day.pillars[2]?.ganZhi);
+  assert.ok(relation.dayTenGod.length > 0);
+  assert.match(relation.method, /不将单日关系直接断为吉凶/);
 });

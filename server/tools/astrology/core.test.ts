@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateAstrology } from "./core.js";
+import { calculateAstrology, calculateAstrologyTransits } from "./core.js";
 
 const base = { year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 };
 
@@ -36,4 +36,14 @@ test("aspects are sorted by tightest orb", () => {
   const result = calculateAstrology(base);
   assert.ok(result.aspects.length > 0);
   assert.ok(result.aspects.every((aspect, index) => index === 0 || result.aspects[index - 1].orb <= aspect.orb));
+});
+
+test("daily transit contacts are reproducible, relevantly ordered, and only compare real natal points", () => {
+  const natal = calculateAstrology(base);
+  const daily = calculateAstrologyTransits(natal, { ...base, year: 2026, month: 8, day: 6, hour: 12 });
+  assert.equal(daily.transits.length, 7);
+  assert.ok(daily.contacts.every((contact) => natal.planets.some((planet) => planet.key === contact.natalKey) || natal.angles.some((angle) => angle.key === contact.natalKey)));
+  assert.ok(daily.contacts.every((contact, index) => index === 0 || daily.contacts[index - 1].priority >= contact.priority));
+  assert.ok(daily.contacts.every((contact) => contact.priority >= 0 && contact.priority <= 100 && contact.window.length > 0));
+  assert.match(daily.method, /当天当地中午/);
 });

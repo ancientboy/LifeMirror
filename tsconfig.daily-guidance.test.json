@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist/daily-test",
+    "rootDir": ".",
+    "noEmit": false,
+    "incremental": false,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "types": ["node"]
+  },
+  "include": [
+    "lib/daily-guidance.ts",
+    "lib/daily-guidance.test.ts",
+    "server/tools/astrology/**/*.ts",
+    "server/tools/bazi/**/*.ts"
+  ]
+}

@@ -922,11 +922,14 @@ export function analyzeTraditional(lines: readonly LiuyaoLine[], palace: PalaceS
     addTiming({ branch: hidden.branch, trigger: "hidden_emerges", reason: "伏神候值临透出", confidence: 0.4 });
     addTiming({ branch: CLASH[hidden.flyingBranch], trigger: "clash_open", reason: "候冲开飞神，使伏神显现", confidence: 0.36 });
   }
-  const timing = timingDetails.length ? {
-    candidates: timingDetails.map((item) => item.branch),
-    details: timingDetails,
-    basis: [...new Set(timingDetails.map((item) => item.trigger))].join("+"),
-    confidence: Math.max(...timingDetails.map((item) => item.confidence)),
+  const rankedTimingDetails = [...timingDetails]
+    .sort((a, b) => b.confidence - a.confidence || a.branch.localeCompare(b.branch))
+    .map((item, index) => ({ ...item, priority: index + 1 }));
+  const timing = rankedTimingDetails.length ? {
+    candidates: rankedTimingDetails.map((item) => item.branch),
+    details: rankedTimingDetails,
+    basis: [...new Set(rankedTimingDetails.map((item) => item.trigger))].join("+"),
+    confidence: Math.max(...rankedTimingDetails.map((item) => item.confidence)),
   } : null;
   if (timing) addEvidence({ rule: `timing_${timing.basis}`, conclusion: `应期按${timingScale === "day" ? "日" : "节气月"}尺度输出候选，不构成事件或日期承诺。`, confidence: timing.confidence, effect: "neutral", strength: 0, plainMeaning: `时间线索按问题尺度保留为${timingScale === "day" ? "地支日" : "节气月"}观察窗口，不把它说成一定发生的日期。` });
   return {

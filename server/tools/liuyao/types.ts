@@ -138,6 +138,8 @@ export type LiuyaoTimingCandidate = {
   trigger: "fill" | "clash_open" | "release_combine" | "meet_combine" | "meet_clash" | "hidden_emerges";
   reason: string;
   confidence: number;
+  /** Order among traditional timing candidates; it is not an event probability. */
+  priority?: number;
   dateWindows?: Array<{
     startDate: string;
     endDate: string;

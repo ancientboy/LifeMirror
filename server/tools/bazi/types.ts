@@ -44,15 +44,33 @@ export interface BaziResult {
     strengthBand: "偏强" | "中和" | "偏弱";
     method: string;
   };
+  tenGodProfile: {
+    scores: Record<"比肩" | "劫财" | "食神" | "伤官" | "偏财" | "正财" | "七杀" | "正官" | "偏印" | "正印", number>;
+    dominant: string[];
+    method: string;
+  };
+  seasonalProfile: {
+    monthBranch: string;
+    monthElement: "木" | "火" | "土" | "金" | "水";
+    relationToDayMaster: "生扶" | "同类" | "泄耗" | "受制" | "财耗";
+    method: string;
+  };
   interactions: Array<{ kind: "合" | "冲" | "刑" | "害"; members: string; note: string }>;
   luck: null | {
     gender: LuckGender;
     direction: "顺排" | "逆排";
     startsAfter: string;
-    cycles: Array<{ ganZhi: string; startYear: number; endYear: number; startAge: number; endAge: number }>;
-    annual: Array<{ year: number; ganZhi: string; age: number; tenGod: string }>;
+    cycles: Array<{ ganZhi: string; startYear: number; endYear: number; startAge: number; endAge: number; stemTenGod: string; branchTenGod: string }>;
+    annual: Array<{ year: number; ganZhi: string; age: number; tenGod: string; branchTenGod: string; branchRelations: Array<{ natalBranch: string; kind: "合" | "冲" | "害" | "刑" }> }>;
     method: string;
   };
   rules: string[];
   warnings: string[];
 }
+
+export type BaziDailyRelation = {
+  dayPillar: string;
+  dayTenGod: string;
+  branchRelations: Array<{ natalBranch: string; kind: "合" | "冲" | "害" | "刑" }>;
+  method: string;
+};
