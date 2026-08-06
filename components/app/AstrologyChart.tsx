@@ -1,7 +1,7 @@
 "use client";
 
 import type { AstrologyResult } from "../../server/tools/astrology/types";
-import { buildAspectInsights, buildPlanetInsights } from "../../server/tools/astrology/interpretation";
+import { buildAspectInsights, buildLifeDomainInsights, buildPlanetInsights } from "../../server/tools/astrology/interpretation";
 import { useState } from "react";
 import { ShiguangChat } from "./ShiguangChat";
 import { MirrorSaveButton } from "./MirrorSaveButton";
@@ -79,6 +79,17 @@ function AstrologyProfessionalReading({ result }: { result: AstrologyResult }) {
   </section>;
 }
 
+function LifeDomainsReading({ result }: { result: AstrologyResult }) {
+  const domains = buildLifeDomainInsights(result);
+  return <section className={styles.lifeDomains} aria-labelledby="life-domains-title">
+    <header><small>YOUR LIFE MIRROR</small><h3 id="life-domains-title">从六个领域，读这张属于你的盘</h3><p>不是把宫位定义念一遍。每一条都由你的行星落座、宫位、四轴与紧密相位组合而来；先看和你有关的结论，再按需要展开专业依据。</p></header>
+    <div className={styles.domainGrid}>{domains.map((domain, index) => <article key={domain.key}>
+      <span>0{index + 1}</span><div><small>{domain.question}</small><h4>{domain.title}</h4><p>{domain.reading}</p><details><summary>为什么这样说</summary><ul>{domain.evidence.map((fact) => <li key={fact}>{fact}</li>)}</ul></details><em>{domain.reflection}</em></div>
+    </article>)}</div>
+    <p className={styles.lifeBoundary}>这些是用于理解自己的象征线索，不是收入、职业或关系结果的承诺。最有价值的用法，是拿它们与自己的真实经历逐条核对。</p>
+  </section>;
+}
+
 export function AstrologyChart({ result, savedReflection, historical, onReflection }: { result: AstrologyResult; savedReflection?: MirrorResult; historical: boolean; onReflection: (reflection: MirrorResult) => void }) {
   const sun = result.planets[0], moon = result.planets[1], asc = result.angles[0];
   const meta = `太阳 ${sun.sign.name} · 月亮 ${moon.sign.name}${asc ? ` · 上升 ${asc.sign.name}` : " · 上升未知"}`;
@@ -98,6 +109,7 @@ export function AstrologyChart({ result, savedReflection, historical, onReflecti
   return <section className={styles.chart} aria-live="polite">
     <header className={styles.header}><div><small>NATAL MIRROR</small><h2>拾光先说你的星盘</h2><p>{meta}</p></div></header>
     <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={(reflection) => { setMirrorSummary(reflection.headline); onReflection(reflection); }} />
+    <LifeDomainsReading result={result} />
     <details className={styles.professionalDetails}><summary>查看星盘依据</summary><p className={styles.detailsIntro}>这里保留盘面位置、宫位与相位，方便你回看拾光的解读从哪里来。</p>
     <AstrologyProfessionalReading result={result} />
     <div className={styles.overview}><NatalWheel result={result} /><div className={styles.bigThree}>
