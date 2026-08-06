@@ -225,8 +225,12 @@ export function TarotExperience() {
           <span className={styles.eyebrow}>
             EVIDENCE-LAYERED READING · 分层解读
           </span>
-          <h1>{spread.name} · 分层解读</h1>
+          <h1>{spread.name} · 拾光先说</h1>
           <blockquote>“{question}”</blockquote>
+          <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} onResolved={(result) => setMirrorSummary(result.headline)} />
+          <details className={styles.professionalReading}>
+            <summary>展开查看牌阵、牌面与专业解读</summary>
+            <p className={styles.readingGuide}>以下内容呈现这次解读的牌面事实和象征依据；它用来帮助你复核，不替你决定现实选择。</p>
           <div className={`${styles.cards} ${cards.length === 1 ? styles.singleCard : cards.length > 3 ? styles.wideSpread : ""}`}>
             {cards.map((card, index) => {
               const position = spread.positions.find((item) => item.id === card.position) ?? spread.positions[index];
@@ -278,9 +282,7 @@ export function TarotExperience() {
               <p>{relations.counterSignal}</p>
             </div>
           </div>
-          <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} onResolved={(result) => setMirrorSummary(result.headline)} />
-          {professionalReading && <details className={styles.professionalReading}>
-            <summary>查看牌面依据与逐张解释</summary>
+          {professionalReading && <section className={styles.professionalDetail}>
             <header><small>PROFESSIONAL READING · 专业解读</small><h2>先读整体，再看每张牌如何共同回答。</h2></header>
             <article><small>整体判断</small><p>{professionalReading.overview}</p></article>
             <div className={styles.readingGrid}>{professionalReading.cardInsights.map((item) => <article key={`${item.position}-${item.title}`}><small>{item.position} · {item.title}</small><b>{item.evidence}</b><p>{item.interpretation}</p></article>)}</div>
@@ -288,7 +290,8 @@ export function TarotExperience() {
             <article className={styles.shiguangReading}><small>牌面综合解读</small><p>{professionalReading.shiguang}</p></article>
             <div className={styles.nextStep}><article><small>可验证的下一步</small><p>{professionalReading.action}</p></article><article><small>留给你的问题</small><p>{professionalReading.reflectionQuestion}</p></article></div>
             <article><small>解读方法与边界</small><p>{professionalReading.method}</p></article>
-          </details>}
+          </section>}
+          </details>
           <ShiguangChat theme="west" context={`用户的问题是“${question}”。这次使用${spread.name}，牌面为${cards.map((card, index) => `${spread.positions[index].label}:${card.name}${orientationLabel[card.orientation]}`).join("；")}。牌间关系：${professionalReading?.relationship ?? relations.headline}。拾光初步解释：${professionalReading?.shiguang ?? "暂无"}`} opening="牌已经摊开了。你可以直接问我：为什么这样解、哪张牌最关键、这和你的现实处境怎么对应，或者下一步怎么验证。" />
           <div className={styles.actions}>
             <button onClick={reset}>换一个问题</button>
