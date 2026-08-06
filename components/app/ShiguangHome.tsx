@@ -40,7 +40,6 @@ const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}$
 export function ShiguangHome() {
   const [ready, setReady] = useState(false);
   const [latestQuestion, setLatestQuestion] = useState("");
-  const [latestClue, setLatestClue] = useState("");
   const [followUpDue, setFollowUpDue] = useState(false);
   const [daily, setDaily] = useState<DailyGuidance>(fallbackDaily[0]);
   const [dailyLoading, setDailyLoading] = useState(true);
@@ -63,7 +62,6 @@ export function ShiguangHome() {
     try {
       const history = JSON.parse(window.localStorage.getItem("life-mirror:guest-history:v1") ?? "[]") as MirrorHistoryItem[];
       setLatestQuestion(history[0]?.question?.trim() ?? "");
-      setLatestClue(history[0]?.reflection?.shareableReflection?.trim() ?? history[0]?.reflection?.shiguangInterpretation?.trim() ?? history[0]?.reflection?.traditionalJudgment?.trim() ?? "");
       const savedAt = history[0]?.savedAt ? Date.parse(history[0].savedAt) : Number.NaN;
       setFollowUpDue(Number.isFinite(savedAt) && Date.now() - savedAt >= 3 * 86_400_000);
       const profile = getSavedBirthProfile();
