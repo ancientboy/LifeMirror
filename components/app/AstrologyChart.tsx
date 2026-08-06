@@ -69,7 +69,9 @@ export function AstrologyChart({ result }: { result: AstrologyResult }) {
   };
   const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
-    <header className={styles.header}><div><small>NATAL MIRROR</small><h2>你的本命星盘</h2><p>{meta}</p></div></header>
+    <header className={styles.header}><div><small>NATAL MIRROR</small><h2>拾光先说你的星盘</h2><p>{meta}</p></div></header>
+    <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <details className={styles.professionalDetails}><summary>展开查看轮盘、行星、宫位与相位</summary><p className={styles.detailsIntro}>以下内容是本命星盘的计算事实与象征依据，用来复核拾光的结论；它不是固定人格或未来预测。</p>
     <div className={styles.overview}><NatalWheel result={result} /><div className={styles.bigThree}>
       <small>核心三要素</small>
       {[sun, moon].map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><span>{planet.name}</span><strong>{planet.sign.name}</strong><em>{formatDegree(planet.degreeInSign)}{planet.house ? ` · 第 ${planet.house} 宫` : ""}</em></div></article>)}
@@ -78,9 +80,9 @@ export function AstrologyChart({ result }: { result: AstrologyResult }) {
     <div className={styles.themes}>{result.themes.map((theme, index) => <article key={theme}><span>0{index + 1}</span><p>{theme}</p></article>)}</div>
     <section className={styles.dataSection}><h3>行星落座与宫位</h3><div className={styles.planetGrid}>{result.planets.map((planet) => <article key={planet.key}><b>{planet.glyph}</b><div><strong>{planet.name}</strong><span>{planet.sign.name} {formatDegree(planet.degreeInSign)}</span><em>{planet.house ? `第 ${planet.house} 宫` : "宫位未知"}{planet.retrograde ? " · 逆行" : ""}</em></div></article>)}</div></section>
     <section className={styles.dataSection}><h3>主要相位</h3>{result.aspects.length ? <div className={styles.aspectGrid}>{result.aspects.map((aspect) => <article key={aspect.key}><b>{aspect.glyph}</b><span>{aspect.first} {aspect.name} {aspect.second}</span></article>)}</div> : <p className={styles.empty}>当前没有识别到主要相位。</p>}</section>
-    <UnifiedMirrorResult kind="astrology" theme="west" question="我的本命星盘呈现了怎样的内在动力与现实张力？" facts={facts} fallback={fallback} title="我的星盘镜像" meta={meta} image="/characters/shiguang/shiguang-west-chibi-v2.png" onResolved={(reflection) => setMirrorSummary(reflection.headline)} />
+    <div className={styles.evidence}><dl><div><dt>计算时间</dt><dd>{result.utcTime.replace("T", " ").replace(".000Z", " UTC")}</dd></div><div><dt>星历模型</dt><dd>{result.engine.model} · {result.engine.version}</dd></div><div><dt>黄道与宫制</dt><dd>{result.engine.zodiac} · {result.engine.houseSystem}</dd></div></dl><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></div>
+    </details>
     <MirrorSaveButton source="astrology" title="占星镜像" question="我的本命星盘" summary={mirrorSummary} meta={meta} payload={result} />
     <ShiguangChat theme="west" context={`这次星盘的可确认事实是：${meta}。最紧密主要相位为${result.aspects[0] ? `${result.aspects[0].first}${result.aspects[0].name}${result.aspects[0].second}，容许度 ${result.aspects[0].orb}°` : "当前容许度内未识别"}。请始终区分盘面事实、象征解释和现实证据。`} opening="星盘已经展开。如果你想追问某颗行星、某个宫位或一组相位，我会先指出盘面证据，再陪你把象征放回真实生活。" />
-    <details className={styles.evidence}><summary>查看专业推导依据</summary><dl><div><dt>计算时间</dt><dd>{result.utcTime.replace("T", " ").replace(".000Z", " UTC")}</dd></div><div><dt>星历模型</dt><dd>{result.engine.model} · {result.engine.version}</dd></div><div><dt>黄道与宫制</dt><dd>{result.engine.zodiac} · {result.engine.houseSystem}</dd></div></dl><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul></details>
   </section>;
 }
