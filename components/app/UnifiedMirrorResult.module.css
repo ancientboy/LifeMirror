@@ -11,7 +11,16 @@
 .shell header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin: 0; }
 .shell header small, .shell article small, .shell aside small { color: #a27e3c; font-size: 10px; letter-spacing: .13em; }
 .shell header small { display: flex; align-items: center; gap: 7px; }
-.shell h2 { max-width: 720px; margin: 8px 0 0; overflow-wrap: anywhere; text-wrap: balance; font: 400 clamp(24px, 2.6vw, 34px)/1.38 Georgia, "Songti SC", serif; }
+.shell h2 {
+  max-width: 720px;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  /* This is the result-card headline, not the page title. Keeping it at the
+     reading scale prevents a fallback sentence from visually taking over the
+     entire tarot result page. */
+  font: 400 clamp(20px, 1.55vw, 24px)/1.52 Georgia, "Songti SC", serif;
+}
 .shell header > span { display: flex; align-items: center; gap: 6px; color: #69756f; font-size: 11px; white-space: nowrap; }
 .grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 12px; }
 .grid article, .shell aside { min-width: 0; padding: 18px; border: 1px solid rgba(49, 93, 82, .12); border-radius: 16px; background: rgba(255, 255, 255, .7); }
@@ -29,7 +38,7 @@
 @media (max-width: 700px) {
   .shell { padding: 16px; }
   .shell header { display: grid; }
-  .shell h2 { max-width: 100%; font-size: 26px; line-height: 1.42; }
+  .shell h2 { max-width: 100%; font-size: 20px; line-height: 1.55; }
   .shell header > span { white-space: normal; }
   .grid { grid-template-columns: 1fr; }
 }
