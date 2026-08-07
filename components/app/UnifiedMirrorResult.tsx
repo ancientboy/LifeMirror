@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
 import { buildJudgmentFactPack } from "@/lib/shiguang-judgment";
+import { isCompleteMirrorResult } from "@/lib/mirror-result-quality";
 import { saveMirrorHistory } from "@/lib/mirror-history";
 
 export type MirrorKind = "tarot" | "bazi" | "astrology";
@@ -93,17 +94,6 @@ function sanitize(value: unknown, fallback: MirrorResult): MirrorResult {
   };
 }
 
-function isCompleteModelResult(value: unknown) {
-  if (!value || typeof value !== "object") return false;
-  const input = value as Record<string, unknown>;
-  const forbidden = /翻译(?:一下|成人话)?|人话(?:版)?|基础规则|拾光\s*AI|模型|系统提示/u;
-  const prose = [input.headline, input.interpretation, input.action, input.reflectionQuestion];
-  if (prose.some((item) => typeof item !== "string" || item.trim().length < 8 || forbidden.test(item))) return false;
-  if (!input.shareCards || typeof input.shareCards !== "object") return false;
-  const cards = input.shareCards as Record<string, unknown>;
-  return [cards.warm, cards.roast, cards.witty].every((item) => typeof item === "string" && item.trim().length >= 8 && item.trim().length <= 70 && !forbidden.test(item));
-}
-
 function contextualFallback(fallback: MirrorResult, question: string, facts: string): MirrorResult {
   const anchor = clean(fallback.headline, "此刻有一件事值得认真对待", 52).replace(/[。！？!?]+$/u, "");
   const detail = clean(fallback.interpretation, anchor, 120)
@@ -155,7 +145,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     }).then(async (response) => {
       if (!response.ok) throw new Error("mirror_ai_unavailable");
       const raw = extractJson(await response.text());
-      if (!isCompleteModelResult(raw)) throw new Error("mirror_ai_quality_rejected");
+      if (!isCompleteMirrorResult(raw)) throw new Error("mirror_ai_quality_rejected");
       const next = sanitize(raw, resultFallback);
       setResult(next);
       setMode("ai");
