@@ -12,6 +12,15 @@ import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, t
 import { recommendMirrorForQuestion } from "@/lib/question-routing";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
+type StartingPath = { label: string; tool: string; href: string; question?: string };
+
+const startingPaths: StartingPath[] = [
+  { label: "我想更了解自己", tool: "从命盘开始", href: "/app/chart/" },
+  { label: "有段关系让我有点乱", tool: "用塔罗看当下", href: "/app/tarot/", question: "我想理清一段关系。" },
+  { label: "我正卡在一个选择里", tool: "用六爻看这件事", href: "/app/liuyao/", question: "我正卡在一个选择里，不知道怎么往前走。" },
+  { label: "我最近有点累或焦虑", tool: "用塔罗整理感受", href: "/app/tarot/", question: "我最近有点累或焦虑，想知道自己真正需要什么。" },
+  { label: "我有一件具体的事想问", tool: "用六爻看变化", href: "/app/liuyao/", question: "我有一件具体的事想慢慢理清。" },
+];
 
 const stateFallbacks: DailyGuidance[] = [
   { theme: "今天先处理最消耗你的那一件。", reason: "先给眼前最悬着的事一个明确的位置，注意力才会慢慢回来。", action: "给它留十分钟：推进一步，或明确今天先不处理。", sources: ["近期状态"] },
@@ -104,20 +113,14 @@ export function ShiguangHome() {
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
     <section className={styles.welcome}>
-      <div><small>你和拾光的私人空间</small><h1>先不用选工具。<br />说说你想理解的事。</h1><p>拾光会先陪你把问题说清；只有确实有帮助时，才建议命盘、星盘、塔罗或六爻作为补充视角。</p></div>
+      <div><small>你和拾光的私人空间</small><h1>说说你想弄明白的事。<br />也可以直接从镜像开始。</h1><p>拾光会陪你理清问题；想换个角度时，也能随时用命盘、星盘、塔罗或六爻看见自己。</p></div>
       <div className={styles.questionStart}>
         <label htmlFor="first-question">此刻最想弄明白什么？</label>
         <textarea id="first-question" value={firstQuestion} onChange={(event) => setFirstQuestion(event.target.value)} maxLength={180} placeholder="例如：我该不该接受这个工作机会？" />
-        <div className={styles.recommendation} aria-live="polite"><span><small>拾光建议</small><b>{recommendation.reason}</b></span>{recommendation.href === "/app/home/" ? <button type="button" onClick={() => seedChat(recommendation.seed ?? firstQuestion)}>{recommendation.label}<ArrowRight /></button> : <Link href={`${recommendation.href}${recommendation.seed ? `?question=${encodeURIComponent(recommendation.seed)}` : ""}`}>{recommendation.label}<ArrowRight /></Link>}</div>
+        {firstQuestion.trim() ? <div className={styles.recommendation} aria-live="polite"><span><small>可以这样开始</small><b>{recommendation.reason}</b></span>{recommendation.href === "/app/home/" ? <button type="button" onClick={() => seedChat(recommendation.seed ?? firstQuestion)}>{recommendation.label}<ArrowRight /></button> : <Link href={`${recommendation.href}${recommendation.seed ? `?question=${encodeURIComponent(recommendation.seed)}` : ""}`}>{recommendation.label}<ArrowRight /></Link>}</div> : <div className={styles.toolDirectory}><span>不确定从哪里开始？</span><Link href="/app/explore/">看看四种镜像工具 <ArrowRight /></Link></div>}
       </div>
-      <div className={styles.entryPoints} aria-label="选择一个想聊的方向">
-        {[
-          ["我想更了解自己", "我想从我的长期模式开始，更了解自己。"],
-          ["有段关系让我有点乱", "我想理清一段关系。"],
-          ["我正卡在一个选择里", "我正卡在一个选择里，不知道怎么往前走。"],
-          ["我最近有点累或焦虑", "我最近有点累或焦虑，想知道自己真正需要什么。"],
-          ["我有一件具体的事想问", "我有一件具体的事想慢慢理清。"],
-        ].map(([label, seed]) => <button type="button" key={label} onClick={() => seedChat(seed)}>{label}<ArrowRight /></button>)}
+      <div className={styles.entryPoints} aria-label="按你此刻的状态选择镜像方式">
+        {startingPaths.map((path) => <Link href={`${path.href}${path.question ? `?question=${encodeURIComponent(path.question)}` : ""}`} key={path.label}><span><b>{path.label}</b><small>{path.tool}</small></span><ArrowRight /></Link>)}
       </div>
     </section>
     {latestQuestion && followUpDue && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>拾光在等一次回访</small><b>{latestQuestion}</b><p>三天前的这件事，后来怎么样了？只要点一个状态，拾光会从这里接着理解你。</p><div>{["更好", "没变", "更糟"].map((state) => <button type="button" key={state} onClick={() => seedChat(`关于“${latestQuestion}”，现在是${state}。`)}>{state}</button>)}</div></span></aside>}
