@@ -66,6 +66,18 @@ function validateMirrorResult(text: string, pack: JudgmentFactPack) {
   if (start < 0 || end <= start) throw new Error("missing_json");
   const value = JSON.parse(source.slice(start, end + 1)) as Record<string, unknown>;
   if (!hasOnlyKnownFactIds(value.evidenceIds, pack)) throw new Error("invalid_evidence_ids");
+  const required = ["headline", "interpretation", "action", "reflectionQuestion"] as const;
+  for (const field of required) {
+    if (typeof value[field] !== "string" || value[field].trim().length < 8) throw new Error(`invalid_${field}`);
+    if (/翻译(?:一下|成人话)?|人话(?:版)?|基础规则|拾光\s*AI|模型|系统提示/u.test(value[field] as string)) throw new Error(`internal_text_${field}`);
+  }
+  if (!value.shareCards || typeof value.shareCards !== "object") throw new Error("missing_share_cards");
+  const cards = value.shareCards as Record<string, unknown>;
+  for (const field of ["warm", "roast", "witty"] as const) {
+    const quote = cards[field];
+    if (typeof quote !== "string" || quote.trim().length < 8 || quote.trim().length > 70) throw new Error(`invalid_share_${field}`);
+    if (/翻译(?:一下|成人话)?|人话(?:版)?|基础规则|拾光\s*AI|模型|系统提示/u.test(quote)) throw new Error(`internal_share_${field}`);
+  }
   delete value.evidenceIds;
   return JSON.stringify(value);
 }
