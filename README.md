@@ -266,7 +266,7 @@ Local services:
 - API liveness: `http://localhost:8787/health/live`
 - API readiness: `http://localhost:8787/health/ready`
 
-Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable an OpenAI-compatible provider. Set `SHIGUANG_WEB_SEARCH_API_KEY` to enable source-backed live verification in the web conversation (the default endpoint uses Tavily's Search API format). Secrets belong in local or deployment environment variables and must not be committed.
+Use `npm run dev:web` when only the static Institute site is needed. Set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_MODEL` and, when needed, `LLM_BASE_URL` to enable the primary OpenAI-compatible provider. Optionally set `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_API_KEY`, and `LLM_FALLBACK_MODEL`; the Sites Worker retries the backup only after a primary timeout/network failure, 429/5xx response, or empty response. Set `SHIGUANG_WEB_SEARCH_API_KEY` to enable source-backed live verification in the web conversation (the default endpoint uses Tavily's Search API format). Secrets belong in local or deployment environment variables and must not be committed.
 
 Set `NEXT_PUBLIC_API_URL` when the web app and API use different origins. Keep `SESSION_COOKIE_SAME_SITE=strict` for same-site deployments; use `none` only for a secure HTTPS API serving a cross-site web origin. The API validates `WEB_ORIGIN` on every browser request. Set a unique `REFLECTION_TOKEN_SECRET` of at least 32 characters in production.
 

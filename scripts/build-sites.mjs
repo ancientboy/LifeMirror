@@ -472,6 +472,56 @@ async function socialApi(request, env, pathname) {
   return json({ error: "not_found" }, 404);
 }
 
+function modelProviders(env) {
+  const primary = {
+    name: "primary",
+    baseUrl: String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, ""),
+    apiKey: env.LLM_API_KEY,
+    model: env.LLM_MODEL,
+  };
+  const backup = {
+    name: "backup",
+    baseUrl: String(env.LLM_FALLBACK_BASE_URL || "").replace(/\/$/, ""),
+    apiKey: env.LLM_FALLBACK_API_KEY,
+    model: env.LLM_FALLBACK_MODEL,
+  };
+  return [primary, ...(backup.baseUrl && backup.apiKey && backup.model ? [backup] : [])];
+}
+
+function shouldRetryProvider(status) {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+
+async function completeWithFallback(env, payload, { timeoutMs = 20_000 } = {}) {
+  const providers = modelProviders(env);
+  if (!providers[0].apiKey || !providers[0].model) throw new Error("llm_not_configured");
+  let lastError = new Error("llm_unavailable");
+  for (const [index, provider] of providers.entries()) {
+    try {
+      const upstream = await fetch(provider.baseUrl + "/chat/completions", {
+        method: "POST",
+        headers: { authorization: "Bearer " + provider.apiKey, "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, model: provider.model }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!upstream.ok) {
+        const failure = new Error("llm_upstream_" + upstream.status);
+        failure.retryable = shouldRetryProvider(upstream.status);
+        throw failure;
+      }
+      const text = decodeModelResponse(await upstream.text());
+      if (text.trim()) return { text, provider: provider.name };
+      lastError = new Error("llm_empty_response");
+      if (index < providers.length - 1) continue;
+      throw lastError;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("llm_request_failed");
+      if (index < providers.length - 1 && lastError.retryable !== false) continue;
+    }
+  }
+  throw lastError;
+}
+
 async function shiguang(request, env) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   if (!env.LLM_API_KEY || !env.LLM_MODEL) return json({ error: "llm_not_configured" }, 503);
@@ -479,16 +529,12 @@ async function shiguang(request, env) {
   if (!input || !["east", "west"].includes(input.theme) || ![undefined, "chat", "mirror_result"].includes(input.mode) || (input.mode === "mirror_result" && !["tarot", "bazi", "astrology"].includes(input.kind)) || typeof input.context !== "string" || input.context.length > 12000 || !Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 16) return json({ error: "invalid_chat_input" }, 400);
   const messages = input.messages.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string" && item.content.length <= 2000);
   if (messages.length !== input.messages.length) return json({ error: "invalid_chat_input" }, 400);
-  const baseUrl = String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-  const upstream = await fetch(baseUrl + "/chat/completions", {
-    method: "POST",
-    headers: { authorization: "Bearer " + env.LLM_API_KEY, "content-type": "application/json" },
-    body: JSON.stringify({ model: env.LLM_MODEL, stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感") + "。本次上下文：" + input.context }, ...messages] }),
-  });
-  if (!upstream.ok) return json({ error: "llm_upstream_failed", upstreamStatus: upstream.status }, 502);
-  const text = decodeModelResponse(await upstream.text());
-  if (!text.trim()) return json({ error: "llm_empty_response" }, 502);
-  return new Response(text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+  try {
+    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感") + "。本次上下文：" + input.context }, ...messages] });
+    return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });
+  } catch {
+    return json({ error: "llm_upstream_failed" }, 502);
+  }
 }
 
 function mirrorResultSystem(input) {
@@ -631,12 +677,7 @@ async function liuyaoReflection(request, env) {
     deep ? "这是深度分析：明确主要信号、最强反向信号和条件边界。" : "这是清晰解读：简洁、具体、自然，不写学术报告。",
   ].join("\n");
   try {
-    const baseUrl = String(env.LLM_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-    const upstream = await fetch(baseUrl + "/chat/completions", {
-      method: "POST",
-      headers: { authorization: "Bearer " + env.LLM_API_KEY, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: env.LLM_MODEL,
+    const generated = await completeWithFallback(env, {
         temperature: 0.58,
         max_tokens: 1900,
         response_format: { type: "json_object" },
@@ -644,16 +685,10 @@ async function liuyaoReflection(request, env) {
           { role: "system", content: prompt },
           { role: "user", content: "<traditional_context>\n" + encodedContext + "\n</traditional_context>" },
         ],
-      }),
-      signal: AbortSignal.timeout(45000),
-    });
-    const rawPayload = await upstream.text();
-    if (!upstream.ok) return json({ error: "llm_upstream_failed" }, 502);
-    const generatedText = decodeModelResponse(rawPayload);
-    if (!generatedText.trim()) return json({ error: "llm_empty_response" }, 502);
-    const reflection = sanitizeReflection(extractJson(generatedText), context);
+      }, { timeoutMs: 45_000 });
+    const reflection = sanitizeReflection(extractJson(generated.text), context);
     if (!reflection) return json({ error: "invalid_liuyao_reflection" }, 502);
-    return json({ reflection, generationMode: "ai" });
+    return json({ reflection, generationMode: "ai", modelSource: generated.provider });
   } catch {
     return json({ error: "liuyao_reflection_failed" }, 502);
   }
