@@ -9,7 +9,6 @@ import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
 import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
-import { recommendMirrorForQuestion } from "@/lib/question-routing";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 type StartingPath = { label: string; tool: string; href: string; question?: string };
@@ -58,12 +57,9 @@ export function ShiguangHome() {
   const [dailyLoading, setDailyLoading] = useState(true);
   const [dailyMode, setDailyMode] = useState<DailyGuidanceContext["mode"]>("daily_state_note");
   const [dailyEvidence, setDailyEvidence] = useState<DailyEvidence[]>([]);
-  const [firstQuestion, setFirstQuestion] = useState("");
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
-  const recommendation = recommendMirrorForQuestion(firstQuestion);
-
   function seedChat(text: string) {
     window.dispatchEvent(new CustomEvent("life-mirror:chat-seed", { detail: text }));
     document.getElementById("shiguang-chat")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -113,18 +109,13 @@ export function ShiguangHome() {
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
     <section className={styles.welcome}>
-      <div><small>你和拾光的私人空间</small><h1>说说你想弄明白的事。<br />也可以直接从镜像开始。</h1><p>拾光会陪你理清问题；想换个角度时，也能随时用命盘、星盘、塔罗或六爻看见自己。</p></div>
-      <div className={styles.questionStart}>
-        <label htmlFor="first-question">此刻最想弄明白什么？</label>
-        <textarea id="first-question" value={firstQuestion} onChange={(event) => setFirstQuestion(event.target.value)} maxLength={180} placeholder="例如：我该不该接受这个工作机会？" />
-        {firstQuestion.trim() ? <div className={styles.recommendation} aria-live="polite"><span><small>可以这样开始</small><b>{recommendation.reason}</b></span>{recommendation.href === "/app/home/" ? <button type="button" onClick={() => seedChat(recommendation.seed ?? firstQuestion)}>{recommendation.label}<ArrowRight /></button> : <Link href={`${recommendation.href}${recommendation.seed ? `?question=${encodeURIComponent(recommendation.seed)}` : ""}`}>{recommendation.label}<ArrowRight /></Link>}</div> : <div className={styles.toolDirectory}><span>不确定从哪里开始？</span><Link href="/app/explore/">看看四种镜像工具 <ArrowRight /></Link></div>}
-      </div>
+      <div><small>你和拾光的私人空间</small><h1>慢慢说，我在听。<br />也可以直接从镜像开始。</h1><p>所有问题都从同一段对话开始；拾光会陪你理清，也会在合适时建议命盘、星盘、塔罗或六爻。</p></div>
+      <section className={styles.homeChat} id="shiguang-chat"><ShiguangChat mode="home" theme="east" context={`这是 LifeMirror 的常规聊天首页。这里首先是用户可以安全开口的私人空间。先自然回应近况、帮用户把感受或关系中的真实卡点说清；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个作为补充视角，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。今天，有什么事在心里吗？"} /></section>
       <div className={styles.entryPoints} aria-label="按你此刻的状态选择镜像方式">
         {startingPaths.map((path) => <Link href={`${path.href}${path.question ? `?question=${encodeURIComponent(path.question)}` : ""}`} key={path.label}><span><b>{path.label}</b><small>{path.tool}</small></span><ArrowRight /></Link>)}
       </div>
     </section>
     {latestQuestion && followUpDue && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>拾光在等一次回访</small><b>{latestQuestion}</b><p>三天前的这件事，后来怎么样了？只要点一个状态，拾光会从这里接着理解你。</p><div>{["更好", "没变", "更糟"].map((state) => <button type="button" key={state} onClick={() => seedChat(`关于“${latestQuestion}”，现在是${state}。`)}>{state}</button>)}</div></span></aside>}
-    <section className={styles.chatSection} id="shiguang-chat"><ShiguangChat mode="home" theme="east" context={`这是 LifeMirror 的常规聊天首页。这里首先是用户可以安全开口的私人空间。先自然回应近况、帮用户把感受或关系中的真实卡点说清；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个作为补充视角，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。今天，有什么事在心里吗？"} /></section>
     <section className={styles.daily} aria-busy={dailyLoading}>
       <div className={styles.dailyHeading}><small><Sparkle /> {dateLabel} · {dailyMode === "personal_daily_fortune" ? "今日运势" : "给你的轻提醒"}</small><h2>{daily.theme}</h2><p>{daily.reason}</p></div>
       <div className={styles.dailyAction}><b>如果今天只做一件小事</b><span>{daily.action}</span></div>

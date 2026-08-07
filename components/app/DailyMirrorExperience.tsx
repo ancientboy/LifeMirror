@@ -234,10 +234,11 @@ function createGuestReflection(question: string, hexagram: Hexagram, knowledge: 
   const careful = hexagram.judgment.tone === "careful";
   const relationshipQuestion = /关系|对方|彼此|感情|伴侣|朋友|联系|复合/u.test(question);
   const shareAnchor = (plainStory || verdictText || `${knowledge.original.name}走向${knowledge.changed.name}`).replace(/[。；].*/u, "").slice(0, 30);
+  const questionAnchor = question.trim().replace(/[。！？!?]/gu, "").slice(0, 18) || "这件事";
   const shareCards = {
-    warm: { title: "", quote: playful ? "今天值得赢到开心，不必把快乐也做成绩效" : `${shareAnchor}。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻` },
-    witty: { title: "", quote: playful ? "换你来照一次，看看谁更会把快乐想复杂" : `我这次看见的是“${shareAnchor.slice(0, 16)}”，也看看你的。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照` },
-    roast: { title: "", quote: playful ? "我想要的是一起开心，不是再比一次谁输谁赢" : relationshipQuestion ? "这件事悬着，不只因为沉默，也因为没人先认真回应。" : "别让猜测替你做决定，现实的回应才算数。", meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应` },
+    warm: { title: "", quote: playful ? "今天先把开心留住，别急着把它算成输赢" : `${questionAnchor}：${shareAnchor}。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 我的此刻` },
+    witty: { title: "", quote: playful ? "我这次看见的是开心，你的镜像会落在哪里？" : `我这次看见“${shareAnchor.slice(0, 16)}”，也看看你的。`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 邀请对照` },
+    roast: { title: "", quote: playful ? "想一起开心，就别把每一步都变成较量" : relationshipQuestion ? `${shareAnchor}，这次该由谁先给回应？` : `${shareAnchor}，现实会不会给出下一步？`, meta: `${knowledge.original.name} → ${knowledge.changed.name} · 关系回应` },
   };
   const reflection: Reflection = {
     traditionalJudgment: `${playful ? "先说结果" : "先说结论"}：${verdictText || "暂时还不能定"}。`,
@@ -629,14 +630,22 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
       const basic = createGuestReflection(question, hexagram, knowledge, reflectionKnowledge, analysisContext);
       let result = basic;
       try {
-        const generated = await api<{ reflection: Reflection; generationMode: "ai"; generationNotice?: string }>("/api/v1/liuyao/reflection", {
+        // The Runtime owns Liuyao generation.  The old /liuyao/reflection URL
+        // no longer exists, so every request silently became a local rule-only
+        // fallback.  Send the original casting facts to the current endpoint
+        // instead; its response includes the LLM-written share cards.
+        const generated = await api<ReflectionResponse>("/api/v1/daily-mirror/reflections", {
           method: "POST",
           body: JSON.stringify({
-            traditionalContext: buildLiuyaoPresentation({ question, result: hexagram, knowledge, analysisContext }),
-            interactionMode,
+            question,
+            tosses,
+            analysisContext: analysisContext ?? undefined,
+            requestedMode: interactionMode,
+            occurredAt: new Date().toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         });
-        result = { ...basic, reflection: cleanReflectionShareCards(generated.reflection), generationMode: generated.generationMode, generationNotice: generated.generationNotice };
+        result = { ...generated, reflection: cleanReflectionShareCards(generated.reflection), generationMode: "ai" };
       } catch {
         result = basic;
       }
@@ -649,6 +658,12 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     if (!reflectionResult || saved) return;
     setBusy(true); setError("");
     try {
+      if (authState === "authenticated" && !reflectionResult.draftToken.startsWith("guest-")) {
+        await api("/api/v1/daily-mirror/reflections/save", {
+          method: "POST",
+          body: JSON.stringify({ draftToken: reflectionResult.draftToken }),
+        });
+      }
       const event: HistoryEvent = {
         id: createClientId(),
         question: reflectionResult.question,
