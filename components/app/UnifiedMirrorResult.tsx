@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
 import { buildJudgmentFactPack } from "@/lib/shiguang-judgment";
-import { isCompleteMirrorResult } from "@/lib/mirror-result-quality";
 import { saveMirrorHistory } from "@/lib/mirror-history";
 
 export type MirrorKind = "tarot" | "bazi" | "astrology";
@@ -16,6 +15,8 @@ export type MirrorResult = {
   reflectionQuestion: string;
   shareCards: { warm: string; roast: string; witty: string };
 };
+
+const MIRROR_REQUEST_TIMEOUT_MS = 20_000;
 
 type Props = {
   kind: MirrorKind;
@@ -128,6 +129,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       return;
     }
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort("mirror_request_timeout"), MIRROR_REQUEST_TIMEOUT_MS);
     setResult(resultFallback);
     setMode("loading");
     void fetch("/api/shiguang", {
@@ -144,39 +146,34 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       signal: controller.signal,
     }).then(async (response) => {
       if (!response.ok) throw new Error("mirror_ai_unavailable");
-      const raw = extractJson(await response.text());
-      if (!isCompleteMirrorResult(raw)) throw new Error("mirror_ai_quality_rejected");
-      const next = sanitize(raw, resultFallback);
+      const next = sanitize(extractJson(await response.text()), resultFallback);
       setResult(next);
       setMode("ai");
       onResolved?.(next);
-    }).catch((error) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+    }).catch(() => {
+      // A new request or unmount cancels safely. A deadline must finish the
+      // visible state instead of leaving the user on an endless spinner.
+      if (controller.signal.aborted && controller.signal.reason !== "mirror_request_timeout") return;
       setResult(resultFallback);
       setMode("basic");
       onResolved?.(resultFallback);
-    });
-    return () => controller.abort();
+    }).finally(() => window.clearTimeout(timeout));
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort("mirror_request_cancelled");
+    };
     // fallback and callback intentionally follow the deterministic request key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historical, initialResult, requestKey, resultFallback, theme]);
 
   function saveToMirror() {
-    saveMirrorHistory({
-      source: kind, sourceLabel: labels[kind], question, summary: result.headline,
-      meta, factIds: factPack.facts.map((fact) => fact.id),
-      reflection: {
-        headline: result.headline, shareableReflection: result.shareCards.warm,
-        shiguangInterpretation: result.interpretation, practicalGuidance: result.action,
-        reflectionQuestion: result.reflectionQuestion,
-      },
-    });
+    saveMirrorHistory({ source: kind, sourceLabel: labels[kind], question, summary: result.headline, factIds: factPack.facts.map((fact) => fact.id) });
     setSaved(true);
   }
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
-    {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时无法完成本次解读。以下仅是基于已展示盘面生成的基础提示，不是 AI 改写结果。</p>}
+    {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时无法完成这次解读，以下是依据本次牌阵整理的基础解读。</p>}
     <div className={styles.grid}>
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
