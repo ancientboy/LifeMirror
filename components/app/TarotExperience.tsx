@@ -89,6 +89,11 @@ export function TarotExperience() {
   }, []);
 
   useEffect(() => {
+    const suggested = new URLSearchParams(window.location.search).get("question")?.trim();
+    if (suggested) setQuestion(suggested.slice(0, 120));
+  }, []);
+
+  useEffect(() => {
     if (stage !== "reading") return;
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
   }, [stage]);

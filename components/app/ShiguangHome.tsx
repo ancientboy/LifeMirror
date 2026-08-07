@@ -9,6 +9,7 @@ import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
 import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
+import { recommendMirrorForQuestion } from "@/lib/question-routing";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 
@@ -48,9 +49,11 @@ export function ShiguangHome() {
   const [dailyLoading, setDailyLoading] = useState(true);
   const [dailyMode, setDailyMode] = useState<DailyGuidanceContext["mode"]>("daily_state_note");
   const [dailyEvidence, setDailyEvidence] = useState<DailyEvidence[]>([]);
+  const [firstQuestion, setFirstQuestion] = useState("");
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
+  const recommendation = recommendMirrorForQuestion(firstQuestion);
 
   function seedChat(text: string) {
     window.dispatchEvent(new CustomEvent("life-mirror:chat-seed", { detail: text }));
@@ -102,6 +105,11 @@ export function ShiguangHome() {
     </header>
     <section className={styles.welcome}>
       <div><small>你和拾光的私人空间</small><h1>先不用选工具。<br />说说你想理解的事。</h1><p>拾光会先陪你把问题说清；只有确实有帮助时，才建议命盘、星盘、塔罗或六爻作为补充视角。</p></div>
+      <div className={styles.questionStart}>
+        <label htmlFor="first-question">此刻最想弄明白什么？</label>
+        <textarea id="first-question" value={firstQuestion} onChange={(event) => setFirstQuestion(event.target.value)} maxLength={180} placeholder="例如：我该不该接受这个工作机会？" />
+        <div className={styles.recommendation} aria-live="polite"><span><small>拾光建议</small><b>{recommendation.reason}</b></span>{recommendation.href === "/app/home/" ? <button type="button" onClick={() => seedChat(recommendation.seed ?? firstQuestion)}>{recommendation.label}<ArrowRight /></button> : <Link href={`${recommendation.href}${recommendation.seed ? `?question=${encodeURIComponent(recommendation.seed)}` : ""}`}>{recommendation.label}<ArrowRight /></Link>}</div>
+      </div>
       <div className={styles.entryPoints} aria-label="选择一个想聊的方向">
         {[
           ["我想更了解自己", "我想从我的长期模式开始，更了解自己。"],

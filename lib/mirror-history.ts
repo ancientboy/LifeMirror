@@ -10,6 +10,15 @@ export type MirrorHistoryRecord = {
   savedAt: string;
   summary: string;
   factIds: string[];
+  meta?: string;
+  payload?: unknown;
+  reflection?: {
+    headline?: string;
+    shareableReflection?: string;
+    shiguangInterpretation?: string;
+    practicalGuidance?: string;
+    reflectionQuestion?: string;
+  };
   feedback?: "resonates" | "needs_correction";
 };
 

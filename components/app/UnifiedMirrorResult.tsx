@@ -93,6 +93,17 @@ function sanitize(value: unknown, fallback: MirrorResult): MirrorResult {
   };
 }
 
+function isCompleteModelResult(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const input = value as Record<string, unknown>;
+  const forbidden = /翻译(?:一下|成人话)?|人话(?:版)?|基础规则|拾光\s*AI|模型|系统提示/u;
+  const prose = [input.headline, input.interpretation, input.action, input.reflectionQuestion];
+  if (prose.some((item) => typeof item !== "string" || item.trim().length < 8 || forbidden.test(item))) return false;
+  if (!input.shareCards || typeof input.shareCards !== "object") return false;
+  const cards = input.shareCards as Record<string, unknown>;
+  return [cards.warm, cards.roast, cards.witty].every((item) => typeof item === "string" && item.trim().length >= 8 && item.trim().length <= 70 && !forbidden.test(item));
+}
+
 function contextualFallback(fallback: MirrorResult, question: string, facts: string): MirrorResult {
   const anchor = clean(fallback.headline, "此刻有一件事值得认真对待", 52).replace(/[。！？!?]+$/u, "");
   const detail = clean(fallback.interpretation, anchor, 120)
@@ -143,7 +154,9 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       signal: controller.signal,
     }).then(async (response) => {
       if (!response.ok) throw new Error("mirror_ai_unavailable");
-      const next = sanitize(extractJson(await response.text()), resultFallback);
+      const raw = extractJson(await response.text());
+      if (!isCompleteModelResult(raw)) throw new Error("mirror_ai_quality_rejected");
+      const next = sanitize(raw, resultFallback);
       setResult(next);
       setMode("ai");
       onResolved?.(next);
@@ -159,13 +172,21 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
   }, [historical, initialResult, requestKey, resultFallback, theme]);
 
   function saveToMirror() {
-    saveMirrorHistory({ source: kind, sourceLabel: labels[kind], question, summary: result.headline, factIds: factPack.facts.map((fact) => fact.id) });
+    saveMirrorHistory({
+      source: kind, sourceLabel: labels[kind], question, summary: result.headline,
+      meta, factIds: factPack.facts.map((fact) => fact.id),
+      reflection: {
+        headline: result.headline, shareableReflection: result.shareCards.warm,
+        shiguangInterpretation: result.interpretation, practicalGuidance: result.action,
+        reflectionQuestion: result.reflectionQuestion,
+      },
+    });
     setSaved(true);
   }
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
-    {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时离线，先按这次结果给你一版专属解读。</p>}
+    {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时无法完成本次解读。以下仅是基于已展示盘面生成的基础提示，不是 AI 改写结果。</p>}
     <div className={styles.grid}>
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>

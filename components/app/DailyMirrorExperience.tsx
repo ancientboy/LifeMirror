@@ -327,6 +327,11 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
   }, [loadHistory]);
 
   useEffect(() => {
+    const suggested = new URLSearchParams(window.location.search).get("question")?.trim();
+    if (suggested) setQuestion(suggested.slice(0, 500));
+  }, []);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReducedMotion(media.matches);
     update();
@@ -833,7 +838,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
           <button className={styles.backButton} onClick={() => setStage("hexagram")}><ArrowLeft /> 返回卦象</button>
           <div className={styles.reflectionHero}><span>拾光解读</span><h1>先说结论。</h1><p>传统依据保留在下方，需要验证时再展开。</p></div>
           <article className={styles.judgmentCard}><small>拾光先说</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.reflection.traditionalJudgment}</p></article>
-          {reflectionResult.generationMode === "basic" && reflectionResult.generationNotice && <div className={styles.basicNotice} role="status">AI 暂时未完成本次改写，当前先显示可靠的基础解读。</div>}
+          {reflectionResult.generationMode === "basic" && reflectionResult.generationNotice && <div className={styles.basicNotice} role="status">拾光暂时无法完成本次改写。以下仅保留可复核的基础卦象解读，不将其标作拾光回答。</div>}
           <div className={styles.shiguangIntro}><img className={styles.shiguangAvatar} src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><div><small>拾光 · SHIGUANG</small><p>我不会否定你想知道答案的心情。卦象已经先回应了你，接下来我只陪你看看，这个方向落到现实里意味着什么。</p></div></div>
           <div className={styles.personaFlow}>
             <article className={styles.understandingCard}><small>现实里的助力与阻力</small><h2>这对你意味着什么</h2><p>{reflectionResult.reflection.shiguangInterpretation}</p></article>

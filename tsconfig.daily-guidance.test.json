@@ -14,6 +14,8 @@
   "include": [
     "lib/daily-guidance.ts",
     "lib/daily-guidance.test.ts",
+    "lib/question-routing.ts",
+    "lib/question-routing.test.ts",
     "server/tools/astrology/**/*.ts",
     "server/tools/bazi/**/*.ts"
   ]
