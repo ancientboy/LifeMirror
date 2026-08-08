@@ -9,73 +9,192 @@ updated: August 2026
 
 ## 1. 阶段定位
 
-PHASE-009 继续执行，但产品目标调整。
+PHASE-009 继续执行，但产品目标已经从“强化 Mirror DNA”调整为：
 
-这一阶段不再以“把 Mirror DNA 做得更完整”作为主要目标，也不把“人生模型正在形成”作为用户价值。
-
-新的目标是：
-
-> **让拾光在聊天、今日拾光、六爻、塔罗、八字、占星、周期回顾和关系场景中，都能调用同一份用户授权、可追溯、可纠正的上下文。**
+> **让拾光在聊天、今日拾光、六爻、塔罗、八字、占星、历史记录、周期回顾和关系场景中，都能调用同一份用户授权、可追溯、可纠正的上下文。**
 
 PHASE-009 是 LifeMirror 从“AI + 多种镜像工具”走向“AI-native relationship product”的基础设施阶段。
 
-核心用户价值不是让用户看到系统如何建模，而是让用户真实感受到：
+这一阶段必须让用户真实感受到：
 
-1. 拾光记得我正在经历什么。
-2. 我不需要每次从头解释。
-3. 拾光知道某个人是谁、这段关系发生过什么。
-4. 它能基于现实上下文直接给出判断，而不是把分析任务重新丢给用户。
-5. 当合适时，它能帮助用户把 AI 内部理解转化为真实的人际互动。
+1. 我做过的测算不会莫名消失。
+2. 我不需要每次重新解释自己。
+3. 拾光知道我正在经历什么，也知道某个人是谁。
+4. 历史记录、长期记忆和 Pattern 是不同层级，不会混为一谈。
+5. 拾光能基于现实上下文直接给判断，而不是把分析任务重新丢回用户。
+6. 在合适时，它能帮助用户把 AI 内部理解转化为真实的人际互动。
+
+本阶段不重新建立第二套 Memory Core，不改成 Multi-Agent，也不重写已经成熟的专业 Tool。
 
 ---
 
-# 2. 产品方向调整
+# 2. 产品原则调整
 
-## 2.1 Mirror DNA 降级为后台能力
+## 2.1 History、Memory、Pattern、Favorite 必须彻底分层
 
-当前 Pattern Memory、confidence、evidence、user correction 仍然保留。
+当前“用户是否点击保存”同时影响历史可见性和后续 Memory，这是体验不一致的根源之一。
 
-但前台不再把以下内容当作核心体验：
+PHASE-009 明确拆成四层：
+
+### History / 我的记录
+
+**默认自动记录。**
+
+只要一次完整 Tool 结果成功生成，就应该进入用户可查看的历史：
+
+- 六爻完成 → 自动进入历史
+- 塔罗完成 → 自动进入历史
+- 八字完成 → 更新稳定底图历史
+- 占星完成 → 更新稳定底图历史
+
+用户不需要再通过“保存”按钮决定“这次测算以后还能不能找到”。
+
+用户必须可以：
+
+- 查看历史
+- 删除单条记录
+- 按来源筛选
+- 按时间查看
+- 从历史记录继续和拾光聊
+- 关联到某个人/某段关系
+- 标记重要
+
+结果页面改为显示：
+
+> ✓ 已自动记录
+
+原“保存”按钮应逐步替换为：
+
+- 标记重要
+- 关联到某人
+- 删除
+- 继续聊
+
+### Memory / 拾光长期记得
+
+History 自动记录 **不等于** 自动进入长期 Memory。
+
+Memory 只接受：
+
+- 用户明确要求记住的事实
+- 用户主动确认的重要现实事件
+- 用户明确表达的沟通偏好
+- 符合授权和质量门槛的长期线索
+
+例如：
+
+```text
+History：今天抽到了“隐者”
+≠
+Memory：用户是一个内向的人
+```
+
+### Pattern / 长期线索
+
+Pattern 的门槛高于 Memory。
+
+只有多条独立、现实可追溯的 evidence 才能形成行为或长期主题 Pattern。
+
+Symbolic Tool 结果不能独立制造固定人格。
+
+### Favorite / 重要
+
+Favorite 是用户主动行为，而不是“是否保存历史”。
+
+可用于：
+
+- 标记重要
+- 以后提醒我
+- 这件事还没结束
+- 关联到某个人
+
+推荐数据流：
+
+```text
+Tool Result / Conversation
+          ↓
+       History（默认）
+          ↓
+是否满足长期记忆条件？
+          ↓
+       Memory
+          ↓
+多条独立现实证据？
+          ↓
+       Pattern
+```
+
+---
+
+## 2.2 Bazi / Astrology 不应产生重复历史垃圾
+
+六爻和 Tarot 是一次性事件型结果，每次完整结果可以产生一条 History。
+
+Bazi / Astrology 属于稳定底图，应继续利用现有 `profileKey` / natal cache 设计：
+
+```text
+birth profile
+    ↓
+已有相同 stable reference？
+    ↓
+复用 / 更新访问时间
+```
+
+只有以下情况生成新版本：
+
+- 出生资料发生修改
+- 用户明确更正资料
+- 算法版本升级并需要重新计算
+- 用户明确创建新版本
+
+本命盘不能因为重复打开而制造大量重复 History 或 Pattern evidence。
+
+---
+
+## 2.3 Mirror DNA 降级为后台能力
+
+Pattern Memory、confidence、evidence、user correction 继续保留。
+
+前台不再把以下内容作为核心价值：
 
 - “Mirror DNA 正在形成”
 - “还需要更多记录”
 - “这是第一次观察”
 - “再记录几次就会更了解你”
-- 以系统置信度、建模进度作为主要反馈
+- 系统建模进度
 
-这些内容可以作为内部安全边界，但对用户没有足够直接价值。
+这些表达技术上谨慎，但用户价值低。
 
-### 前台替换为四类真正有信息量的内容
+“我的”应该替换成真正有信息量的内容：
 
-#### 最近的你
+### 最近的我
 
-只展示当前有证据支持的事实或主题，例如：
+- 最近发生过什么
+- 最近反复在意什么
 
-- 最近两周你多次提到工作方向。
-- 这段关系最近又出现了回应节奏的问题。
-- 你最近反复在权衡“继续投入”还是“先停一下”。
+### 还没结束的事
 
-#### 还没结束的事
+- 上次正在等的结果
+- 尚未解决的关系问题
 
-例如：
+### 拾光记得
 
-- 上次你说正在等合作方回复。后来有消息了吗？
-- 你之前决定先不主动联系 TA，这件事现在有变化吗？
+- 明确事实
+- 沟通偏好
+- 用户自己确认的重要背景
 
-#### 拾光记得
+### 最近的变化
 
-只展示用户明确授权或高可信的事实/偏好，例如：
+- 有 evidence 支持的阶段变化
 
-- 你希望别人直接给判断，不喜欢反问式建议。
-- 你目前正在准备换工作。
+### 人物
 
-#### 最近有什么变化
+- 用户人生中正在被反复提到的人
+- 每个人独立的关系上下文
 
-基于多条事件和时间变化，而不是固定人格标签。
+### 我的底图
 
-例如：
-
-- 以前你更在意“要不要做”，最近你更在意“值不值得继续投入”。
+- 八字 / 星盘 stable reference
 
 ---
 
@@ -115,9 +234,7 @@ PHASE-009 是 LifeMirror 从“AI + 多种镜像工具”走向“AI-native rela
 - `server/runtime/tool-registry.ts`
 - `server/llm/shiguang-runtime.ts`
 
-已有 mode、memory、knowledge、tool、reflection、evaluation、trace 等基础。
-
-因此保持：
+保持：
 
 ```text
 一个拾光人格
@@ -128,48 +245,56 @@ PHASE-009 是 LifeMirror 从“AI + 多种镜像工具”走向“AI-native rela
 
 不改成 Multi-Agent。
 
-### 专业工具
+### 专业 Tools
 
 六爻、塔罗、八字、占星均已有结构化能力。
 
-本阶段重点是统一 Context 和 Memory，不重写专业引擎。
+本阶段重点是：
+
+- 自动历史
+- Memory source 统一
+- Context 统一
+- Relationship Context
+
+而不是重写专业引擎。
 
 ### Review
 
 Weekly / Monthly Review 已实现，并已有 evidence、confidence、preference、cooldown。
 
-本阶段只需要让 Review 消费统一后的多来源 Memory，不重新开发 Review Engine。
+本阶段只需要让 Review 消费统一后的多来源 Memory。
 
 ---
 
 # 4. 当前确认的主要断点
 
-## A. Server Memory 仍明显以六爻 Reflection Event 为中心
+## A. Tool 结果历史依赖用户手动保存
 
-当前 `MemorySourceEvent` 直接依赖：
+当前部分 Tool 结果需要用户主动点击保存后才能进入本地 Mirror History / 后续 Memory。
+
+直接结果是：
+
+> 用户明明刚做过一次测算，但“我的镜像”中可能看不到。
+
+这是 P0 产品一致性问题。
+
+## B. Server Memory 仍明显以六爻 Reflection Event 为中心
+
+当前 `MemorySourceEvent` 直接依赖六爻相关的：
 
 - `hexagram_result`
 - `knowledge_context`
 - `reflection`
 
-`processReflectionEvent()` 从 `reflection_events` 进入 Memory pipeline。
+问题不是“没有 Memory”，而是 **Memory ingestion source 不统一**。
 
-因此当前问题不是“没有 Memory”，而是 **Memory ingestion source 不统一**。
+## C. 普通拾光聊天仍使用客户端 Memory
 
-## B. 普通拾光聊天仍使用客户端 Memory
+`ShiguangChat.tsx` 当前主要通过 localStorage facts / history 和 client relevance 组装 memory。
 
-`ShiguangChat.tsx` 当前主要通过：
+登录用户没有统一使用 server personal context。
 
-- `lib/shiguang-memory.ts`
-- localStorage saved facts
-- local mirror history
-- client relevance
-
-组装 memory 后请求 `/api/shiguang`。
-
-登录用户没有统一使用已有 `/api/v1/memories/context` 作为长期上下文来源。
-
-## C. 登录用户“我的镜像”仍没有真正消费 Server Pattern
+## D. 登录用户“我的镜像”仍没有真正消费 Server Pattern
 
 `PersonalMirrorDashboard.tsx` 登录后仍主要读取 local history，并在前端运行 `deriveDnaPatterns()`。
 
@@ -181,47 +306,81 @@ Weekly / Monthly Review 已实现，并已有 evidence、confidence、preference
 前端自己计算的 Mirror DNA
 ```
 
-这必须统一。
+## E. Tarot / Bazi / Astrology History 与 Server Memory 没有统一
 
-## D. Tarot / Bazi / Astrology 保存主要落到本地 Mirror History
+当前部分结果保存到本地 history，但不会自然进入 server Pattern pipeline。
 
-`MirrorSaveButton.tsx` 当前保存 `tarot | bazi | astrology` 到本地 history。
+## F. Chat / Daily / Reflection / Review 使用不同 Context 规则
 
-登录后的 account snapshot 同步不等于进入 server Pattern pipeline。
+缺少统一 Personal / Relationship Context contract。
 
-## E. Chat / Daily / Reflection / Review 使用不同 Context 规则
+## G. Runtime trace 与真实生命周期未完全一致
 
-当前分别存在：
+部分 Tool direct execute 后再手工构造 trace；persistence trace 与真实保存动作可能不一致。
 
-- client chat memory retrieval
-- daily recent history
-- server reflection context
-- review memory queries
+## H. Account / API 存储边界需要明确
 
-缺少统一 Personal Context contract。
-
-## F. Runtime trace 与真实生命周期未完全一致
-
-部分工具 direct execute 后再手工构造 tool trace；`runMirrorRuntime()` 中 persistence stage 仍可能显示 skipped，而 route 后续真实执行保存。
-
-需要统一运行契约。
-
-## G. Account / API 存储边界需要明确
-
-当前仓库中 Fastify/Postgres 和 `.openai/drizzle`/Sites runtime 路径并存。
-
-必须明确：
-
-- 哪套 API 负责哪些功能
-- identity 是否一一对应
-- account snapshot 与 server Memory 的关系
-- social API 的生产实现边界
+Fastify/Postgres 与 `.openai/drizzle` / Sites runtime 路径并存，需要明确生产 source of truth。
 
 ---
 
-# 5. P0 — 统一拾光上下文主链
+# 5. P0 — 先解决数据连续性与统一上下文
 
-## P0-1. 建立通用 Memory Ingestion Contract
+## P0-1. 所有完整 Tool Result 默认自动进入 History
+
+这是 PHASE-009 新增的最高优先级任务。
+
+### 六爻 / Tarot
+
+每一次完整结果成功生成后：
+
+- 自动生成 History record
+- 不要求用户点击“保存”
+- 保留 result source / question / generatedAt / structured payload / reflection
+- 支持删除
+- 支持继续聊天
+- 支持关联 Person / Relationship
+
+### Bazi / Astrology
+
+- stable reference 自动记录
+- 使用 `profileKey` / version 做去重
+- 重复打开不新增独立记录
+
+### Guest
+
+- 自动进入 local history
+- 允许删除
+- 登录迁移时必须 dedup
+
+### Authenticated
+
+- 自动进入 account/server history
+- 跨设备可见
+
+### UI
+
+原：
+
+> 保存
+
+改为：
+
+> ✓ 已自动记录
+
+并提供：
+
+- 标记重要
+- 关联到某人
+- 删除
+
+### 验收
+
+用户完成任何一次六爻/塔罗完整结果后，立即进入“我的 → 最近记录”，不需要额外点击。
+
+---
+
+## P0-2. 建立通用 Memory Ingestion Contract
 
 在现有 `server/memory` 上扩展，不重建数据库。
 
@@ -233,7 +392,7 @@ Weekly / Monthly Review 已实现，并已有 evidence、confidence、preference
 - `astrology`
 - `conversation`
 
-每种 source 必须明确区分：
+明确区分：
 
 1. user-authored reality
 2. symbolic/professional facts
@@ -241,84 +400,103 @@ Weekly / Monthly Review 已实现，并已有 evidence、confidence、preference
 
 规则：
 
-> LLM interpretation 和 symbolic result 都不得自动升级为用户现实事实或固定人格。
+> 自动 History 不意味着自动长期 Memory；LLM interpretation 和 symbolic result 不得升级为现实人格事实。
 
-## P0-2. 登录用户聊天改读 Server Memory
+---
+
+## P0-3. 登录用户聊天改读 Server Memory
 
 Authenticated：
 
-- 优先使用 server personal context。
-- hidden/deleted/suppressed Memory 不得进入 prompt。
+- 优先 server context
+- hidden / deleted / suppressed Memory 不得进入 prompt
 
 Guest：
 
-- 保留现有 local fallback。
+- 保留 local fallback
 
-Temporary mode：
+Temporary：
 
-- 不读取、不写入长期 Memory。
+- 不读、不写长期 Memory
 
-## P0-3. 建立 Conversation Memory Write Gate
+---
 
-不永久保存所有聊天内容。
+## P0-4. 建立 Conversation Memory Write Gate
+
+不永久保存全部聊天。
 
 第一版只允许：
 
-- 用户明确说“记住……”的事实。
-- 用户主动确认保存的重要现实事件。
-- 用户明确表达的沟通偏好。
+- 用户明确说“记住……”
+- 用户主动确认的重要现实事件
+- 用户明确表达的沟通偏好
 
-例如：
+普通聊天 thread 可以作为历史存在，但 thread history 不自动等于 long-term Memory。
 
-> “不要一直反问我，直接告诉我判断。”
+---
 
-可以保存为 communication preference。
+## P0-5. Tarot / Bazi / Astrology 接入统一 Server Memory
 
-普通寒暄不进入长期 Pattern。
-
-## P0-4. Tarot / Bazi / Astrology 接入 Server Memory
-
-登录用户保存 Mirror 后创建统一 source record。
+History 自动记录以后，再由 source adapter 决定哪些信息可以进入 Memory。
 
 规则：
 
-- Tarot 是当次 symbolic evidence，不是人格事实。
-- Bazi/Astrology 是 stable reference，不因重复打开而形成多条独立 Pattern evidence。
-- Liuyao 是一次具体事件/问题的 symbolic evidence。
+- Tarot：一次性 symbolic evidence
+- Liuyao：一次具体问题的 symbolic evidence
+- Bazi/Astrology：stable reference
+- stable reference 不参与重复 signal count
 
-## P0-5. PersonalMirrorDashboard 改读 Server Memory
+---
+
+## P0-6. PersonalMirrorDashboard 改读统一 History + Server Memory
 
 Authenticated：
 
-- 读取 `/api/v1/memories/summary` / `/api/v1/memories`。
-- 不再依赖前端 regex 作为权威 Pattern 来源。
+- History 展示真实自动记录
+- Pattern 来自 server Memory
+- 不再由前端 regex 生成另一套权威 Pattern
 
 Guest：
 
-- 保留本地 fallback。
+- local history fallback
 
-## P0-6. 删除无证据的人格补全
+建议页面顺序：
 
-禁止从“一个主题出现多次”自动推出：
+1. 最近记录
+2. 还没结束的事
+3. 人物
+4. 拾光记得
+5. 最近变化
+6. 我的底图
+7. 记录与控制
 
-- 你很谨慎
-- 你会过度分析
-- 你习惯先想清楚再表达
-- 你是什么类型的人
+---
 
-只有现实事件、多条用户事实或明确确认才能形成行为 Pattern。
+## P0-7. 删除无证据的人格补全
 
-## P0-7. 建立统一 Personal Context Builder
+禁止从“主题出现多次”直接推出：
+
+- 用户很谨慎
+- 用户会过度分析
+- 用户习惯先想清楚再表达
+- 用户属于某类人格
+
+Pattern 必须 evidence-backed。
+
+---
+
+## P0-8. 建立统一 Personal Context Builder
 
 建议新增：
 
 `server/memory/context-builder.ts`
 
-统一 contract：
+contract：
 
 ```ts
 type PersonalContext = {
   explicitFacts: ...;
+  relevantHistory: ...;
   relevantEvents: ...;
   relevantPatterns: ...;
   stableReferences: ...;
@@ -329,83 +507,222 @@ type PersonalContext = {
 };
 ```
 
-不同 mode 根据授权裁剪：
+按 mode 裁剪：
 
 - chat
 - mirror_result
 - daily_guidance
 - review
 - relationship
-
-## P0-8. 明确 Account / API Source of Truth
-
-形成明确 production boundary 文档与 integration tests。
+- rehearsal
 
 ---
 
-# 6. P1 — 从“认识用户”升级到“理解用户正在经历的人和事”
+## P0-9. 明确 Account / API Source of Truth
 
-## P1-1. 增加 Open Loop 概念
+形成 production boundary 文档与 integration tests，明确：
 
-重要现实事件增加轻量状态：
+- Next / Sites runtime API
+- Fastify API
+- identity 对应关系
+- account history 与 server Memory 的职责
+- social / relationship API 的真实生产边界
+
+---
+
+# 6. P1 — Open Loop + People + Relationship Context
+
+## P1-1. 增加 Open Loop
+
+重要现实事件支持：
 
 - `open`
 - `resolved`
 - `unknown`
 
-状态只能来自用户反馈或明确事件更新，不能由 LLM 自己宣布解决。
-
-价值：
-
-```text
-“上次你在等那个合作结果，后来怎么样了？”
-```
-
-而不是泛泛说：
-
-```text
-“我记得你之前也有类似困扰。”
-```
-
-## P1-2. 增加 People / Relationship Context 的数据契约
-
-先支持 context contract，不急着一次建完全部数据库。
-
-目标实体：
-
-```text
-Person
-Relationship
-Relationship Event
-Open Loop
-Shared Interaction
-```
+只能根据用户反馈或明确现实事件更新。
 
 示例：
 
-```text
-Person: Alex
-Relationship: 用户描述为暧昧对象
-Events:
-- 两天没有回复
-- 用户决定暂时不主动
-Open loop:
-- 关系定义仍未确认
+> “上次你还在等那个合作结果，后来怎么样了？”
+
+---
+
+## P1-2. 增加 Person 数据契约
+
+用户可以创建一个现实中已经存在的人，即使对方尚未注册 LifeMirror。
+
+第一版字段建议：
+
+```ts
+type Person = {
+  id: string;
+  ownerUserId: string;
+  displayName: string;
+  relationshipType?: string;
+  birthProfile?: ...;
+  userDescription?: string;
+  userObservedTraits?: ...;
+  createdAt: string;
+};
 ```
 
-禁止自动推断：
+可以输入：
 
-- Alex 是回避型人格
-- Alex 一定不在乎用户
-- 对方心理状态
+- 昵称
+- 与我的关系
+- 生日信息（可选）
+- 用户认为 TA 的性格特点
+- 沟通方式
+- 最近发生过什么
+- “TA 在你心里是什么样的人？”
 
-除非对方本人提供或现实事件明确证明。
+### 最重要的 provenance 原则
 
-## P1-3. Memory Retrieval Ranking 升级
+用户描述：
+
+> “Alex 很自私。”
+
+不能存成：
+
+```text
+Alex.personality = selfish
+```
+
+只能存成：
+
+```text
+source = current_user
+observation = “用户认为 Alex 最近在这段关系里比较只顾自己”
+```
+
+**用户眼中的 TA ≠ 真实 TA。**
+
+---
+
+## P1-3. Relationship Context
+
+一个 Person 可以关联一个或多个 Relationship Context。
+
+建议 contract：
+
+```ts
+type RelationshipContext = {
+  id: string;
+  ownerUserId: string;
+  personId: string;
+  relationshipType: string;
+  userPerspective: ...;
+  events: ...;
+  openLoops: ...;
+  sharedFacts?: ...;
+  sharedInteractions?: ...;
+};
+```
+
+优先使用：
+
+1. 双方明确陈述
+2. 已记录现实事件
+3. 用户 perspective
+4. stable birth reference
+5. symbolic interpretation
+
+禁止通过出生资料或用户单方描述直接断言对方心理状态。
+
+---
+
+# 7. P1 — Relationship Sandbox / 关系沙盒
+
+这是从 AI 理解走向真实社交之前的关键中间产品。
+
+用户可以创建一个“现实中的 TA 的模拟关系对象”，在对方尚未注册时获得立即价值。
+
+它不是 Character.AI 风格的虚拟朋友，也不是“真实 TA 的数字分身”。
+
+定义：
+
+> **基于用户目前知道和描述的信息，建立一个可纠正的 Relationship Model，用于理解关系和练习现实沟通。**
+
+## 7.1 关系演练模式
+
+### 练习怎么说
+
+用户：
+
+> “我想告诉 Alex 我不喜欢他忽冷忽热，但不知道怎么说。”
+
+拾光：
+
+- 帮用户组织表达
+- 可以进行多轮 rehearsal
+- 关键节点暂停并给用户判断
+
+### 模拟可能回应
+
+系统必须明确：
+
+> “按照你目前对 Alex 的描述，一种可能的反应是……”
+
+而不是：
+
+> “Alex 会这样想。”
+
+支持给出 2–3 种合理反应路径，避免单一预测制造错觉。
+
+### 换位看看
+
+帮助用户评估：
+
+- 这句话从对方可能视角听起来如何
+- 哪部分容易被误解
+- 哪部分表达了真实需求
+
+### 困难谈话
+
+不仅限恋爱：
+
+- 和老板谈加薪
+- 和父母谈边界
+- 和室友谈冲突
+- 和朋友谈疏远
+- 和伴侣谈回应节奏
+
+---
+
+## 7.2 Birth / Astrology / Bazi 在关系沙盒中的作用
+
+生日信息可以作为额外 perspective，但现实互动永远优先。
+
+推荐顺序：
+
+```text
+真实互动历史
++ 用户明确描述
++ 对方本人未来提供的信息
++ 双方 stable birth reference
++ symbolic perspective
+```
+
+禁止：
+
+```text
+“Alex 是天蝎座，所以他一定……”
+```
+
+可以：
+
+> “从你记录的现实互动看，核心首先是回应节奏；出生底图只能作为补充视角。”
+
+---
+
+# 8. P1 理解质量升级
+
+## 8.1 Memory Retrieval Ranking
 
 第一阶段不必直接上 vector DB。
 
-Ranking 至少考虑：
+Ranking 考虑：
 
 - relevance
 - recency
@@ -416,9 +733,9 @@ Ranking 至少考虑：
 - open loop priority
 - person / relationship match
 
-## P1-4. Pattern Engine 从数量权重升级为证据质量
+## 8.2 Pattern Engine 从数量升级为 evidence quality
 
-在当前至少两条独立 evidence 规则基础上增加：
+至少加入：
 
 - 时间跨度
 - 来源多样性
@@ -426,22 +743,20 @@ Ranking 至少考虑：
 - 冲突证据
 - 最近是否仍成立
 
-Pattern 继续作为后台能力，不作为前台“人格测评结果”。
+## 8.3 Communication Preference
 
-## P1-5. Communication Preference 成为高权重 Fact
-
-用户明确表达的交互偏好应该影响拾光长期表达方式。
-
-例如：
+用户明确表达：
 
 - 喜欢直接结论
 - 不喜欢鸡汤
 - 不喜欢连续追问
-- 希望解释深入一些
+- 希望解释深入
 
-## P1-6. Daily Guidance 接入统一 Context
+应成为高权重 Fact。
 
-保留正确基础：
+## 8.4 Daily Guidance 接统一 Context
+
+保留：
 
 ```text
 本命底图
@@ -449,83 +764,54 @@ Pattern 继续作为后台能力，不作为前台“人格测评结果”。
 + 当前现实
 ```
 
-升级后加入：
+再加入：
 
-- 当前最相关 open loop
-- 相关长期 Pattern
-- 当前 relationship context
+- 最相关 open loop
+- relevant person / relationship
+- relevant Pattern
 
-但用户界面不展示后台机制。
-
-## P1-7. ToolRegistry / Runtime 契约统一
-
-明确 direct deterministic engine 和 ToolRegistry trace 的关系，不保留模糊双轨。
-
-## P1-8. Persistence Trace 与真实保存结果一致
-
-Runtime trace 应能真实回答：
-
-- 是否读取 Memory
-- 是否调用 Tool
-- 是否生成 Reflection
-- 是否真正保存
-
-## P1-9. `question-routing.ts` 保留为 UI/fallback
-
-不要把 regex router 升级为 Harness 核心决策器。
+用户界面不解释后台机制。
 
 ---
 
-# 7. P1 产品展示重构
+# 9. P1 产品展示重构
 
-## 7.1 首页：拾光成为第一入口
+## 9.1 首页：拾光第一入口
 
-首页目标从“选择工具”转为：
+目标：
 
 > **今天怎么了？**
 
-优先展示：
+优先：
 
 1. 今日拾光的一句话
 2. 上次还没结束的事
 3. 当前聊天入口
-4. 必要时由拾光自然建议工具
+4. 必要时自然建议 Tool
 
-工具入口不删除，但降级到 Explore。
+Tool 降级到 Explore。
 
-## 7.2 “我的镜像”重构
+## 9.2 “我的”
 
-不再以 Mirror DNA 作为中心。
+建议：
 
-建议页面结构：
+```text
+最近
+未结束
+人物
+拾光记得
+最近变化
+我的底图
+全部记录
+```
 
-### 最近的我
+“全部记录”默认完整显示用户使用过的 Tool History。
 
-现在真正反复出现的主题。
+不再让“Mirror DNA 正在形成”占据重要位置。
 
-### 还没结束的事
+## 9.3 主导航
 
-open loops。
-
-### 拾光记得
-
-explicit facts / preferences。
-
-### 最近的变化
-
-evidence-backed changes。
-
-### 我的底图
-
-Bazi / Astrology stable reference。
-
-### 记录与控制
-
-进入 MemoryControls 查看、纠正、隐藏、删除、导出。
-
-## 7.3 主导航建议
-
-逐步向以下结构靠拢：
+逐步向：
 
 ```text
 拾光
@@ -534,53 +820,76 @@ Bazi / Astrology stable reference。
 探索
 ```
 
-其中：
-
-- 拾光：日常聊天 / 今日 / open loops
-- 我的：个人上下文与近期变化
-- 关系：未来 Me × You / private relationships
-- 探索：六爻 / 塔罗 / 八字 / 星盘
+靠拢。
 
 ---
 
-# 8. P2 — Relationship Foundation
+# 10. P2 — 从模拟关系走向真实关系
 
-本阶段只建立“已有关系”的社交入口，不做公开 Feed 和陌生人匹配。
+## P2-1. Simulated Person → Real User Invite
 
-## P2-1. 第一版「我和 TA」
+用户一开始可以单方面创建 Alex。
 
-用户可以围绕一个现实中的人建立私密 Relationship Context。
+使用一段时间以后出现：
 
-场景优先：
+> **想知道真实的 TA 怎么看？**
 
-- 暧昧对象
-- 伴侣
-- 好朋友
-- 室友
-- 同事
-- 前任
+允许邀请 Alex 加入。
 
-核心不是 compatibility score，而是：
+但不能把用户创建的模拟资料直接声明为真实 Alex 的资料。
 
-> 这段关系发生过什么、双方对什么有不同理解、下一步怎么表达。
+必须拆成三层：
 
-## P2-2. 第一版 Social Action：把一个问题发给 TA
+```text
+用户对 Alex 的理解
++
+Alex 自己提供的信息
++
+双方共享的 Relationship Events
+```
 
-不要先做完整好友 Feed。
+---
 
-例如拾光分析后提供：
+## P2-2. Claim / Link 机制
+
+真实 TA 注册后：
+
+- 可以 claim / link 到原来的 Person object
+- 用户单方 observation 保留 provenance
+- TA 自己的信息独立保存
+- 双方共享信息必须双方授权
+
+系统必须能容纳：
+
+```text
+Leo perspective
+≠
+Alex perspective
+```
+
+这不是数据冲突，而是 Relationship Context 的核心价值。
+
+---
+
+## P2-3. 第一版 Social Action：把一个问题发给 TA
+
+不要先做 Feed。
+
+例如：
 
 > **想听听 TA 怎么看？**
 
-生成一个轻量问题：
+发送：
 
 > “你忙的时候没及时回复，更希望对方继续找你，还是等你主动？”
 
-对方回答后，LifeMirror 只总结双方真实答案差异。
+对方回答后只总结真实答案差异。
 
-这比分享完整 AI 聊天记录更自然，也更保护隐私。
+不分享完整 AI 对话。
 
-## P2-3. 分享卡从“内容传播”升级为“关系互动”
+---
+
+## P2-4. 分享卡升级成关系互动
 
 三类：
 
@@ -588,91 +897,170 @@ Bazi / Astrology stable reference。
 2. 问一个认识的人
 3. Relationship Card
 
-目标指标不是分享次数，而是：
+核心指标：
 
-> 分享后是否产生真实回应。
-
-## P2-4. 暂不做陌生人匹配
-
-以下功能不属于 0.9 优先级：
-
-- 灵魂好友匹配
-- Mirror DNA 匹配
-- 公共动态 Feed
-- 热门广场
-- 陌生人聊天大厅
-
-未来若验证 stranger social，再以“正在经历相似人生阶段的人”作为候选方向，而不是人格相似度。
+> 分享后是否得到真实回应。
 
 ---
 
-# 9. 明确不做
+## P2-5. 暂不做陌生人匹配
+
+0.9 不做：
+
+- 灵魂好友匹配
+- Mirror DNA 匹配
+- 公共 Feed
+- 热门广场
+- 陌生人聊天大厅
+
+先验证：
+
+```text
+个人问题
+→ 关系沙盒
+→ 现实沟通
+→ 对方回应
+→ 回来告诉拾光
+→ 最终邀请真人
+```
+
+---
+
+# 11. Runtime / Engineering 一致性
+
+## 11.1 ToolRegistry 契约
+
+明确 direct deterministic engine 与 ToolRegistry / trace 的职责关系。
+
+## 11.2 Persistence Trace
+
+Runtime trace 应真实反映：
+
+- History 是否自动记录
+- Memory 是否写入
+- Tool 是否成功
+- Reflection 是否成功
+
+## 11.3 History 去重
+
+必须有 deterministic dedup key，避免：
+
+- result 页面 rerender 重复保存
+- 网络 retry 重复保存
+- 登录迁移重复保存
+- stable natal reference 重复保存
+
+建议 key 至少包含：
+
+```text
+user/client
+source kind
+calculation/result id
+version
+```
+
+## 11.4 Memory / Context Observability
+
+内部 trace 增加：
+
+- retrieved history IDs
+- memory IDs
+- selected source kinds
+- ranking reason
+- filtered reason
+- person/relationship match
+- context token size
+
+不在用户 UI 暴露完整 prompt。
+
+---
+
+# 12. 明确不做
+
+## 不让用户手动决定“这次测算是否存在”
+
+History 默认自动。
+
+## 不把自动 History 等同于自动人格 Memory
+
+History、Memory、Pattern 分层。
+
+## 不把 Relationship Sandbox 做成真实人的数字分身
+
+模拟只代表用户 perspective 和可能场景。
+
+## 不替第三方断言心理状态
+
+任何对 TA 的性格和动机判断必须标注来源与不确定性。
 
 ## 不把 Mirror DNA 做成主产品
 
-后台 Pattern 保留，前台减少模型语言。
+Pattern 在后台工作。
 
-## 不做 Multi-Agent
+## 不改 Multi-Agent
 
-统一拾光人格保持不变。
+一个拾光人格不变。
 
 ## 不重新造 Memory Core
 
 复用已有 server Memory。
 
-## 不永久保存全部聊天
-
-长期 Memory 必须用户可控。
-
-## 不用玄学结果制造人格事实
-
-工具是视角和 evidence，不是现实人格证明。
-
-## P0 完成前不增加新玩法
-
-当前问题不是玩法数量不足，而是已有数据没有形成统一、连续的产品体验。
+## P0 完成前不继续增加新玄学玩法
 
 ---
 
-# 10. 推荐开发顺序
+# 13. 推荐开发顺序
 
-## Slice 1 — Unified Memory Sources
+## Slice 1 — Automatic History
+
+1. 六爻 / Tarot 完整结果自动 History
+2. Bazi / Astrology stable history / dedup
+3. Guest local history
+4. Authenticated server/account history
+5. 删除 / 查看 / 筛选
+6. 移除“必须手动保存才能找回”的体验
+
+## Slice 2 — Unified Memory Sources
 
 1. 通用 Memory Source contract
 2. Tarot / Bazi / Astrology adapters
 3. Conversation explicit memory adapter
-4. dedup / migration strategy
-5. end-to-end tests
+4. History → Memory gate
+5. migration / dedup tests
 
-## Slice 2 — Unified Context
+## Slice 3 — Unified Context
 
 1. Personal Context Builder
-2. authenticated Chat 改用 server context
+2. authenticated Chat 改 server context
 3. guest fallback
 4. ranking v1
-5. open loop contract
+5. Open Loop
 
-## Slice 3 — Personal Mirror UI
+## Slice 4 — Personal UI
 
-1. authenticated Dashboard 改读 server memory
-2. 移除登录用户前端 regex Pattern 权威性
+1. “我的”改真实 History
+2. Dashboard 改读 server Memory
 3. Mirror DNA 降级
-4. 重构为“最近的我 / 未结束的事 / 拾光记得 / 最近变化”
+4. “最近 / 未结束 / 人物 / 拾光记得 / 最近变化 / 底图”
 
-## Slice 4 — Daily / Review
+## Slice 5 — People & Relationship Sandbox
 
-1. Daily 接 Context Builder
-2. Review 自动覆盖多 source Memory
-3. proactive reflection 接首页 / Chat
+1. Person contract
+2. Relationship Context
+3. 用户 perspective provenance
+4. rehearsal mode
+5. possible-response mode
+6. relationship events
 
-## Slice 5 — Relationship Foundation
+## Slice 6 — Real Relationship Bridge
 
-1. People / Relationship Context contract
-2. “我和 TA”最小体验
-3. share-a-question flow
-4. response → relationship event
+1. invite / claim
+2. real-user self profile
+3. shared relationship events
+4. share-a-question
+5. response → relationship event
 
-## Slice 6 — Runtime Consistency
+## Slice 7 — Runtime Consistency
 
 1. ToolRegistry contract
 2. persistence trace
@@ -681,97 +1069,140 @@ Bazi / Astrology stable reference。
 
 ---
 
-# 11. P0 验收标准
+# 14. P0 验收标准
 
-## Case 1 — 跨设备连续性
+## Case 1 — 自动历史
 
-设备 A 保存重要 Mirror；设备 B 登录后聊到相关问题，拾光能自然使用同一份 server Memory。
+用户完成一次六爻或 Tarot 后，不点击任何“保存”按钮，进入“我的 → 最近记录”仍能看到刚才的完整结果。
 
-## Case 2 — 用户纠正优先
+## Case 2 — 删除历史
 
-用户纠正某条 Memory/Pattern 后，下一次相关回答使用纠正版本。
+用户删除一条 History 后，该记录不再展示；如果对应长期 Memory 也需要删除，系统明确告诉用户删除范围，不偷偷保留不可见副本。
 
-## Case 3 — 删除即停止使用
+## Case 3 — Stable Natal 去重
 
-hidden/deleted Memory 不再进入任何 Context。
+同一 birth profile 连续打开三次八字/星盘，不产生三条重复 stable record。
 
-## Case 4 — 多工具连续性
+## Case 4 — History 不等于人格
 
-用户先用塔罗留下关系问题，之后普通聊天可以自然继续这件事，但不会把牌面当成现实事实。
+用户抽到一次“隐者”，历史里存在这次记录，但长期 Pattern 不会自动出现“用户内向”。
 
-## Case 5 — Dashboard 与 Server 一致
+## Case 5 — 跨设备连续性
 
-登录用户“我的镜像”显示的长期线索与 server Pattern 一致，不再由前端另算一套答案。
+设备 A 产生历史并登录；设备 B 能看到同一条记录。
 
-## Case 6 — 无意义“正在形成”内容退出核心页面
+## Case 6 — 用户纠正优先
 
-用户不需要等待 Mirror DNA 达到某个进度才获得价值。
+用户纠正 Memory 后，下一次回答使用纠正版本。
 
-即使只有一条真实记录，也应该能够看到：
+## Case 7 — 删除即停止使用
 
-- 最近发生的事
-- 拾光记住的明确事实
-- 当前未结束的问题
+hidden/deleted Memory 不再进入 Context。
 
-## Case 7 — Context 能识别人和关系
+## Case 8 — Dashboard 与 Server 一致
 
-同一个人名/关系在后续聊天中可以被正确关联到已有事件，但不会凭空推断对方人格或心理状态。
+登录用户“我的”显示的 Pattern 与 server Memory 一致。
+
+## Case 9 — 无意义“正在形成”退出核心 UI
+
+即使只有一条记录，也展示真实记录和现实内容，而不是只展示模型状态。
 
 ---
 
-# 12. 关键成功指标
+# 15. Relationship Sandbox 验收标准
 
-PHASE-009 完成后，不只看功能完成度。
+## Case A — 创建现实中的 TA
+
+用户可以创建一个尚未注册 LifeMirror 的 Alex，并输入自己知道的信息。
+
+## Case B — provenance
+
+用户说“Alex 很冷漠”，系统只保存为“用户对 Alex 的观察”，不得保存为 Alex 的客观人格事实。
+
+## Case C — rehearsal
+
+用户可以针对 Alex 进行一次困难谈话演练。
+
+系统输出必须显式基于“用户目前提供的信息”，不得声称真实 Alex 一定会这样回应。
+
+## Case D — 多种可能回应
+
+系统可以提供多种可能的反应路径，而不是单一预测对方心理。
+
+## Case E — 邀请真人后不覆盖原 perspective
+
+真实 Alex 加入后：
+
+- Leo perspective 保留
+- Alex self-reported data 独立
+- shared facts 独立
+
+三者不能混写。
+
+---
+
+# 16. 关键成功指标
+
+PHASE-009 不再以 Mirror DNA 浏览次数作为关键指标。
 
 优先观察：
 
-1. 用户是否在不使用工具的情况下主动和拾光继续聊天。
-2. 用户是否主动追问“你还记得我之前说的……”。
-3. 同一个 open loop 是否出现后续更新。
-4. Mirror/Chat 后是否产生现实行动。
-5. 分享给现实中的人后是否得到回应。
-6. 用户纠正 Memory 后是否继续使用该能力。
+1. Tool 完成后 History 找回率是否接近 100%。
+2. 用户是否经常从历史记录继续聊天。
+3. 用户是否在不使用 Tool 时主动找拾光。
+4. 用户是否回来告诉拾光“后来发生了什么”。
+5. Open Loop 是否出现真实后续更新。
+6. Relationship Sandbox 是否帮助用户产生现实沟通。
+7. 分享给真实关系对象后是否得到回应。
+8. 模拟 Person 转成真实邀请的比例。
+9. 用户纠正 Memory 后是否继续使用该能力。
 
-其中最重要的行为信号是：
+其中最重要的长期行为仍然是：
 
 > **用户回来告诉拾光“后来发生了什么”。**
 
-这比 Mirror DNA 浏览次数更能证明长期陪伴和关系产品价值。
+关系方向新增的关键增长行为是：
+
+> **AI 中的关系理解是否最终产生了一次真实的人际互动。**
 
 ---
 
-# 13. 最终技术路线
+# 17. 最终技术路线
 
 ```text
-User-authored reality / explicit preferences / saved Mirror
-                         ↓
-                Unified Memory Ingestion
-                         ↓
-        Event / Reflection / Pattern / Open Loop
-                         ↓
-             People / Relationship Context
-                         ↓
-               Personal Context Builder
-                         ↓
-                 Shiguang Harness
-              ↙          ↓          ↘
-           Tools      Knowledge    Research
-              ↘          ↓          ↙
-                Evidence / Evaluation
-                         ↓
-                    Shiguang reply
-                         ↓
-           correction / outcome / new event
-                         ↓
-                   update Context
-                         ↓
-                 optional real-world social action
+Tool Result / Conversation / Reality Event
+                    ↓
+              Automatic History
+                    ↓
+             Memory Write Gate
+                    ↓
+ Event / Reflection / Pattern / Open Loop
+                    ↓
+          People / Relationship Context
+                    ↓
+            Personal Context Builder
+                    ↓
+                Shiguang Harness
+             ↙          ↓          ↘
+          Tools      Knowledge    Research
+             ↘          ↓          ↙
+               Evidence / Evaluation
+                    ↓
+               Shiguang reply
+                    ↓
+        rehearsal / action / real outcome
+                    ↓
+     correction / new event / real response
+                    ↓
+               update Context
+                    ↓
+          optional real-world invite
 ```
 
 LifeMirror 的长期差异化不应该是：
 
-> “我们建立了一个更复杂的用户模型。”
+> “我们建立了一个更复杂的 Mirror DNA。”
 
 而应该是：
 
-> **拾光知道我正在经历什么，所以它更懂我为什么在这段关系里纠结，并且能帮助我把想法带回真实的人际关系。**
+> **我做过的事情不会丢，拾光知道我正在经历什么、知道我在意的人是谁，并且能帮助我把 AI 里的理解带回真实关系。**
