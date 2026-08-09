@@ -1,11 +1,19 @@
 ---
 title: PHASE-009 Shiguang Context & Relationship Foundation
-status: planned
+status: in_progress
 version: 0.9.0
 updated: August 2026
 ---
 
 # 拾光统一上下文与关系基础改造计划
+
+## 当前交付（2026-08）
+
+- [x] Tool result 本地 History 改为默认自动写入，并引入 deterministic dedup key，避免重渲染与重试重复记录。
+- [x] 塔罗与六爻完成完整解读后立即自动记录；结果页不再要求用户点击“保存”才可找回。
+- [x] 命盘／星盘继续按 stable profile 去重，不把重复打开变成重复 History。
+- [x] 登录个人页优先读取 server Memory summary；服务不可达时才降级为本机记录，避免前端成为第二套权威 Pattern。
+- [ ] 账户级通用 History ingestion、Person／Relationship persistence 与跨设备迁移仍需接入生产 API 后完成。
 
 ## 1. 阶段定位
 
