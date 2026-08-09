@@ -130,6 +130,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort("mirror_request_timeout"), MIRROR_REQUEST_TIMEOUT_MS);
+    setSaved(false);
     setResult(resultFallback);
     setMode("loading");
     void fetch("/api/shiguang", {
@@ -166,10 +167,16 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historical, initialResult, requestKey, resultFallback, theme]);
 
-  function saveToMirror() {
-    saveMirrorHistory({ source: kind, sourceLabel: labels[kind], question, summary: result.headline, factIds: factPack.facts.map((fact) => fact.id) });
+  useEffect(() => {
+    if (historical || mode === "loading") return;
+    saveMirrorHistory({
+      source: kind, sourceLabel: labels[kind], question, summary: result.headline,
+      factIds: factPack.facts.map((fact) => fact.id), meta,
+      reflection: { shareableReflection: result.shareCards.warm, shiguangInterpretation: result.interpretation, practicalGuidance: result.action, reflectionQuestion: result.reflectionQuestion },
+      dedupKey: `v1:${kind}:${requestKey}`,
+    });
     setSaved(true);
-  }
+  }, [factPack.facts, historical, kind, meta, mode, question, requestKey, result]);
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
@@ -179,7 +186,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
     </div>
     <aside><small>想接着说的话</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
-    <button type="button" className={styles.notice} onClick={saveToMirror} disabled={saved}>{saved ? "已保存到我的镜像" : "保存这次镜像"}</button>
+    <p className={styles.notice}>{saved ? "✓ 已自动记录到“我的”" : "正在记录这次镜像…"}</p>
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
       paper: { kicker: `我的此刻 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
       night: { kicker: `关系回应 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
