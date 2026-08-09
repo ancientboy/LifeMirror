@@ -12,6 +12,7 @@ import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
 import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
 import { deletePrivatePerson, getPrivatePeople, savePrivatePerson, type PrivatePerson } from "@/lib/relationship-context";
+import { RelationshipSandbox } from "./RelationshipSandbox";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
@@ -114,6 +115,7 @@ export function PersonalMirrorDashboard() {
   const [natalMirrors, setNatalMirrors] = useState<Partial<Record<"bazi" | "astrology", SavedNatalMirror>>>({});
   const [people, setPeople] = useState<PrivatePerson[]>([]);
   const [personDraft, setPersonDraft] = useState({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
+  const [sandboxPerson, setSandboxPerson] = useState<PrivatePerson | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -198,7 +200,7 @@ export function PersonalMirrorDashboard() {
       </article>
       <article className={styles.contextCard}>
         <header><span><UserPlus /> 我在意的人</span><small>只保存你的视角</small></header>
-        {people.length ? <div className={styles.peopleList}>{people.map((person) => <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div>)}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
+        {people.length ? <div className={styles.peopleList}>{people.map((person) => <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><div className={styles.personActions}><button type="button" onClick={() => setSandboxPerson(person)}><Sparkle />沟通演练</button><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div></div>)}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
         <form className={styles.personForm} onSubmit={addPerson}><input required value={personDraft.displayName} onChange={(event) => setPersonDraft({ ...personDraft, displayName: event.target.value })} placeholder="TA 的昵称" /><input value={personDraft.relationshipType} onChange={(event) => setPersonDraft({ ...personDraft, relationshipType: event.target.value })} placeholder="和我的关系（可选）" /><textarea value={personDraft.userDescription} onChange={(event) => setPersonDraft({ ...personDraft, userDescription: event.target.value })} placeholder="在这段关系里，我观察到……（可选）" maxLength={300} /><button type="submit">加入人物</button></form>
       </article>
     </section>
@@ -227,5 +229,6 @@ export function PersonalMirrorDashboard() {
       {mode !== "loading" && !visibleEvents.length && <div className={stateStyles.timelineEmpty}>{events.length ? "这个分类下还没有镜像记录。" : "保存第一次今日镜像后，时间线会从这里开始。"}</div>}
     </section>
     <AppBottomNav active="mirror" />
+    {sandboxPerson && <RelationshipSandbox person={sandboxPerson} onClose={() => setSandboxPerson(null)} />}
   </main>;
 }

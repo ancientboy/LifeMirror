@@ -178,6 +178,59 @@ async function readAccountData(db, userId) {
   };
 }
 
+function memoryTerms(value) {
+  const text = String(value || "").toLowerCase().replace(/[\s，。！？；：、,.!?;:'\"“”‘’（）()\[\]]/g, "");
+  const terms = new Set();
+  for (let index = 0; index < text.length - 1; index += 1) terms.add(text.slice(index, index + 2));
+  return terms;
+}
+
+function memoryRelevance(query, candidate) {
+  const queryTerms = memoryTerms(query);
+  const candidateTerms = memoryTerms(candidate);
+  if (!queryTerms.size || !candidateTerms.size) return 0;
+  let matches = 0;
+  for (const term of queryTerms) if (candidateTerms.has(term)) matches += 1;
+  return matches / queryTerms.size;
+}
+
+function historySummary(event) {
+  const reflection = event?.reflection && typeof event.reflection === "object" ? event.reflection : {};
+  return String(reflection.shareableReflection || reflection.shiguangInterpretation || reflection.mirrorUnderstanding || reflection.traditionalJudgment || reflection.insight || "").trim();
+}
+
+/**
+ * The authenticated context is built inside the worker from the account snapshot.
+ * Explicit facts and symbolic history deliberately remain separate: a card, chart,
+ * or divination result can be referenced as a past mirror, never upgraded into a
+ * statement about the user's real-world personality.
+ */
+async function buildPersonalChatMemory(env, userId, question) {
+  const account = await readAccountData(env.DB, userId);
+  const settings = account.settings?.memorySettings || account.settings || {};
+  if (settings.enabled !== true) return { facts: [], evidence: [], source: "authorized_server_context" };
+  const recallRequested = /你记得|还记得|以前|之前|上次|我的偏好|关于我/.test(String(question || ""));
+  const facts = settings.explicitFacts === false ? [] : account.facts
+    .filter((item) => item && typeof item.text === "string")
+    .map((item) => ({ item, score: memoryRelevance(question, item.text) }))
+    .filter(({ score }) => score > 0 || recallRequested)
+    .sort((left, right) => right.score - left.score || String(right.item.updatedAt || "").localeCompare(String(left.item.updatedAt || "")))
+    .slice(0, 5)
+    .map(({ item }) => ({ text: String(item.text).slice(0, 180), updatedAt: String(item.updatedAt || item.createdAt || "") }));
+  const evidence = settings.mirrorEvidence === false ? [] : account.history
+    .map((event) => ({ event, summary: historySummary(event), score: memoryRelevance(question, String(event?.question || "") + " " + historySummary(event)) }))
+    .filter(({ summary, score }) => summary && (score > 0 || recallRequested))
+    .sort((left, right) => right.score - left.score || String(right.event?.savedAt || "").localeCompare(String(left.event?.savedAt || "")))
+    .slice(0, 3)
+    .map(({ event, summary }) => ({
+      source: String(event?.sourceLabel || event?.source || "个人镜像").slice(0, 80),
+      question: String(event?.question || "未命名镜像").slice(0, 500),
+      summary: summary.slice(0, 420),
+      savedAt: String(event?.savedAt || ""),
+    }));
+  return { facts, evidence, source: "authorized_server_context" };
+}
+
 async function writeAccountData(db, userId, data) {
   const clean = snapshot(data);
   const now = new Date().toISOString();
@@ -529,8 +582,16 @@ async function shiguang(request, env) {
   if (!input || !["east", "west"].includes(input.theme) || ![undefined, "chat", "mirror_result"].includes(input.mode) || (input.mode === "mirror_result" && !["tarot", "bazi", "astrology"].includes(input.kind)) || typeof input.context !== "string" || input.context.length > 12000 || !Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 16) return json({ error: "invalid_chat_input" }, 400);
   const messages = input.messages.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string" && item.content.length <= 2000);
   if (messages.length !== input.messages.length) return json({ error: "invalid_chat_input" }, 400);
+  const user = await sessionUser(request, env);
+  const question = String(messages.at(-1)?.content || "");
+  // A signed-in user gets worker-built context. Client-provided memory remains a
+  // guest-only fallback so the browser cannot silently promote a fact.
+  const memory = user ? await buildPersonalChatMemory(env, user.id, question) : (input.memory && typeof input.memory === "object" ? input.memory : { facts: [], evidence: [] });
+  const explicitFacts = Array.isArray(memory.facts) && memory.facts.length ? memory.facts.map((item) => "- " + String(item.text || "") + "（更新于 " + String(item.updatedAt || "未知时间") + "）").join("\n") : "本轮没有检索到相关的明确记忆。";
+  const mirrorEvidence = Array.isArray(memory.evidence) && memory.evidence.length ? memory.evidence.map((item) => "- [" + String(item.source || "个人镜像") + " · " + String(item.savedAt || "") + "] " + String(item.question || "") + "：" + String(item.summary || "")).join("\n") : "本轮没有检索到相关镜像记录。";
+  const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。如果它们与用户当前说法冲突，以当前说法为准。\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
   try {
-    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感") + "。本次上下文：" + input.context }, ...messages] });
+    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : chatSystem }, ...messages] });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });
   } catch {
     return json({ error: "llm_upstream_failed" }, 502);
