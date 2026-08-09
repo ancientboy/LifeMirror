@@ -680,6 +680,13 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     finally { setBusy(false); }
   }
 
+  useEffect(() => {
+    if (!reflectionResult || saved || busy) return;
+    void saveReflection();
+    // A completed reading belongs in History by default. saveReflection guards retries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reflectionResult, saved, busy]);
+
   if (authState === "checking" || authState === "signedOut") {
     return (
       <main className={styles.appShell}>
