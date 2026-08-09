@@ -374,6 +374,24 @@ async function authApi(request, env, pathname) {
     const input = await body(request);
     return json({ data: await writeAccountData(env.DB, user.id, input?.data) });
   }
+  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "POST") {
+    const input = await body(request);
+    const loopId = String(input?.loopId || "").trim().slice(0, 120);
+    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
+    const eventType = String(input?.eventType || "");
+    if (!loopId || !["rehearsal_started", "followup_seen", "action_taken", "feedback_reported"].includes(eventType)) return json({ error: "invalid_effect_loop_event" }, 400);
+    await env.DB.prepare("INSERT OR IGNORE INTO relationship_effect_events (id, user_id, loop_id, relationship_key, event_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), user.id, loopId, relationshipKey, eventType, new Date().toISOString()).run();
+    return json({ ok: true }, 201);
+  }
+  if (pathname === "/api/v1/account/effect-loop/summary" && request.method === "GET") {
+    const counts = await env.DB.prepare("SELECT SUM(CASE WHEN event_type = 'rehearsal_started' THEN 1 ELSE 0 END) AS rehearsalsStarted, SUM(CASE WHEN event_type = 'followup_seen' THEN 1 ELSE 0 END) AS followupsSeen, SUM(CASE WHEN event_type = 'action_taken' THEN 1 ELSE 0 END) AS actionsTaken, SUM(CASE WHEN event_type = 'feedback_reported' THEN 1 ELSE 0 END) AS feedbackReported FROM relationship_effect_events WHERE user_id = ?").bind(user.id).first();
+    const repeats = await env.DB.prepare("SELECT count(*) AS total FROM (SELECT relationship_key FROM relationship_effect_events WHERE user_id = ? AND event_type = 'rehearsal_started' AND relationship_key <> '' GROUP BY relationship_key HAVING count(*) >= 2)").bind(user.id).first();
+    const rehearsalsStarted = Number(counts?.rehearsalsStarted || 0);
+    const feedbackReported = Number(counts?.feedbackReported || 0);
+    const actionsTaken = Number(counts?.actionsTaken || 0);
+    return json({ summary: { rehearsalsStarted, followupsSeen: Number(counts?.followupsSeen || 0), actionsTaken, feedbackReported, repeatPracticePeople: Number(repeats?.total || 0), actionRate: rehearsalsStarted ? actionsTaken / rehearsalsStarted : 0, feedbackCompletionRate: rehearsalsStarted ? feedbackReported / rehearsalsStarted : 0 } });
+  }
   return json({ error: "not_found" }, 404);
 }
 
@@ -854,7 +872,7 @@ export default {
     const requestUrl = new URL(request.url);
     if (requestUrl.pathname === "/api/shiguang") return shiguang(request, env);
     if (requestUrl.pathname === "/api/v1/liuyao/reflection") return liuyaoReflection(request, env);
-    if (requestUrl.pathname.startsWith("/api/v1/auth/") || requestUrl.pathname === "/api/v1/account/data") return authApi(request, env, requestUrl.pathname);
+    if (requestUrl.pathname.startsWith("/api/v1/auth/") || requestUrl.pathname.startsWith("/api/v1/account/")) return authApi(request, env, requestUrl.pathname);
     if (requestUrl.pathname.startsWith("/api/v1/social/")) return socialApi(request, env, requestUrl.pathname);
     const response = await env.ASSETS.fetch(request);
     if (response.status !== 404) return response;

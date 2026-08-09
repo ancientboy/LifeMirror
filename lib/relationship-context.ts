@@ -17,6 +17,8 @@ export type PrivatePerson = {
 };
 
 export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; reportedAt?: string };
+type RelationshipEffectEvent = "rehearsal_started" | "followup_seen" | "action_taken" | "feedback_reported";
+type RelationshipFollowupSettings = { enabled?: boolean; dismissed?: Record<string, string>; seen?: Record<string, string> };
 
 const SETTINGS_KEY = "life-mirror:memory-settings:v1";
 
@@ -30,6 +32,48 @@ function readSettings(): Record<string, unknown> {
 function write(people: PrivatePerson[], loops = getRelationshipLoops()) {
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readSettings(), privatePeople: people.slice(0, 40), relationshipLoops: loops.slice(0, 100), privatePeopleUpdatedAt: new Date().toISOString() }));
   markAccountDataChanged();
+}
+
+function followupSettings(): RelationshipFollowupSettings {
+  const value = readSettings().relationshipFollowups;
+  return value && typeof value === "object" && !Array.isArray(value) ? value as RelationshipFollowupSettings : {};
+}
+
+function writeFollowupSettings(next: RelationshipFollowupSettings) {
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readSettings(), relationshipFollowups: next }));
+  markAccountDataChanged();
+}
+
+/** Sends only opaque lifecycle counters; never rehearsal or feedback text. */
+export async function recordRelationshipEffectEvent(loop: Pick<RelationshipLoop, "id" | "personId">, eventType: RelationshipEffectEvent) {
+  await fetch("/api/v1/account/effect-loop/events", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ loopId: loop.id, relationshipKey: loop.personId, eventType }) }).catch(() => undefined);
+}
+
+export function relationshipFollowupsEnabled() { return followupSettings().enabled === true; }
+
+export function setRelationshipFollowupsEnabled(enabled: boolean) {
+  writeFollowupSettings({ ...followupSettings(), enabled });
+}
+
+export function getDueRelationshipFollowup(now = Date.now()) {
+  if (!relationshipFollowupsEnabled()) return null;
+  const settings = followupSettings();
+  return getRelationshipLoops().find((loop) => {
+    if (loop.status !== "awaiting_action" || now - new Date(loop.createdAt).getTime() < 24 * 3_600_000) return false;
+    const lastSeen = Date.parse(settings.seen?.[loop.id] ?? "");
+    const dismissedUntil = Date.parse(settings.dismissed?.[loop.id] ?? "");
+    return (!Number.isFinite(lastSeen) || now - lastSeen >= 24 * 3_600_000) && (!Number.isFinite(dismissedUntil) || now >= dismissedUntil);
+  }) ?? null;
+}
+
+export function markRelationshipFollowupSeen(loopId: string) {
+  const settings = followupSettings();
+  writeFollowupSettings({ ...settings, seen: { ...settings.seen, [loopId]: new Date().toISOString() } });
+}
+
+export function dismissRelationshipFollowup(loopId: string) {
+  const settings = followupSettings();
+  writeFollowupSettings({ ...settings, dismissed: { ...settings.dismissed, [loopId]: new Date(Date.now() + 24 * 3_600_000).toISOString() } });
 }
 
 export function getPrivatePeople(): PrivatePerson[] {
@@ -65,12 +109,20 @@ export function getRelationshipLoops(): RelationshipLoop[] {
 
 export function createRelationshipLoop(input: Pick<RelationshipLoop, "personId" | "situation" | "need">) {
   const now = new Date().toISOString(); const loop: RelationshipLoop = { id: createClientId(), personId: input.personId, situation: input.situation.trim().slice(0, 180), need: input.need?.trim().slice(0, 180) || undefined, status: "awaiting_action", createdAt: now };
-  write(getPrivatePeople(), [loop, ...getRelationshipLoops()]); return loop;
+  write(getPrivatePeople(), [loop, ...getRelationshipLoops()]);
+  void recordRelationshipEffectEvent(loop, "rehearsal_started");
+  return loop;
 }
 
 export function reportRelationshipLoop(id: string, input: { actionTaken: boolean; outcome?: RelationshipLoop["outcome"]; reflection?: string }) {
   const next = getRelationshipLoops().map((loop) => loop.id === id ? { ...loop, status: "reported" as const, actionTaken: input.actionTaken, outcome: input.outcome, reflection: input.reflection?.trim().slice(0, 300) || undefined, reportedAt: new Date().toISOString() } : loop);
-  write(getPrivatePeople(), next); return next.find((loop) => loop.id === id) ?? null;
+  write(getPrivatePeople(), next);
+  const reported = next.find((loop) => loop.id === id) ?? null;
+  if (reported) {
+    if (input.actionTaken) void recordRelationshipEffectEvent(reported, "action_taken");
+    void recordRelationshipEffectEvent(reported, "feedback_reported");
+  }
+  return reported;
 }
 
 export function getRelationshipCalibration(personId: string): RelationshipCalibration {

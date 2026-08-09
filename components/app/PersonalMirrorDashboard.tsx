@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarBlank, Check, CircleNotch, Funnel, Heart, LockKey, Sparkle, Trash, UserPlus } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CalendarBlank, Check, CircleNotch, Funnel, Heart, LockKey, Sparkle, Trash, TrendUp, UserPlus } from "@phosphor-icons/react";
 import styles from "./PersonalMirrorDashboard.module.css";
 import lifeStyles from "./PersonalMirrorLife.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
@@ -17,12 +17,21 @@ import { RelationshipSandbox } from "./RelationshipSandbox";
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
 type DashboardMode = "loading" | "guest" | "authenticated";
+type EffectLoopSummary = { rehearsalsStarted: number; followupsSeen: number; actionsTaken: number; feedbackReported: number; repeatPracticePeople: number; actionRate: number; feedbackCompletionRate: number };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 const HISTORY_KEY = "life-mirror:guest-history:v1";
 
 async function api<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { credentials: "include" });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.error ?? `request_failed_${response.status}`);
+  return body as T;
+}
+
+/** Account data and effect telemetry live with the Sites session/D1, not the optional analysis API. */
+async function accountApi<T>(path: string): Promise<T> {
+  const response = await fetch(path, { credentials: "include" });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error ?? `request_failed_${response.status}`);
   return body as T;
@@ -121,6 +130,7 @@ export function PersonalMirrorDashboard() {
   const [personDraft, setPersonDraft] = useState({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
   const [sandboxPerson, setSandboxPerson] = useState<PrivatePerson | null>(null);
   const [expandedRelationshipArchive, setExpandedRelationshipArchive] = useState<string | null>(null);
+  const [effectLoopSummary, setEffectLoopSummary] = useState<EffectLoopSummary | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -133,6 +143,8 @@ export function PersonalMirrorDashboard() {
         setEvents(summary?.timeline?.length ? normalizeServerTimeline(summary.timeline) : readGuestEvents());
         setPatterns(summary?.recentPatterns ?? []);
         setMode("authenticated");
+        const effect = await accountApi<{ summary: EffectLoopSummary }>("/api/v1/account/effect-loop/summary").catch(() => null);
+        if (active) setEffectLoopSummary(effect?.summary ?? null);
       } catch (cause) {
         if (!active) return;
         const code = cause instanceof Error ? cause.message : "";
@@ -226,6 +238,10 @@ export function PersonalMirrorDashboard() {
         <header><span><Heart /> 还没结束的事</span><small>{openLoops.length} 件</small></header>
         {openLoops.length ? <div className={styles.loopList}>{openLoops.slice(0, 3).map((event) => <div key={event.id}><b>{event.question}</b><p>{event.personName ? `和 ${event.personName} 有关 · ` : ""}这件事还在等待现实里的新消息。</p><span><button onClick={() => changeEvent(event.id, { openLoopStatus: "resolved" })}><Check /> 已有结果</button><button onClick={() => changeEvent(event.id, { openLoopStatus: "unknown" })}>暂不确定</button></span></div>)}</div> : <p className={styles.contextEmpty}>没有被标记为“未结束”的现实事项。之后遇到仍在等待答案的事，可以在记录里留下它。</p>}
       </article>
+      {mode === "authenticated" && <article className={styles.contextCard}>
+        <header><span><TrendUp /> 效果闭环</span><small>仅记录匿名化动作</small></header>
+        {effectLoopSummary ? <div className={styles.effectSummary}><p>这里不保存你们聊了什么，也不记录 TA 的信息；只用于确认“演练有没有真的回到现实”。</p><div><span><b>{effectLoopSummary.rehearsalsStarted}</b><small>发起演练</small></span><span><b>{effectLoopSummary.actionsTaken}</b><small>带去行动</small></span><span><b>{effectLoopSummary.feedbackReported}</b><small>带回反馈</small></span></div>{effectLoopSummary.rehearsalsStarted > 0 && <p>闭环完成率 {Math.round(effectLoopSummary.feedbackCompletionRate * 100)}% · 已有 {effectLoopSummary.repeatPracticePeople} 段关系进行了第二次演练。</p>}</div> : <p className={styles.contextEmpty}>正在读取你的闭环进展。</p>}
+      </article>}
       <article className={styles.contextCard}>
         <header><span><UserPlus /> 我在意的人</span><small>只保存你的视角</small></header>
         {people.length ? <div className={styles.peopleList}>{people.map((person) => { const archive = getRelationshipArchive(person.id); const expanded = expandedRelationshipArchive === person.id; return <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><div className={styles.personActions}><button type="button" onClick={() => setSandboxPerson(person)}><Sparkle />沟通演练</button><button type="button" className={styles.archiveButton} onClick={() => setExpandedRelationshipArchive(expanded ? null : person.id)}>{expanded ? "收起档案" : "关系档案"}</button><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div>{expanded && <section className={styles.relationshipArchive}><small>你的现实反馈 · 不代表 TA 的人格或内心</small><p className={styles.archiveSummary}>{archive.summary}</p><div className={styles.archiveAdjustment}><b>拾光这次更新了什么</b><p>{archive.visibleAdjustment}</p></div>{archive.awaitingFeedback > 0 && <p className={styles.archivePending}>还有 {archive.awaitingFeedback} 次演练等你带回结果。</p>}{archive.verifiedInteractions.length > 0 && <div className={styles.archiveEvidence}><b>已验证的互动</b>{archive.verifiedInteractions.map((item) => <article key={item.id ?? `${item.situation}-${item.reportedAt}`}><span>{({ smooth: "顺利", mixed: "一般", rough: "翻车" } as const)[item.outcome]}</span><div><strong>{item.situation || "一次沟通"}</strong>{item.reflection && <p>“{item.reflection}”</p>}<small>{item.reportedAt ? new Date(item.reportedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" }) : "你主动记录的反馈"}</small></div></article>)}</div>}</section>}</div>; })}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
