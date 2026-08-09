@@ -27,6 +27,7 @@ import styles from "./TarotExperience.module.css";
 import { ShiguangChat } from "./ShiguangChat";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import { markAccountDataChanged } from "@/lib/account-data";
+import { saveMirrorHistory } from "@/lib/mirror-history";
 
 type Stage = "question" | "shuffle" | "reading";
 const prompts = [
@@ -46,7 +47,6 @@ type SavedReading = {
   cards: DrawnCard[];
 };
 const HISTORY_KEY = "lifemirror.tarot.readings.v1";
-const MIRROR_HISTORY_KEY = "life-mirror:guest-history:v1";
 
 function secureDraw(spread: TarotSpread) {
   const entropy = new Uint32Array(spread.positions.length * 2);
@@ -123,23 +123,28 @@ export function TarotExperience() {
     };
     const next = [reading, ...history].slice(0, 12);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-    const mirrorHistory = JSON.parse(localStorage.getItem(MIRROR_HISTORY_KEY) ?? "[]");
     const summary = mirrorSummary || mirrorFallback.headline;
-    const mirrorRecord = {
-      id: reading.id,
+    saveMirrorHistory({
       source: "tarot",
       sourceLabel: "塔罗镜像",
       question: reading.question,
       meta: `${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`,
       payload: reading,
       reflection: { shareableReflection: summary, shiguangInterpretation: summary },
-      savedAt: reading.createdAt,
-    };
-    localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify([mirrorRecord, ...(Array.isArray(mirrorHistory) ? mirrorHistory : [])].slice(0, 50)));
+      factIds: [],
+      dedupKey: `v1:tarot:${reading.id}`,
+    });
     markAccountDataChanged();
     setHistory(next);
     setSaved(true);
   }
+
+  useEffect(() => {
+    if (stage !== "reading" || !cards.length || saved) return;
+    saveReading();
+  // The record is intentionally captured once for each completed draw.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, cards.length]);
 
   return (
     <main className={styles.shell}>
