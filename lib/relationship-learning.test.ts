@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRelationshipCalibration, calculateRelationshipLoopMetrics } from "./relationship-learning";
+import { buildRelationshipArchive, buildRelationshipCalibration, calculateRelationshipLoopMetrics } from "./relationship-learning";
 
 test("relationship calibration learns only from user-reported completed actions", () => {
   const calibration = buildRelationshipCalibration("person-1", [
@@ -29,4 +29,17 @@ test("effect-loop metrics separate a real action from a reported outcome", () =>
     feedbackCompletionRate: 2 / 3,
     repeatPracticePeople: 1,
   });
+});
+
+test("relationship archive shows only confirmed interactions and a visible next adjustment", () => {
+  const archive = buildRelationshipArchive("person-1", [
+    { id: "waiting", personId: "person-1", status: "awaiting_action", situation: "要不要开口" },
+    { id: "no-action", personId: "person-1", status: "reported", actionTaken: false, outcome: "rough", situation: "没有去聊" },
+    { id: "confirmed", personId: "person-1", status: "reported", actionTaken: true, outcome: "mixed", situation: "沟通频率", reflection: "对方解释了，但我还是有点委屈", reportedAt: "2026-08-09T12:00:00.000Z" },
+  ]);
+  assert.equal(archive.awaitingFeedback, 1);
+  assert.equal(archive.verifiedInteractions.length, 1);
+  assert.equal(archive.verifiedInteractions[0].id, "confirmed");
+  assert.match(archive.visibleAdjustment, /下一次|下次/);
+  assert.doesNotMatch(archive.summary, /人格|内心/);
 });

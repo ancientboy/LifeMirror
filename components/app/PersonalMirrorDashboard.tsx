@@ -11,7 +11,7 @@ import { AccountDataSync } from "./AccountDataSync";
 import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
 import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
-import { deletePrivatePerson, getPrivatePeople, getRelationshipLoopMetrics, getRelationshipLoops, reportRelationshipLoop, savePrivatePerson, type PrivatePerson, type RelationshipLoop } from "@/lib/relationship-context";
+import { deletePrivatePerson, getPrivatePeople, getRelationshipArchive, getRelationshipLoopMetrics, getRelationshipLoops, reportRelationshipLoop, savePrivatePerson, type PrivatePerson, type RelationshipLoop } from "@/lib/relationship-context";
 import { RelationshipSandbox } from "./RelationshipSandbox";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
@@ -120,6 +120,7 @@ export function PersonalMirrorDashboard() {
   const [loopReflection, setLoopReflection] = useState("");
   const [personDraft, setPersonDraft] = useState({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
   const [sandboxPerson, setSandboxPerson] = useState<PrivatePerson | null>(null);
+  const [expandedRelationshipArchive, setExpandedRelationshipArchive] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -227,7 +228,7 @@ export function PersonalMirrorDashboard() {
       </article>
       <article className={styles.contextCard}>
         <header><span><UserPlus /> 我在意的人</span><small>只保存你的视角</small></header>
-        {people.length ? <div className={styles.peopleList}>{people.map((person) => <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><div className={styles.personActions}><button type="button" onClick={() => setSandboxPerson(person)}><Sparkle />沟通演练</button><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div></div>)}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
+        {people.length ? <div className={styles.peopleList}>{people.map((person) => { const archive = getRelationshipArchive(person.id); const expanded = expandedRelationshipArchive === person.id; return <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><div className={styles.personActions}><button type="button" onClick={() => setSandboxPerson(person)}><Sparkle />沟通演练</button><button type="button" className={styles.archiveButton} onClick={() => setExpandedRelationshipArchive(expanded ? null : person.id)}>{expanded ? "收起档案" : "关系档案"}</button><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div>{expanded && <section className={styles.relationshipArchive}><small>你的现实反馈 · 不代表 TA 的人格或内心</small><p className={styles.archiveSummary}>{archive.summary}</p><div className={styles.archiveAdjustment}><b>拾光这次更新了什么</b><p>{archive.visibleAdjustment}</p></div>{archive.awaitingFeedback > 0 && <p className={styles.archivePending}>还有 {archive.awaitingFeedback} 次演练等你带回结果。</p>}{archive.verifiedInteractions.length > 0 && <div className={styles.archiveEvidence}><b>已验证的互动</b>{archive.verifiedInteractions.map((item) => <article key={item.id ?? `${item.situation}-${item.reportedAt}`}><span>{({ smooth: "顺利", mixed: "一般", rough: "翻车" } as const)[item.outcome]}</span><div><strong>{item.situation || "一次沟通"}</strong>{item.reflection && <p>“{item.reflection}”</p>}<small>{item.reportedAt ? new Date(item.reportedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" }) : "你主动记录的反馈"}</small></div></article>)}</div>}</section>}</div>; })}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
         <form className={styles.personForm} onSubmit={addPerson}><input required value={personDraft.displayName} onChange={(event) => setPersonDraft({ ...personDraft, displayName: event.target.value })} placeholder="TA 的昵称" /><input value={personDraft.relationshipType} onChange={(event) => setPersonDraft({ ...personDraft, relationshipType: event.target.value })} placeholder="和我的关系（可选）" /><textarea value={personDraft.userDescription} onChange={(event) => setPersonDraft({ ...personDraft, userDescription: event.target.value })} placeholder="在这段关系里，我观察到……（可选）" maxLength={300} /><button type="submit">加入人物</button></form>
       </article>
     </section>

@@ -1,6 +1,6 @@
 import { createClientId } from "./client-id";
 import { markAccountDataChanged } from "./account-data";
-import { buildRelationshipCalibration, calculateRelationshipLoopMetrics, type RelationshipCalibration, type RelationshipLoopMetrics } from "./relationship-learning";
+import { buildRelationshipArchive, buildRelationshipCalibration, calculateRelationshipLoopMetrics, type RelationshipArchive, type RelationshipCalibration, type RelationshipLoopMetrics } from "./relationship-learning";
 
 /**
  * A private, user-authored view of a real person.  It deliberately does not
@@ -75,6 +75,10 @@ export function reportRelationshipLoop(id: string, input: { actionTaken: boolean
 
 export function getRelationshipCalibration(personId: string): RelationshipCalibration {
   return buildRelationshipCalibration(personId, getRelationshipLoops());
+}
+
+export function getRelationshipArchive(personId: string): RelationshipArchive {
+  return buildRelationshipArchive(personId, getRelationshipLoops());
 }
 
 export function getRelationshipLoopMetrics(): RelationshipLoopMetrics {
