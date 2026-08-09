@@ -49,6 +49,11 @@ export async function recordRelationshipEffectEvent(loop: Pick<RelationshipLoop,
   await fetch("/api/v1/account/effect-loop/events", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ loopId: loop.id, relationshipKey: loop.personId, eventType }) }).catch(() => undefined);
 }
 
+/** Removes opaque telemetry with its matching private record; no interaction text is sent. */
+async function deleteRelationshipEffectData(input: { loopId?: string; relationshipKey?: string }) {
+  await fetch("/api/v1/account/effect-loop/events", { method: "DELETE", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }).catch(() => undefined);
+}
+
 export function relationshipFollowupsEnabled() { return followupSettings().enabled === true; }
 
 export function setRelationshipFollowupsEnabled(enabled: boolean) {
@@ -100,11 +105,24 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
 
 export function deletePrivatePerson(id: string) {
   write(getPrivatePeople().filter((person) => person.id !== id), getRelationshipLoops().filter((loop) => loop.personId !== id));
+  void deleteRelationshipEffectData({ relationshipKey: id });
 }
 
 export function getRelationshipLoops(): RelationshipLoop[] {
   const value = readSettings().relationshipLoops;
   return Array.isArray(value) ? value.filter((item): item is RelationshipLoop => Boolean(item && typeof item === "object" && typeof (item as RelationshipLoop).id === "string" && typeof (item as RelationshipLoop).personId === "string" && typeof (item as RelationshipLoop).situation === "string")).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
+}
+
+export function getRelationshipLoopsForPerson(personId: string): RelationshipLoop[] {
+  return getRelationshipLoops().filter((loop) => loop.personId === personId);
+}
+
+export function deleteRelationshipLoop(id: string) {
+  const loop = getRelationshipLoops().find((item) => item.id === id);
+  if (!loop) return false;
+  write(getPrivatePeople(), getRelationshipLoops().filter((item) => item.id !== id));
+  void deleteRelationshipEffectData({ loopId: id });
+  return true;
 }
 
 export function createRelationshipLoop(input: Pick<RelationshipLoop, "personId" | "situation" | "need">) {

@@ -384,6 +384,20 @@ async function authApi(request, env, pathname) {
       .bind(crypto.randomUUID(), user.id, loopId, relationshipKey, eventType, new Date().toISOString()).run();
     return json({ ok: true }, 201);
   }
+  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "DELETE") {
+    const input = await body(request);
+    const loopId = String(input?.loopId || "").trim().slice(0, 120);
+    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
+    if (loopId) {
+      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND loop_id = ?").bind(user.id, loopId).run();
+      return json({ ok: true });
+    }
+    if (relationshipKey) {
+      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND relationship_key = ?").bind(user.id, relationshipKey).run();
+      return json({ ok: true });
+    }
+    return json({ error: "invalid_effect_loop_deletion" }, 400);
+  }
   if (pathname === "/api/v1/account/effect-loop/summary" && request.method === "GET") {
     const counts = await env.DB.prepare("SELECT SUM(CASE WHEN event_type = 'rehearsal_started' THEN 1 ELSE 0 END) AS rehearsalsStarted, SUM(CASE WHEN event_type = 'followup_seen' THEN 1 ELSE 0 END) AS followupsSeen, SUM(CASE WHEN event_type = 'action_taken' THEN 1 ELSE 0 END) AS actionsTaken, SUM(CASE WHEN event_type = 'feedback_reported' THEN 1 ELSE 0 END) AS feedbackReported FROM relationship_effect_events WHERE user_id = ?").bind(user.id).first();
     const repeats = await env.DB.prepare("SELECT count(*) AS total FROM (SELECT relationship_key FROM relationship_effect_events WHERE user_id = ? AND event_type = 'rehearsal_started' AND relationship_key <> '' GROUP BY relationship_key HAVING count(*) >= 2)").bind(user.id).first();
