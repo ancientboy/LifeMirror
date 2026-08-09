@@ -1,5 +1,6 @@
 import { createClientId } from "./client-id";
 import { markAccountDataChanged } from "./account-data";
+import { buildRelationshipCalibration, calculateRelationshipLoopMetrics, type RelationshipCalibration, type RelationshipLoopMetrics } from "./relationship-learning";
 
 /**
  * A private, user-authored view of a real person.  It deliberately does not
@@ -70,6 +71,14 @@ export function createRelationshipLoop(input: Pick<RelationshipLoop, "personId" 
 export function reportRelationshipLoop(id: string, input: { actionTaken: boolean; outcome?: RelationshipLoop["outcome"]; reflection?: string }) {
   const next = getRelationshipLoops().map((loop) => loop.id === id ? { ...loop, status: "reported" as const, actionTaken: input.actionTaken, outcome: input.outcome, reflection: input.reflection?.trim().slice(0, 300) || undefined, reportedAt: new Date().toISOString() } : loop);
   write(getPrivatePeople(), next); return next.find((loop) => loop.id === id) ?? null;
+}
+
+export function getRelationshipCalibration(personId: string): RelationshipCalibration {
+  return buildRelationshipCalibration(personId, getRelationshipLoops());
+}
+
+export function getRelationshipLoopMetrics(): RelationshipLoopMetrics {
+  return calculateRelationshipLoopMetrics(getRelationshipLoops());
 }
 
 export function relationshipLoopInsight(loop: RelationshipLoop) {

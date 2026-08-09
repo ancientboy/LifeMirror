@@ -11,7 +11,7 @@ import { AccountDataSync } from "./AccountDataSync";
 import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
 import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
-import { deletePrivatePerson, getPrivatePeople, savePrivatePerson, type PrivatePerson } from "@/lib/relationship-context";
+import { deletePrivatePerson, getPrivatePeople, getRelationshipLoopMetrics, getRelationshipLoops, reportRelationshipLoop, savePrivatePerson, type PrivatePerson, type RelationshipLoop } from "@/lib/relationship-context";
 import { RelationshipSandbox } from "./RelationshipSandbox";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
@@ -114,6 +114,10 @@ export function PersonalMirrorDashboard() {
   const [dnaFeedback, setDnaFeedback] = useState<"yes" | "no" | null>(null);
   const [natalMirrors, setNatalMirrors] = useState<Partial<Record<"bazi" | "astrology", SavedNatalMirror>>>({});
   const [people, setPeople] = useState<PrivatePerson[]>([]);
+  const [relationshipLoops, setRelationshipLoops] = useState<RelationshipLoop[]>([]);
+  const [reviewingLoopId, setReviewingLoopId] = useState<string | null>(null);
+  const [loopOutcome, setLoopOutcome] = useState<RelationshipLoop["outcome"]>();
+  const [loopReflection, setLoopReflection] = useState("");
   const [personDraft, setPersonDraft] = useState({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
   const [sandboxPerson, setSandboxPerson] = useState<PrivatePerson | null>(null);
 
@@ -136,9 +140,10 @@ export function PersonalMirrorDashboard() {
       }
     }
     void load();
-    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); setPeople(getPrivatePeople()); };
+    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); setPeople(getPrivatePeople()); setRelationshipLoops(getRelationshipLoops()); };
     setNatalMirrors(getLatestSavedNatalMirrors());
     setPeople(getPrivatePeople());
+    setRelationshipLoops(getRelationshipLoops());
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
     return () => { active = false; window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh); };
   }, []);
@@ -156,6 +161,23 @@ export function PersonalMirrorDashboard() {
     { key: "bazi", label: "命盘 · 稳定底图", summary: natalSummary("bazi", natalMirrors.bazi), href: "/app/chart/" },
   ] as const;
   const openLoops = events.filter((event) => event.openLoopStatus === "open");
+  const pendingRelationshipLoops = relationshipLoops.filter((loop) => loop.status === "awaiting_action");
+  const loopMetrics = getRelationshipLoopMetrics();
+  const reviewingLoop = relationshipLoops.find((loop) => loop.id === reviewingLoopId);
+
+  function followUpTiming(loop: RelationshipLoop) {
+    const hours = Math.floor((Date.now() - new Date(loop.createdAt).getTime()) / 3_600_000);
+    if (hours >= 72) return "拾光想轻轻问一下：后来怎么样了？";
+    if (hours >= 24) return "如果你已经去聊过，点一下就能留下结果。";
+    return "等你真的去聊过再回来；不急。";
+  }
+
+  function submitRelationshipFeedback(actionTaken: boolean) {
+    if (!reviewingLoop) return;
+    reportRelationshipLoop(reviewingLoop.id, { actionTaken, outcome: loopOutcome, reflection: loopReflection });
+    setRelationshipLoops(getRelationshipLoops());
+    setReviewingLoopId(null); setLoopOutcome(undefined); setLoopReflection("");
+  }
 
   function changeEvent(id: string, patch: Parameters<typeof updateMirrorHistory>[1]) {
     updateMirrorHistory(id, patch);
@@ -194,6 +216,11 @@ export function PersonalMirrorDashboard() {
       })}</div>
     </section>
     <section className={styles.contextGrid}>
+      <article className={styles.contextCard}>
+        <header><span><Sparkle /> 等你回来的一句话</span><small>{pendingRelationshipLoops.length} 项待回访</small></header>
+        {pendingRelationshipLoops.length ? <div className={styles.loopList}>{pendingRelationshipLoops.slice(0, 3).map((loop) => { const person = people.find((item) => item.id === loop.personId); return <div key={loop.id}><b>和 {person?.displayName ?? "TA"} 的这次沟通</b><p>{loop.situation}</p><p>{followUpTiming(loop)}</p><span><button onClick={() => { setReviewingLoopId(loop.id); setLoopOutcome(undefined); setLoopReflection(""); }}>回来复盘</button></span></div>; })}</div> : <p className={styles.contextEmpty}>{loopMetrics.rehearsalsStarted ? `你已留下 ${loopMetrics.feedbackReported} 次现实反馈。下一次演练后，拾光会在这里等你。` : "完成一次沟通演练后，拾光会在这里等你带回现实里的结果。"}</p>}
+        {reviewingLoop && <div className={styles.loopList}><div><b>这次真的去聊了吗？</b><p>选一个结果就够；可选的一句话只记录这次互动。</p><span>{([['smooth', '顺利'], ['mixed', '一般'], ['rough', '翻车']] as const).map(([value, label]) => <button key={value} className={loopOutcome === value ? styles.marked : ""} onClick={() => setLoopOutcome(value)}>{label}</button>)}</span><textarea value={loopReflection} maxLength={300} onChange={(event) => setLoopReflection(event.target.value)} placeholder="可选：发生了什么？你有什么感受？" /><span><button className={styles.marked} onClick={() => submitRelationshipFeedback(Boolean(loopOutcome))}>记录现实反馈</button><button onClick={() => submitRelationshipFeedback(false)}>这次还没开口</button></span></div></div>}
+      </article>
       <article className={styles.contextCard}>
         <header><span><Heart /> 还没结束的事</span><small>{openLoops.length} 件</small></header>
         {openLoops.length ? <div className={styles.loopList}>{openLoops.slice(0, 3).map((event) => <div key={event.id}><b>{event.question}</b><p>{event.personName ? `和 ${event.personName} 有关 · ` : ""}这件事还在等待现实里的新消息。</p><span><button onClick={() => changeEvent(event.id, { openLoopStatus: "resolved" })}><Check /> 已有结果</button><button onClick={() => changeEvent(event.id, { openLoopStatus: "unknown" })}>暂不确定</button></span></div>)}</div> : <p className={styles.contextEmpty}>没有被标记为“未结束”的现实事项。之后遇到仍在等待答案的事，可以在记录里留下它。</p>}
