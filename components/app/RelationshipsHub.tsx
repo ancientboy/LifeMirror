@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowRight, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, ChatCenteredText, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
+import { getPrivatePeople, type PrivatePerson } from "@/lib/relationship-context";
 import styles from "./RelationshipsHub.module.css";
 
 type Person = { id: string; name: string; avatar: string };
@@ -11,6 +12,9 @@ type Relationship = { id: string; status: "pending" | "accepted" | "blocked"; di
 type SocialPayload = { user: Person; profile: { inviteCode: string; publicId: string; discoverable: number; shareBirth: number }; relationships: Relationship[] };
 type SharePayload = { id: string; ownerId: string; shareKind: "relationship" | "compare"; mirrorKind: string; quote: string; meta: string; owner: Person };
 type RelationMirror = { ready: boolean; me: Person; other: Person; mySign?: string; theirSign?: string; rhythm?: string; tension?: string; question?: string };
+type BridgeQuestion = { id: string; question: string; response?: string | null; status: "open" | "answered" | "archived"; createdAt: string; answeredAt?: string | null };
+type BridgeLink = { id: string; privatePersonId: string; displayName: string; ownerUserId: string; linkedUserId: string; status: "pending" | "linked" | "declined"; createdAt: string };
+type Bridge = { relationshipId: string; other: Person; links: BridgeLink[]; receivedQuestions: BridgeQuestion[]; sentQuestions: BridgeQuestion[]; events: Array<{ id: string; kind: string; content: string; createdAt: string; authorUserId: string }> };
 
 async function api<T>(path: string, init?: RequestInit) {
   const response = await fetch(path, { credentials: "include", headers: { "content-type": "application/json", ...init?.headers }, ...init });
@@ -33,6 +37,12 @@ export function RelationshipsHub() {
   const [share, setShare] = useState<SharePayload | null>(null);
   const [mirror, setMirror] = useState<RelationMirror | null>(null);
   const [loadingMirror, setLoadingMirror] = useState("");
+  const [bridge, setBridge] = useState<Bridge | null>(null);
+  const [bridgeId, setBridgeId] = useState("");
+  const [questionDraft, setQuestionDraft] = useState("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [privatePeople, setPrivatePeople] = useState<PrivatePerson[]>([]);
+  const [personToLink, setPersonToLink] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
@@ -46,6 +56,7 @@ export function RelationshipsHub() {
     const token = params.get("share");
     if (token) api<{ share: SharePayload }>(`/api/v1/social/shares/${token}`).then((value) => setShare(value.share)).catch(() => setNotice("这张关系镜像已失效或不存在。"));
     void refresh();
+    setPrivatePeople(getPrivatePeople());
   }, []);
 
   const accepted = useMemo(() => data?.relationships.filter((item) => item.status === "accepted") ?? [], [data]);
@@ -113,6 +124,46 @@ export function RelationshipsHub() {
     finally { setLoadingMirror(""); }
   }
 
+  async function openBridge(id: string) {
+    setBusy(true); setBridge(null); setBridgeId(id); setNotice("");
+    try { const value = await api<{ bridge: Bridge }>(`/api/v1/social/relationships/${id}/bridge`); setBridge(value.bridge); }
+    catch { setNotice("这段关系暂时无法打开。") }
+    finally { setBusy(false); }
+  }
+
+  async function refreshBridge() { if (bridgeId) await openBridge(bridgeId); }
+
+  async function sendQuestion() {
+    if (!bridgeId || !questionDraft.trim()) return;
+    setBusy(true); setNotice("");
+    try { await api(`/api/v1/social/relationships/${bridgeId}/questions`, { method: "POST", body: JSON.stringify({ question: questionDraft }) }); setQuestionDraft(""); await refreshBridge(); setNotice("问题已经送给 TA；等对方愿意时，真实回答会回到这里。"); }
+    catch { setNotice("暂时无法发送这个问题。") }
+    finally { setBusy(false); }
+  }
+
+  async function answerQuestion(id: string) {
+    const answer = answers[id]?.trim(); if (!bridgeId || !answer) return;
+    setBusy(true); setNotice("");
+    try { await api(`/api/v1/social/relationships/${bridgeId}/questions/${id}/answer`, { method: "POST", body: JSON.stringify({ answer }) }); setAnswers((current) => ({ ...current, [id]: "" })); await refreshBridge(); setNotice("你的真实回答已送达。") }
+    catch { setNotice("暂时无法提交回答。") }
+    finally { setBusy(false); }
+  }
+
+  async function linkPerson() {
+    const person = privatePeople.find((item) => item.id === personToLink); if (!bridgeId || !person) return;
+    setBusy(true); setNotice("");
+    try { await api(`/api/v1/social/relationships/${bridgeId}/links`, { method: "POST", body: JSON.stringify({ privatePersonId: person.id, displayName: person.displayName }) }); setNotice(`已邀请 ${bridge?.other.name ?? "TA"} 确认你记录的“${person.displayName}”就是自己。确认前它仍只是你的私人视角。`); await refreshBridge(); }
+    catch { setNotice("暂时无法发送确认邀请。") }
+    finally { setBusy(false); }
+  }
+
+  async function respondToLink(id: string, action: "accept" | "decline") {
+    if (!bridgeId) return; setBusy(true);
+    try { await api(`/api/v1/social/relationships/${bridgeId}/links/${id}`, { method: "PATCH", body: JSON.stringify({ action }) }); await refreshBridge(); setNotice(action === "accept" ? "已确认链接；双方资料仍各自独立保存。" : "已拒绝链接，不会影响原有私人记录。") }
+    catch { setNotice("暂时无法处理确认。") }
+    finally { setBusy(false); }
+  }
+
   async function respond(response: "like_me" | "not_me" | "want_compare") {
     if (!share) return;
     if (!data) { setSignedOut(true); return; }
@@ -150,13 +201,22 @@ export function RelationshipsHub() {
       {incoming.length > 0 && <section className={styles.panel}><header><div><small>等待你回应</small><h2>好友申请</h2></div><span>{incoming.length}</span></header><div className={styles.people}>{incoming.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>想与你建立私密关系镜像</small></div><button disabled={busy} onClick={() => void act(item.id, "accept")}><Check />接受</button><button className={styles.iconButton} aria-label="忽略申请" onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div></section>}
 
       <section className={styles.panel}><header><div><small>RELATIONSHIPS</small><h2>我的关系</h2></div><span>{accepted.length}</span></header>
-        {accepted.length ? <div className={styles.people}>{accepted.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>已建立私密关系</small></div><button disabled={loadingMirror === item.id} onClick={() => void openMirror(item.id)}><Sparkle />{loadingMirror === item.id ? "正在打开" : "关系镜像"}</button><button className={styles.iconButton} aria-label={`移除 ${item.person.name}`} onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div> : <div className={styles.empty}><Heart /><p>关系页还是空的。先邀请一个你真正想理解的人。</p></div>}
+        {accepted.length ? <div className={styles.people}>{accepted.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>已建立私密关系</small></div><button disabled={loadingMirror === item.id} onClick={() => void openMirror(item.id)}><Sparkle />{loadingMirror === item.id ? "正在打开" : "关系镜像"}</button><button disabled={busy} onClick={() => void openBridge(item.id)}><ChatCenteredText />真实对话</button><button className={styles.iconButton} aria-label={`移除 ${item.person.name}`} onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div> : <div className={styles.empty}><Heart /><p>关系页还是空的。先邀请一个你真正想理解的人。</p></div>}
         {outgoing.length > 0 && <p className={styles.pendingText}>另有 {outgoing.length} 个邀请正在等待回应。</p>}
       </section>
 
       {mirror && <section className={styles.mirrorCard}>
         <small><Sparkle /> 双人关系镜像 · BETA</small><h2>{mirror.me.name} × {mirror.other.name}</h2>
         {mirror.ready ? <><div className={styles.signs}><span>{mirror.mySign}</span><LinkSimple /><span>{mirror.theirSign}</span></div><article><b>相处节奏</b><p>{mirror.rhythm}</p></article><article><b>需要留意</b><p>{mirror.tension}</p></article><blockquote>{mirror.question}</blockquote></> : <div className={styles.permissionNeeded}><ShieldCheck /><p>双方都需要主动允许“用出生资料生成关系洞察”，系统才会生成，不会向对方展示具体出生时间和地点。</p></div>}
+      </section>}
+
+      {bridge && <section className={styles.bridgeCard}>
+        <header><div><small><ChatCenteredText /> REAL RELATIONSHIP BRIDGE</small><h2>和 {bridge.other.name} 的真实对话</h2><p>这里显示的是双方明确发送或回答的内容；不会把任何一方的私人观察交给另一方。</p></div><button type="button" onClick={() => setBridge(null)} aria-label="关闭真实对话"><X /></button></header>
+        {privatePeople.length > 0 && <div className={styles.claimRow}><div><b>把“我在意的人”与真实 TA 连接</b><p>这只是请 TA 确认身份；你的原始观察不会自动分享。</p></div><select aria-label="选择私人人物" value={personToLink} onChange={(event) => setPersonToLink(event.target.value)}><option value="">选择一个人物</option>{privatePeople.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select><button disabled={busy || !personToLink} onClick={() => void linkPerson()}>邀请确认</button></div>}
+        {bridge.links.filter((link) => link.linkedUserId === data?.user.id && link.status === "pending").map((link) => <div className={styles.linkRequest} key={link.id}><p>{bridge.other.name} 想确认：你是否是 TA 私人记录里的“{link.displayName}”？确认不会公开 TA 的描述。</p><button disabled={busy} onClick={() => void respondToLink(link.id, "accept")}>确认</button><button disabled={busy} onClick={() => void respondToLink(link.id, "decline")}>不是我</button></div>)}
+        <form className={styles.askForm} onSubmit={(event) => { event.preventDefault(); void sendQuestion(); }}><label>问 TA 一个真正想听答案的问题<textarea required maxLength={280} value={questionDraft} onChange={(event) => setQuestionDraft(event.target.value)} placeholder="例如：你忙的时候，更希望我继续找你，还是等你主动？" /></label><button disabled={busy || !questionDraft.trim()}><PaperPlaneTilt />发给 TA</button></form>
+        <div className={styles.questionGrid}><article><b>等你回答</b>{bridge.receivedQuestions.length ? bridge.receivedQuestions.map((item) => <div className={styles.question} key={item.id}><p>{item.question}</p>{item.status === "open" ? <><textarea aria-label="你的真实回答" maxLength={500} value={answers[item.id] ?? ""} onChange={(event) => setAnswers((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="只写你愿意真实表达的部分……" /><button disabled={busy || !(answers[item.id] ?? "").trim()} onClick={() => void answerQuestion(item.id)}>送出回答</button></> : <small>你已回答：{item.response}</small>}</div>) : <small>暂时没有等待你回答的问题。</small>}</article><article><b>我发出的问题</b>{bridge.sentQuestions.length ? bridge.sentQuestions.map((item) => <div className={styles.question} key={item.id}><p>{item.question}</p><small>{item.status === "answered" ? `TA 的回答：${item.response}` : "等待 TA 自己选择是否回答"}</small></div>) : <small>还没有发出问题。</small>}</article></div>
+        {bridge.events.length > 0 && <div className={styles.eventList}><b>共同发生过</b>{bridge.events.map((event) => <p key={event.id}>{event.content}</p>)}</div>}
       </section>}
 
       <section className={styles.privacyCard}><ShieldCheck /><div><b>关系隐私</b><p>允许已接受的好友用双方出生资料生成关系洞察。只返回摘要，不展示生日、时间、地点或坐标。</p></div><button role="switch" aria-checked={Boolean(data.profile.shareBirth)} onClick={() => void updatePrivacy(!data.profile.shareBirth)}><i className={data.profile.shareBirth ? styles.on : ""} /></button></section>

@@ -228,7 +228,17 @@ async function buildPersonalChatMemory(env, userId, question) {
       summary: summary.slice(0, 420),
       savedAt: String(event?.savedAt || ""),
     }));
-  return { facts, evidence, source: "authorized_server_context" };
+  const openLoops = account.history.filter((event) => event && event.openLoopStatus === "open")
+    .map((event) => ({ question: String(event.question || "未命名事项").slice(0, 500), personName: String(event.personName || "").slice(0, 80), savedAt: String(event.savedAt || "") }))
+    .sort((left, right) => right.savedAt.localeCompare(left.savedAt)).slice(0, 2);
+  // These are deliberately owner-authored observations, not facts about TA.
+  const people = Array.isArray(account.settings?.privatePeople) ? account.settings.privatePeople
+    .filter((person) => person && typeof person.displayName === "string").slice(0, 4)
+    .map((person) => ({ displayName: String(person.displayName).slice(0, 80), relationshipType: String(person.relationshipType || "").slice(0, 80), userDescription: String(person.userDescription || person.communicationNotes || "").slice(0, 300) })) : [];
+  const sharedEvents = await env.DB.prepare("SELECT events.content, events.event_kind AS kind, events.created_at AS createdAt FROM relationship_shared_events AS events JOIN relationships AS relations ON relations.id = events.relationship_id WHERE relations.status = 'accepted' AND (relations.requester_id = ? OR relations.recipient_id = ?) ORDER BY events.created_at DESC LIMIT 3").bind(userId, userId).all().catch(() => ({ results: [] }));
+  const shared = (sharedEvents.results || []).map((event) => ({ content: String(event.content || "").slice(0, 600), kind: String(event.kind || "shared_note"), createdAt: String(event.createdAt || "") }));
+  await auditContext(env, userId, { facts: facts.length, evidence: evidence.length, openLoops: openLoops.length, sharedEvents: shared.length }).catch(() => undefined);
+  return { facts, evidence, openLoops, people, sharedEvents: shared, source: "authorized_server_context" };
 }
 
 async function writeAccountData(db, userId, data) {
@@ -441,6 +451,29 @@ async function relationshipMirror(env, userId, relationId) {
   return { ready: true, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
 }
 
+async function acceptedRelationship(env, userId, relationId) {
+  const relation = await env.DB.prepare("SELECT id, requester_id AS requesterId, recipient_id AS recipientId, status FROM relationships WHERE id = ? AND (requester_id = ? OR recipient_id = ?)").bind(relationId, userId, userId).first();
+  if (!relation || relation.status !== "accepted") return null;
+  return { ...relation, otherUserId: relation.requesterId === userId ? relation.recipientId : relation.requesterId };
+}
+
+async function relationshipBridge(env, userId, relationId) {
+  const relation = await acceptedRelationship(env, userId, relationId);
+  if (!relation) return null;
+  const [links, received, sent, events, other] = await Promise.all([
+    env.DB.prepare("SELECT id, private_person_id AS privatePersonId, display_name AS displayName, owner_user_id AS ownerUserId, linked_user_id AS linkedUserId, status, created_at AS createdAt FROM relationship_person_links WHERE relationship_id = ? ORDER BY updated_at DESC").bind(relationId).all(),
+    env.DB.prepare("SELECT id, question_text AS question, response_text AS response, status, created_at AS createdAt, answered_at AS answeredAt FROM relationship_questions WHERE relationship_id = ? AND recipient_user_id = ? ORDER BY created_at DESC LIMIT 12").bind(relationId, userId).all(),
+    env.DB.prepare("SELECT id, question_text AS question, response_text AS response, status, created_at AS createdAt, answered_at AS answeredAt FROM relationship_questions WHERE relationship_id = ? AND sender_user_id = ? ORDER BY created_at DESC LIMIT 12").bind(relationId, userId).all(),
+    env.DB.prepare("SELECT id, event_kind AS kind, content, created_at AS createdAt, author_user_id AS authorUserId FROM relationship_shared_events WHERE relationship_id = ? ORDER BY created_at DESC LIMIT 16").bind(relationId).all(),
+    socialUser(env, relation.otherUserId),
+  ]);
+  return { relationshipId: relationId, other, links: links.results || [], receivedQuestions: received.results || [], sentQuestions: sent.results || [], events: events.results || [] };
+}
+
+async function auditContext(env, userId, counts) {
+  await env.DB.prepare("INSERT INTO context_audit_traces (id, user_id, surface, fact_count, mirror_count, open_loop_count, shared_event_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, "chat", counts.facts, counts.evidence, counts.openLoops, counts.sharedEvents, new Date().toISOString()).run();
+}
+
 async function socialApi(request, env, pathname) {
   const publicShare = pathname.match(/^\/api\/v1\/social\/shares\/([^/]+)$/);
   if (publicShare && request.method === "GET") {
@@ -498,6 +531,64 @@ async function socialApi(request, env, pathname) {
   if (mirrorMatch && request.method === "GET") {
     const mirror = await relationshipMirror(env, user.id, mirrorMatch[1]);
     return mirror ? json({ mirror }) : json({ error: "relationship_not_found" }, 404);
+  }
+  const bridgeMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/bridge$/);
+  if (bridgeMatch && request.method === "GET") {
+    const bridge = await relationshipBridge(env, user.id, bridgeMatch[1]);
+    return bridge ? json({ bridge }) : json({ error: "relationship_not_found" }, 404);
+  }
+  const linkMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/links$/);
+  if (linkMatch && request.method === "POST") {
+    const relation = await acceptedRelationship(env, user.id, linkMatch[1]);
+    const input = await body(request);
+    const privatePersonId = String(input?.privatePersonId || "").trim().slice(0, 120);
+    const displayName = String(input?.displayName || "").trim().slice(0, 80);
+    if (!relation) return json({ error: "relationship_not_found" }, 404);
+    if (!privatePersonId || !displayName) return json({ error: "invalid_person_link" }, 400);
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO relationship_person_links (id, relationship_id, owner_user_id, private_person_id, display_name, linked_user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?) ON CONFLICT(relationship_id, owner_user_id, private_person_id) DO UPDATE SET display_name = excluded.display_name, linked_user_id = excluded.linked_user_id, status = 'pending', updated_at = excluded.updated_at").bind(id, relation.id, user.id, privatePersonId, displayName, relation.otherUserId, now, now).run();
+    return json({ ok: true, status: "pending" }, 201);
+  }
+  const linkActionMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/links\/([^/]+)$/);
+  if (linkActionMatch && request.method === "PATCH") {
+    const relation = await acceptedRelationship(env, user.id, linkActionMatch[1]);
+    const input = await body(request);
+    if (!relation) return json({ error: "relationship_not_found" }, 404);
+    const status = input?.action === "accept" ? "linked" : input?.action === "decline" ? "declined" : "";
+    if (!status) return json({ error: "invalid_link_action" }, 400);
+    const result = await env.DB.prepare("UPDATE relationship_person_links SET status = ?, updated_at = ? WHERE id = ? AND relationship_id = ? AND linked_user_id = ? AND status = 'pending'").bind(status, new Date().toISOString(), linkActionMatch[2], relation.id, user.id).run();
+    return result.meta?.changes ? json({ ok: true, status }) : json({ error: "person_link_not_found" }, 404);
+  }
+  const questionsMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/questions$/);
+  if (questionsMatch && request.method === "POST") {
+    const relation = await acceptedRelationship(env, user.id, questionsMatch[1]);
+    const input = await body(request);
+    const question = String(input?.question || "").trim().slice(0, 280);
+    if (!relation) return json({ error: "relationship_not_found" }, 404);
+    if (!question) return json({ error: "invalid_question" }, 400);
+    const now = new Date().toISOString(); const id = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO relationship_questions (id, relationship_id, sender_user_id, recipient_user_id, question_text, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)").bind(id, relation.id, user.id, relation.otherUserId, question, now),
+      env.DB.prepare("INSERT INTO relationship_shared_events (id, relationship_id, author_user_id, event_kind, content, created_at) VALUES (?, ?, ?, 'question_sent', ?, ?)").bind(crypto.randomUUID(), relation.id, user.id, "向对方发出了一个问题：" + question, now),
+    ]);
+    return json({ question: { id, status: "open", question, createdAt: now } }, 201);
+  }
+  const questionAnswerMatch = pathname.match(/^\/api\/v1\/social\/relationships\/([^/]+)\/questions\/([^/]+)\/answer$/);
+  if (questionAnswerMatch && request.method === "POST") {
+    const relation = await acceptedRelationship(env, user.id, questionAnswerMatch[1]);
+    const input = await body(request);
+    const answer = String(input?.answer || "").trim().slice(0, 500);
+    if (!relation) return json({ error: "relationship_not_found" }, 404);
+    if (!answer) return json({ error: "invalid_answer" }, 400);
+    const question = await env.DB.prepare("SELECT id, question_text AS question FROM relationship_questions WHERE id = ? AND relationship_id = ? AND recipient_user_id = ? AND status = 'open'").bind(questionAnswerMatch[2], relation.id, user.id).first();
+    if (!question) return json({ error: "question_not_found" }, 404);
+    const now = new Date().toISOString();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE relationship_questions SET response_text = ?, status = 'answered', answered_at = ? WHERE id = ?").bind(answer, now, question.id),
+      env.DB.prepare("INSERT INTO relationship_shared_events (id, relationship_id, author_user_id, event_kind, content, created_at) VALUES (?, ?, ?, 'question_answered', ?, ?)").bind(crypto.randomUUID(), relation.id, user.id, "回应了一个真实问题：" + answer, now),
+    ]);
+    return json({ ok: true });
   }
   if (pathname === "/api/v1/social/shares" && request.method === "POST") {
     const input = await body(request);
@@ -589,7 +680,10 @@ async function shiguang(request, env) {
   const memory = user ? await buildPersonalChatMemory(env, user.id, question) : (input.memory && typeof input.memory === "object" ? input.memory : { facts: [], evidence: [] });
   const explicitFacts = Array.isArray(memory.facts) && memory.facts.length ? memory.facts.map((item) => "- " + String(item.text || "") + "（更新于 " + String(item.updatedAt || "未知时间") + "）").join("\n") : "本轮没有检索到相关的明确记忆。";
   const mirrorEvidence = Array.isArray(memory.evidence) && memory.evidence.length ? memory.evidence.map((item) => "- [" + String(item.source || "个人镜像") + " · " + String(item.savedAt || "") + "] " + String(item.question || "") + "：" + String(item.summary || "")).join("\n") : "本轮没有检索到相关镜像记录。";
-  const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。如果它们与用户当前说法冲突，以当前说法为准。\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
+  const openLoops = Array.isArray(memory.openLoops) && memory.openLoops.length ? memory.openLoops.map((item) => "- " + (item.personName ? "和 " + String(item.personName) + " 有关：" : "") + String(item.question || "")).join("\n") : "本轮没有用户标记的未结束现实事项。";
+  const people = Array.isArray(memory.people) && memory.people.length ? memory.people.map((item) => "- " + String(item.displayName || "") + (item.relationshipType ? "（" + String(item.relationshipType) + "）" : "") + (item.userDescription ? "：用户自己的观察：" + String(item.userDescription) : "")).join("\n") : "本轮没有相关人物资料。";
+  const sharedEvents = Array.isArray(memory.sharedEvents) && memory.sharedEvents.length ? memory.sharedEvents.map((item) => "- " + String(item.content || "")).join("\n") : "本轮没有双方明确共享的关系互动。";
+  const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
   try {
     const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : chatSystem }, ...messages] });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });

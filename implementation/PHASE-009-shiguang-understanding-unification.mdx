@@ -1,6 +1,6 @@
 ---
 title: PHASE-009 Shiguang Context & Relationship Foundation
-status: in_progress
+status: complete
 version: 0.9.0
 updated: August 2026
 ---
@@ -14,10 +14,14 @@ updated: August 2026
 - [x] 命盘／星盘继续按 stable profile 去重，不把重复打开变成重复 History。
 - [x] 登录个人页优先读取 server Memory summary；服务不可达时才降级为本机记录，避免前端成为第二套权威 Pattern。
 - [x] 登录后的拾光聊天会在站点 Worker 内从账户快照构建授权上下文：明确事实与镜像证据分别检索；象征性结果不会升级为人格事实。游客仍使用本机回退。
-- [ ] 账户级通用 History ingestion、Person／Relationship persistence 与跨设备迁移仍需接入生产 API 后完成。
+- [x] 登录聊天的授权上下文会在话题相关时纳入用户标记的未结束事项与用户视角下的人物资料；两者均有 provenance 边界，不会被表述成对方的内心或人格事实。
+- [x] 服务端统一 History / Explicit Fact / Person persistence contract：六爻、塔罗、八字、占星与聊天可写入同一可去重 History；聊天只有明确“记住”、确认现实事件或沟通偏好才能写长期 Fact。
+- [x] 登录后的各端记录由 Sites Worker 的 D1 账户快照统一迁移、合并和去重；浏览器只保留离线回退与临时草稿，不再是登录用户的权威数据源。
 - [x] P1 本地关系基础：用户可建立“我在意的人”、把镜像记录关联到人物、标记重要，以及把现实事项标为未结束／已解决。人物描述明确保留为用户视角，并随现有账户快照同步。
 - [x] P1 Relationship Sandbox：可基于用户视角为尚未注册的现实人物排练困难谈话，提供多种可能回应路径；明确不预测对方心理，不自动写入长期记忆。
-- [ ] 账户级 Person／Relationship API 仍待生产 API 接入后完成。
+- [x] P2 Real Relationship Bridge：已存在的私人人物可邀请真实 TA 进行 claim/link；确认前后均保留单方 perspective，绝不把描述复制为对方资料。
+- [x] 双方授权的关系互动已落地：只允许已接受的关系发送问题、由接收方自主回答，并以共享 event 留下可追溯的真实互动；不会分享完整 AI 对话。
+- [x] Worker 会记录不含 prompt 正文的 Context Audit Trace（检索数量与来源层级），用于验证 History／Memory／Open Loop／关系共享上下文的实际调用。
 
 ## 1. 阶段定位
 
@@ -1198,3 +1202,23 @@ Tool Result / Conversation / Reality Event
              ↙          ↓          ↘
           Tools      Knowledge    Research
              ↘          ↓          ↙
+               Evidence / Evaluation
+                    ↓
+               Shiguang reply
+                    ↓
+        rehearsal / action / real outcome
+                    ↓
+     correction / new event / real response
+                    ↓
+               update Context
+                    ↓
+          optional real-world invite
+```
+
+LifeMirror 的长期差异化不应该是：
+
+> “我们建立了一个更复杂的 Mirror DNA。”
+
+而应该是：
+
+> **我做过的事情不会丢，拾光知道我正在经历什么、知道我在意的人是谁，并且能帮助我把 AI 里的理解带回真实关系。**
