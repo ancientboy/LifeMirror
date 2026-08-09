@@ -15,6 +15,8 @@ export type PrivatePerson = {
   updatedAt: string;
 };
 
+export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; reportedAt?: string };
+
 const SETTINGS_KEY = "life-mirror:memory-settings:v1";
 
 function readSettings(): Record<string, unknown> {
@@ -24,8 +26,8 @@ function readSettings(): Record<string, unknown> {
   } catch { return {}; }
 }
 
-function write(people: PrivatePerson[]) {
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readSettings(), privatePeople: people.slice(0, 40), privatePeopleUpdatedAt: new Date().toISOString() }));
+function write(people: PrivatePerson[], loops = getRelationshipLoops()) {
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readSettings(), privatePeople: people.slice(0, 40), relationshipLoops: loops.slice(0, 100), privatePeopleUpdatedAt: new Date().toISOString() }));
   markAccountDataChanged();
 }
 
@@ -52,5 +54,27 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
 }
 
 export function deletePrivatePerson(id: string) {
-  write(getPrivatePeople().filter((person) => person.id !== id));
+  write(getPrivatePeople().filter((person) => person.id !== id), getRelationshipLoops().filter((loop) => loop.personId !== id));
+}
+
+export function getRelationshipLoops(): RelationshipLoop[] {
+  const value = readSettings().relationshipLoops;
+  return Array.isArray(value) ? value.filter((item): item is RelationshipLoop => Boolean(item && typeof item === "object" && typeof (item as RelationshipLoop).id === "string" && typeof (item as RelationshipLoop).personId === "string" && typeof (item as RelationshipLoop).situation === "string")).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
+}
+
+export function createRelationshipLoop(input: Pick<RelationshipLoop, "personId" | "situation" | "need">) {
+  const now = new Date().toISOString(); const loop: RelationshipLoop = { id: createClientId(), personId: input.personId, situation: input.situation.trim().slice(0, 180), need: input.need?.trim().slice(0, 180) || undefined, status: "awaiting_action", createdAt: now };
+  write(getPrivatePeople(), [loop, ...getRelationshipLoops()]); return loop;
+}
+
+export function reportRelationshipLoop(id: string, input: { actionTaken: boolean; outcome?: RelationshipLoop["outcome"]; reflection?: string }) {
+  const next = getRelationshipLoops().map((loop) => loop.id === id ? { ...loop, status: "reported" as const, actionTaken: input.actionTaken, outcome: input.outcome, reflection: input.reflection?.trim().slice(0, 300) || undefined, reportedAt: new Date().toISOString() } : loop);
+  write(getPrivatePeople(), next); return next.find((loop) => loop.id === id) ?? null;
+}
+
+export function relationshipLoopInsight(loop: RelationshipLoop) {
+  if (!loop.actionTaken) return "这次先没有走到现实里也没关系。下次把目标缩小成一句开场，行动会更容易发生。";
+  if (loop.outcome === "smooth") return "这次你真的开口了，而且现实反馈并不全是你原先担心的样子。下次可以继续先讲具体感受，再提一个小请求。";
+  if (loop.outcome === "mixed") return "你已经把话带回现实了。结果有来有回很正常；下次先确认彼此听到的重点，再决定要不要继续深入。";
+  return "这次并不顺利，但它给了下一次更具体的线索。先照顾好自己，等情绪平一点，再决定是否用更小的请求重新开口。";
 }
