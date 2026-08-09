@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarBlank, CircleNotch, Eye, Funnel, LockKey, Sparkle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CalendarBlank, Check, CircleNotch, Funnel, Heart, LockKey, Sparkle, Trash, UserPlus } from "@phosphor-icons/react";
 import styles from "./PersonalMirrorDashboard.module.css";
 import lifeStyles from "./PersonalMirrorLife.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
@@ -10,8 +10,10 @@ import { AppBottomNav } from "./AppBottomNav";
 import { AccountDataSync } from "./AccountDataSync";
 import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
 import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
+import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
+import { deletePrivatePerson, getPrivatePeople, savePrivatePerson, type PrivatePerson } from "@/lib/relationship-context";
 
-type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
+type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
 type DashboardMode = "loading" | "guest" | "authenticated";
 
@@ -110,6 +112,8 @@ export function PersonalMirrorDashboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [dnaFeedback, setDnaFeedback] = useState<"yes" | "no" | null>(null);
   const [natalMirrors, setNatalMirrors] = useState<Partial<Record<"bazi" | "astrology", SavedNatalMirror>>>({});
+  const [people, setPeople] = useState<PrivatePerson[]>([]);
+  const [personDraft, setPersonDraft] = useState({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
 
   useEffect(() => {
     let active = true;
@@ -130,8 +134,9 @@ export function PersonalMirrorDashboard() {
       }
     }
     void load();
-    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); };
+    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); setPeople(getPrivatePeople()); };
     setNatalMirrors(getLatestSavedNatalMirrors());
+    setPeople(getPrivatePeople());
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
     return () => { active = false; window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh); };
   }, []);
@@ -148,6 +153,20 @@ export function PersonalMirrorDashboard() {
     { key: "astrology", label: "星盘 · 稳定底图", summary: natalSummary("astrology", natalMirrors.astrology), href: "/app/astrology/" },
     { key: "bazi", label: "命盘 · 稳定底图", summary: natalSummary("bazi", natalMirrors.bazi), href: "/app/chart/" },
   ] as const;
+  const openLoops = events.filter((event) => event.openLoopStatus === "open");
+
+  function changeEvent(id: string, patch: Parameters<typeof updateMirrorHistory>[1]) {
+    updateMirrorHistory(id, patch);
+    setEvents(readGuestEvents());
+  }
+
+  function addPerson(event: React.FormEvent) {
+    event.preventDefault();
+    const person = savePrivatePerson(personDraft);
+    if (!person) return;
+    setPeople(getPrivatePeople());
+    setPersonDraft({ displayName: "", relationshipType: "", userDescription: "", communicationNotes: "" });
+  }
 
   return <main className={styles.shell}>
     {mode === "authenticated" && <AccountDataSync />}
@@ -172,6 +191,17 @@ export function PersonalMirrorDashboard() {
         return <article key={field.key}><small>{field.subtitle}</small><h3>{field.title}</h3><p>{summary}</p>{event ? <span>来自 {event.sourceLabel ?? "最近一次镜像"} · {new Date(event.savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</span> : <Link href="/app/home/">和拾光从这里聊起 <ArrowRight /></Link>}</article>;
       })}</div>
     </section>
+    <section className={styles.contextGrid}>
+      <article className={styles.contextCard}>
+        <header><span><Heart /> 还没结束的事</span><small>{openLoops.length} 件</small></header>
+        {openLoops.length ? <div className={styles.loopList}>{openLoops.slice(0, 3).map((event) => <div key={event.id}><b>{event.question}</b><p>{event.personName ? `和 ${event.personName} 有关 · ` : ""}这件事还在等待现实里的新消息。</p><span><button onClick={() => changeEvent(event.id, { openLoopStatus: "resolved" })}><Check /> 已有结果</button><button onClick={() => changeEvent(event.id, { openLoopStatus: "unknown" })}>暂不确定</button></span></div>)}</div> : <p className={styles.contextEmpty}>没有被标记为“未结束”的现实事项。之后遇到仍在等待答案的事，可以在记录里留下它。</p>}
+      </article>
+      <article className={styles.contextCard}>
+        <header><span><UserPlus /> 我在意的人</span><small>只保存你的视角</small></header>
+        {people.length ? <div className={styles.peopleList}>{people.map((person) => <div key={person.id}><span><b>{person.displayName}</b><small>{person.relationshipType || "关系未说明"}</small></span><p>{person.userDescription || person.communicationNotes || "还没有写下你的观察。"}</p><button aria-label={`删除 ${person.displayName}`} onClick={() => { deletePrivatePerson(person.id); setPeople(getPrivatePeople()); }}><Trash /></button></div>)}</div> : <p className={styles.contextEmpty}>先留住一个你想理解的人。这里记录的是你的体验，不会把它当作对方的真实人格。</p>}
+        <form className={styles.personForm} onSubmit={addPerson}><input required value={personDraft.displayName} onChange={(event) => setPersonDraft({ ...personDraft, displayName: event.target.value })} placeholder="TA 的昵称" /><input value={personDraft.relationshipType} onChange={(event) => setPersonDraft({ ...personDraft, relationshipType: event.target.value })} placeholder="和我的关系（可选）" /><textarea value={personDraft.userDescription} onChange={(event) => setPersonDraft({ ...personDraft, userDescription: event.target.value })} placeholder="在这段关系里，我观察到……（可选）" maxLength={300} /><button type="submit">加入人物</button></form>
+      </article>
+    </section>
     <section className={styles.grid}>
       <article className={`${styles.card} ${styles.current}`}>
         <header><span><Sparkle /> 当前反思</span><small>{latest ? new Date(latest.savedAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" }) : "等待第一次记录"}</small></header>
@@ -180,20 +210,20 @@ export function PersonalMirrorDashboard() {
       </article>
 
       <article className={`${styles.card} ${styles.dna}`}>
-        <header><span><Eye /> Mirror DNA</span><small>拾光目前读到的你</small></header>
+        <header><span><Sparkle /> 拾光记得</span><small>只展示有证据的线索</small></header>
         {primaryDna ? <><div className={styles.dnaInsight}><article><small>此刻主线</small><b>{primaryDna.focus}</b></article><article><small>你的应对方式</small><p>{primaryDna.response}</p></article><article><small>正在变化</small><p>{primaryDna.changing}</p></article></div><div className={styles.dnaEvidence}><span>来自 {primaryDna.source}</span><p>“{primaryDna.evidence}”</p></div><div className={styles.dnaFeedback}><span>这像你吗？</span><button className={dnaFeedback === "yes" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("yes")}>像</button><button className={dnaFeedback === "no" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("no")}>不太像</button>{dnaFeedback && <small>{dnaFeedback === "yes" ? "记下了，我会继续用新的经历来核对它。" : "记下了，这条观察不会被当成你的标签。"}</small>}</div></> : <div className={stateStyles.empty}><h2>Mirror DNA 等待第一次记录。</h2><p>保存第一次镜像后，这里会出现拾光对你当下状态的具体观察。</p></div>}
       </article>
 
       <article className={`${styles.card} ${styles.patterns}`}>
         <header><span>近期模式</span><small>至少 2 条独立证据后形成</small></header>
         {repeatedPatterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><span><i style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></span><b>{pattern.title}</b><small>{pattern.signalCount} 条镜像证据 · {Math.round(pattern.confidence * 100)}% 阶段可信度 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
-        {!repeatedPatterns.length && <div className={stateStyles.empty}><p>{latest ? "已经有一条初始观察；同一主题再次出现后，会在这里升级为可核对的长期模式。" : mode === "guest" ? "第一次保存后先形成初始观察；登录后可跨设备持续更新。" : "第一次保存后先形成初始观察，后续记录会逐步形成长期模式。"}</p></div>}
+        {!repeatedPatterns.length && <div className={stateStyles.empty}><p>{mode === "authenticated" ? "还没有足够的独立现实证据形成长期线索。" : "登录后，这里只会显示可纠正、可追溯的长期线索。"}</p></div>}
       </article>
     </section>
 
     <section className={styles.timeline}>
       <header><div><p>MEMORY TIMELINE</p><h2>镜像时间线</h2></div><div className={styles.filters}><Funnel />{(["all", "career", "relationship"] as const).map((value) => <button className={filter === value ? styles.selected : ""} onClick={() => setFilter(value)} key={value}>{value === "all" ? "全部" : value === "career" ? "事业与行动" : "关系"}</button>)}</div></header>
-      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")} · {event.sourceLabel ?? "六爻镜像"}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{sourceStart(event)} → {sourceEnd(event)}</span></div></article>)}</div>
+      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")} · {event.sourceLabel ?? "六爻镜像"}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{sourceStart(event)} → {sourceEnd(event)}</span><div className={styles.recordActions}><button className={event.important ? styles.marked : ""} onClick={() => changeEvent(event.id, { important: !event.important })}><Heart />{event.important ? "已标记重要" : "标记重要"}</button><select aria-label="关联到人物" value={event.personId ?? ""} onChange={(change) => { const person = people.find((item) => item.id === change.target.value); changeEvent(event.id, { personId: person?.id, personName: person?.displayName }); }}><option value="">关联到某人</option>{people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select><button className={event.openLoopStatus === "open" ? styles.marked : ""} onClick={() => changeEvent(event.id, { openLoopStatus: event.openLoopStatus === "open" ? "unknown" : "open" })}>{event.openLoopStatus === "open" ? "等待现实进展" : "标为未结束"}</button><button className={styles.deleteRecord} onClick={() => { deleteMirrorHistory(event.id); setEvents(readGuestEvents()); }} aria-label={`删除记录：${event.question}`}><Trash /></button></div></div></article>)}</div>
       {mode !== "loading" && !visibleEvents.length && <div className={stateStyles.timelineEmpty}>{events.length ? "这个分类下还没有镜像记录。" : "保存第一次今日镜像后，时间线会从这里开始。"}</div>}
     </section>
     <AppBottomNav active="mirror" />

@@ -21,7 +21,9 @@ export type MirrorHistoryRecord = {
   };
   feedback?: "resonates" | "needs_correction";
   important?: boolean;
+  personId?: string;
   personName?: string;
+  openLoopStatus?: "open" | "resolved" | "unknown";
   dedupKey?: string;
 };
 
@@ -49,7 +51,7 @@ export function updateMirrorHistoryFeedback(id: string, feedback: MirrorHistoryR
   markAccountDataChanged();
 }
 
-export function updateMirrorHistory(id: string, patch: Pick<MirrorHistoryRecord, "important" | "personName">) {
+export function updateMirrorHistory(id: string, patch: Pick<MirrorHistoryRecord, "important" | "personId" | "personName" | "openLoopStatus">) {
   window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify(read().map((item) => item.id === id ? { ...item, ...patch } : item)));
   markAccountDataChanged();
 }
