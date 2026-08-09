@@ -30,6 +30,16 @@ function readGuestEvents(): MirrorEvent[] {
   catch { return []; }
 }
 
+function normalizeServerTimeline(items: Array<MirrorEvent & { occurredAt?: string; summary?: string; title?: string; triggerText?: string }>): MirrorEvent[] {
+  return items.map((item) => ({
+    ...item,
+    question: item.question ?? item.triggerText ?? item.title ?? "一次已记录的镜像",
+    savedAt: item.savedAt ?? item.occurredAt ?? new Date().toISOString(),
+    reflection: item.reflection ?? { shiguangInterpretation: item.summary },
+    sourceLabel: item.sourceLabel ?? "已记录的镜像",
+  }));
+}
+
 const dnaTopics = [
   { key: "relationship", title: "关系中的回应与边界", match: /关系|感情|伴侣|朋友|家人|对方|彼此|爱|复合/ },
   { key: "career", title: "事业方向与行动节奏", match: /工作|职业|事业|创业|项目|面试|升职|方向/ },
@@ -107,7 +117,11 @@ export function PersonalMirrorDashboard() {
       try {
         await api<{ authenticated: boolean }>("/api/v1/auth/session");
         if (!active) return;
-        setEvents(readGuestEvents()); setPatterns([]); setMode("authenticated");
+        const summary = await api<{ timeline?: MirrorEvent[]; recentPatterns?: PatternMemory[] }>("/api/v1/memories/summary").catch(() => null);
+        if (!active) return;
+        setEvents(summary?.timeline?.length ? normalizeServerTimeline(summary.timeline) : readGuestEvents());
+        setPatterns(summary?.recentPatterns ?? []);
+        setMode("authenticated");
       } catch (cause) {
         if (!active) return;
         const code = cause instanceof Error ? cause.message : "";
@@ -124,7 +138,7 @@ export function PersonalMirrorDashboard() {
 
   const visibleEvents = useMemo(() => events.filter((event) => filter === "all" || (filter === "career" ? /职业|工作|事业|选择|开始|行动/.test(event.question) : /关系|彼此|感情|伴侣|家庭/.test(event.question))), [events, filter]);
   const latest = events[0];
-  const displayPatterns = useMemo(() => patterns.length ? patterns : deriveDnaPatterns(events), [events, patterns]);
+  const displayPatterns = useMemo(() => mode === "authenticated" ? patterns : deriveDnaPatterns(events), [events, mode, patterns]);
   const strongestPatterns = displayPatterns.slice(0, 3);
   const primaryDna = strongestPatterns[0] ? dnaObservation(strongestPatterns[0], latest) : null;
   const repeatedPatterns = displayPatterns.filter((pattern) => pattern.signalCount >= 2);
@@ -144,7 +158,7 @@ export function PersonalMirrorDashboard() {
     </header>
 
     <section className={styles.hero}>
-      <div><Link href="/app/" className={styles.back}><ArrowLeft /> 返回今日镜像</Link><p>PHASE 004 · PERSONAL MIRROR</p><h1>你正在成为的自己，<br /><em>已经留下了光。</em></h1><span>这里不定义你。它只把反复出现的选择、感受与成长线索，温柔地放回你面前。</span></div>
+      <div><Link href="/app/" className={styles.back}><ArrowLeft /> 返回今日镜像</Link><p>MY CONTEXT · PRIVATE</p><h1>发生过的事，<br /><em>都能在这里找回。</em></h1><span>记录、明确记忆与长期线索各自分开；拾光只在有证据时，才把它们带回给你。</span></div>
       <div className={styles.orbit} aria-label="个人镜像记录概览"><i /><i /><i /><strong>{mode === "loading" ? <CircleNotch className={stateStyles.spin} /> : events.length}<small>镜像时刻</small></strong></div>
     </section>
 
