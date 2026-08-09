@@ -128,6 +128,7 @@ export function TarotExperience() {
       source: "tarot",
       sourceLabel: "塔罗镜像",
       question: reading.question,
+      summary,
       meta: `${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`,
       payload: reading,
       reflection: { shareableReflection: summary, shiguangInterpretation: summary },
