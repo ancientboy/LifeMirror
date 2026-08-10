@@ -8,7 +8,7 @@ import lifeStyles from "./PersonalMirrorLife.module.css";
 import stateStyles from "./PersonalMirrorDashboardState.module.css";
 import { AppBottomNav } from "./AppBottomNav";
 import { AccountDataSync } from "./AccountDataSync";
-import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
+import { ACCOUNT_DATA_CHANGED_EVENT, writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-mirror-history";
 import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
 import { deletePrivatePerson, deleteRelationshipLoop, getPrivatePeople, getRelationshipArchive, getRelationshipLoopMetrics, getRelationshipLoops, getRelationshipLoopsForPerson, reportRelationshipLoop, savePrivatePerson, type PrivatePerson, type RelationshipLoop } from "@/lib/relationship-context";
@@ -30,8 +30,8 @@ async function api<T>(path: string): Promise<T> {
 }
 
 /** Account data and effect telemetry live with the Sites session/D1, not the optional analysis API. */
-async function accountApi<T>(path: string): Promise<T> {
-  const response = await fetch(path, { credentials: "include" });
+async function accountApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, { credentials: "include", ...init });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error ?? `request_failed_${response.status}`);
   return body as T;
@@ -153,9 +153,30 @@ export function PersonalMirrorDashboard() {
     setReviewingLoopId(null); setLoopOutcome(undefined); setLoopReflection("");
   }
 
-  function changeEvent(id: string, patch: Parameters<typeof updateMirrorHistory>[1]) {
-    updateMirrorHistory(id, patch);
-    setEvents(readGuestEvents());
+  async function changeEvent(id: string, patch: Parameters<typeof updateMirrorHistory>[1]) {
+    if (mode !== "authenticated") {
+      updateMirrorHistory(id, patch);
+      setEvents(readGuestEvents());
+      return;
+    }
+    try {
+      const response = await accountApi<{ history: MirrorEvent; data: AccountSnapshot }>(`/api/v1/account/history/${encodeURIComponent(id)}`, {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
+      });
+      writeLocalAccountData(response.data);
+      setEvents((current) => current.map((event) => event.id === id ? { ...event, ...response.history } : event));
+    } catch { setError("没有保存这次更改，请稍后重试。"); }
+  }
+
+  async function removeEvent(id: string) {
+    if (mode !== "authenticated") {
+      deleteMirrorHistory(id); setEvents(readGuestEvents()); return;
+    }
+    try {
+      const response = await accountApi<{ data: AccountSnapshot }>(`/api/v1/account/history/${encodeURIComponent(id)}`, { method: "DELETE" });
+      writeLocalAccountData(response.data);
+      setEvents((current) => current.filter((event) => event.id !== id));
+    } catch { setError("没有删除这条记录，请稍后重试。"); }
   }
 
   function addPerson(event: React.FormEvent) {
@@ -255,7 +276,7 @@ export function PersonalMirrorDashboard() {
 
     <section className={styles.timeline}>
       <header><div><p>MEMORY TIMELINE</p><h2>镜像时间线</h2></div><div className={styles.filters}><Funnel />{(["all", "career", "relationship"] as const).map((value) => <button className={filter === value ? styles.selected : ""} onClick={() => setFilter(value)} key={value}>{value === "all" ? "全部" : value === "career" ? "事业与行动" : "关系"}</button>)}</div></header>
-      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")} · {event.sourceLabel ?? "六爻镜像"}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{sourceStart(event)} → {sourceEnd(event)}</span><div className={styles.recordActions}><button className={event.important ? styles.marked : ""} onClick={() => changeEvent(event.id, { important: !event.important })}><Heart />{event.important ? "已标记重要" : "标记重要"}</button><select aria-label="关联到人物" value={event.personId ?? ""} onChange={(change) => { const person = people.find((item) => item.id === change.target.value); changeEvent(event.id, { personId: person?.id, personName: person?.displayName }); }}><option value="">关联到某人</option>{people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select><button className={event.openLoopStatus === "open" ? styles.marked : ""} onClick={() => changeEvent(event.id, { openLoopStatus: event.openLoopStatus === "open" ? "unknown" : "open" })}>{event.openLoopStatus === "open" ? "等待现实进展" : "标为未结束"}</button><button className={styles.deleteRecord} onClick={() => { deleteMirrorHistory(event.id); setEvents(readGuestEvents()); }} aria-label={`删除记录：${event.question}`}><Trash /></button></div></div></article>)}</div>
+      <div className={styles.timelineList}>{visibleEvents.map((event, index) => <article key={event.id}><div className={styles.node}><i /><span /></div><time><CalendarBlank />{new Date(event.savedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}</time><div><small>MIRROR MOMENT {String(events.length - index).padStart(2, "0")} · {event.sourceLabel ?? "六爻镜像"}</small><h3>{event.question}</h3><p>{event.reflection?.shareableReflection ?? event.reflection?.shiguangInterpretation ?? "一次值得被记住的观察。"}</p><span>{sourceStart(event)} → {sourceEnd(event)}</span><div className={styles.recordActions}><button className={event.important ? styles.marked : ""} onClick={() => void changeEvent(event.id, { important: !event.important })}><Heart />{event.important ? "已标记重要" : "标记重要"}</button><select aria-label="关联到人物" value={event.personId ?? ""} onChange={(change) => { const person = people.find((item) => item.id === change.target.value); void changeEvent(event.id, { personId: person?.id, personName: person?.displayName }); }}><option value="">关联到某人</option>{people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select><button className={event.openLoopStatus === "open" ? styles.marked : ""} onClick={() => void changeEvent(event.id, { openLoopStatus: event.openLoopStatus === "open" ? "unknown" : "open" })}>{event.openLoopStatus === "open" ? "等待现实进展" : "标为未结束"}</button><button className={styles.deleteRecord} onClick={() => void removeEvent(event.id)} aria-label={`删除记录：${event.question}`}><Trash /></button></div></div></article>)}</div>
       {mode !== "loading" && !visibleEvents.length && <div className={stateStyles.timelineEmpty}>{events.length ? "这个分类下还没有镜像记录。" : "保存第一次今日镜像后，时间线会从这里开始。"}</div>}
     </section>
     <AppBottomNav active="mirror" />
