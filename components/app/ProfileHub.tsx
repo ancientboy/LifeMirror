@@ -9,6 +9,7 @@ import styles from "./ProfileHub.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { BIRTH_PROFILE_CHANGED_EVENT, formatSavedBirthProfile, getSavedBirthProfile, removeSavedBirthProfile, type SavedBirthProfile } from "@/lib/birth-profile";
 import { getUserProfile, saveUserProfile, USER_PROFILE_CHANGED_EVENT, type GenderDisplay, type UserProfile } from "@/lib/user-profile";
+import { writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 
 const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
 
@@ -19,6 +20,8 @@ export function ProfileHub() {
   const [settings, setSettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
   const [facts, setFacts] = useState<SavedFact[]>([]);
   const [draft, setDraft] = useState("");
+  const [editingFactId, setEditingFactId] = useState<string | null>(null);
+  const [factsBusy, setFactsBusy] = useState(false);
   const [birthProfile, setBirthProfile] = useState<SavedBirthProfile | null>(null);
   const [profile, setProfile] = useState<UserProfile>(() => ({ version: 1, nickname: "", avatar: "", gender: "hidden", updatedAt: "" }));
   const [editingProfile, setEditingProfile] = useState(false);
@@ -32,6 +35,10 @@ export function ProfileHub() {
       setAccountEmail(session.user?.email ?? "");
       setGuest(false);
       window.localStorage.removeItem("life-mirror:guest-session:v1");
+      fetch("/api/v1/account/context", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => {
+        const accountFacts = value?.context?.facts;
+        if (Array.isArray(accountFacts)) setFacts(accountFacts as SavedFact[]);
+      }).catch(() => undefined);
       fetch("/api/v1/social/me", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => setPublicId(value?.profile?.publicId ?? "")).catch(() => undefined);
     }).catch(() => { setAccountEmail(""); setGuest(true); });
     sync();
@@ -45,10 +52,35 @@ export function ProfileHub() {
     setSettings(updateMemorySettings(next));
   }
 
-  function saveFact() {
+  async function saveFact() {
     if (!draft.trim()) return;
-    addSavedFact(draft);
-    setDraft("");
+    if (guest) {
+      addSavedFact(draft);
+      setDraft("");
+      return;
+    }
+    setFactsBusy(true);
+    try {
+      const path = editingFactId ? `/api/v1/account/facts/${encodeURIComponent(editingFactId)}` : "/api/v1/account/facts";
+      const response = await fetch(path, { method: editingFactId ? "PATCH" : "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: draft }) });
+      const value = await response.json().catch(() => null) as { data?: AccountSnapshot } | null;
+      if (!response.ok || !value?.data) throw new Error("fact_save_failed");
+      writeLocalAccountData(value.data);
+      setFacts(getSavedFacts()); setDraft(""); setEditingFactId(null);
+    } finally { setFactsBusy(false); }
+  }
+
+  async function removeFact(id: string) {
+    if (guest) { removeSavedFact(id); return; }
+    setFactsBusy(true);
+    try {
+      const response = await fetch(`/api/v1/account/facts/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
+      const value = await response.json().catch(() => null) as { data?: AccountSnapshot } | null;
+      if (!response.ok || !value?.data) throw new Error("fact_delete_failed");
+      writeLocalAccountData(value.data);
+      setFacts(getSavedFacts());
+      if (editingFactId === id) { setEditingFactId(null); setDraft(""); }
+    } finally { setFactsBusy(false); }
   }
 
   async function logout() {
@@ -125,8 +157,8 @@ export function ProfileHub() {
       </div>
       <div className={styles.factEditor}>
         <label htmlFor="saved-fact">明确记忆</label>
-        <div><input id="saved-fact" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") saveFact(); }} maxLength={180} placeholder="例如：我不喜欢被催着做决定" /><button type="button" onClick={saveFact} disabled={!draft.trim()}><FloppyDisk /> 保存</button></div>
-        {facts.length ? <ul>{facts.map((fact) => <li key={fact.id}><span>{fact.text}<small>{new Date(fact.updatedAt).toLocaleDateString("zh-CN")}</small></span><button type="button" onClick={() => removeSavedFact(fact.id)} aria-label={`删除记忆：${fact.text}`}><Trash /></button></li>)}</ul> : <p>还没有明确记忆。你可以在这里添加，或在聊天中说“请记住……”。</p>}
+        <div><input id="saved-fact" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveFact(); }} maxLength={180} placeholder="例如：我不喜欢被催着做决定" /><button type="button" onClick={() => void saveFact()} disabled={!draft.trim() || factsBusy}><FloppyDisk /> {editingFactId ? "更新" : "保存"}</button>{editingFactId && <button type="button" onClick={() => { setEditingFactId(null); setDraft(""); }}>取消</button>}</div>
+        {facts.length ? <ul>{facts.map((fact) => <li key={fact.id}><span>{fact.text}<small>{new Date(fact.updatedAt).toLocaleDateString("zh-CN")}</small></span><button type="button" onClick={() => { setEditingFactId(fact.id); setDraft(fact.text); }} disabled={factsBusy} aria-label={`纠正记忆：${fact.text}`}><PencilSimple /></button><button type="button" onClick={() => void removeFact(fact.id)} disabled={factsBusy} aria-label={`删除记忆：${fact.text}`}><Trash /></button></li>)}</ul> : <p>还没有明确记忆。你可以在这里添加，或在聊天中说“请记住……”。</p>}
       </div>
     </section>
     <p className={styles.privacy}><LockKey /> LifeMirror 不会在未经授权时上传设备内记录。</p>
