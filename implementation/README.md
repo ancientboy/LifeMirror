@@ -14,6 +14,7 @@ Execution order:
 8. PHASE-007 Professional Symbolic Systems
 9. PHASE-008 Retention & Private Relationships
 10. PHASE-009 Shiguang Context & Relationship Foundation
+11. PHASE-010 Person Mirror & Relationship Simulation
 
 Development must follow phase order and preserve separation between Knowledge, Data, Tools, Runtime, Product, and Design layers.
 
@@ -29,6 +30,7 @@ Development must follow phase order and preserve separation between Knowledge, D
 | 006 Advanced Mirror Runtime | Core complete | 0.8.0 | Add asynchronous delivery and production observability |
 | 007 Professional Symbolic Systems | Beta | 0.8.0 | Historical timezone, source completion and expert gold-case review |
 | 008 Retention & Private Relationships | Beta | 0.8.0 | Notification delivery, relationship model depth, moderation operations |
-| 009 Shiguang Context & Relationship Foundation | Planned | 0.9.0 | Unify Memory/context, demote Mirror DNA from the primary UI, add open loops and relationship context foundations |
+| 009 Shiguang Context & Relationship Foundation | Planned | 0.9.0 | Finish context/history source-of-truth, remove legacy Mirror DNA/manual-save paths, and close CI gates |
+| 010 Person Mirror & Relationship Simulation | Planned | 0.10.0 | Build Person Mirror UX, timeline, birth references, calibrated TA simulation, and reality-feedback loop on PHASE-009 foundations |
 
 Status is based on acceptance evidence in each phase file, not commit titles. Update the relevant phase document in the same change as implementation.
