@@ -15,6 +15,8 @@ export async function runMirrorRuntime<T>(input: {
   completedToolTraces?: ToolExecutionTrace[];
   memoryUsed?: boolean;
   reflectionCompleted?: boolean;
+  /** Set by the route when persistence is part of this request's lifecycle. */
+  persistence?: { status: "completed" | "failed" | "skipped"; detail?: string };
   claims: EvaluationInput["claims"];
 }): Promise<{ tool?: ToolExecutionResult<T>; trace: RuntimeTrace }> {
   const startedAt = new Date().toISOString();
@@ -31,6 +33,7 @@ export async function runMirrorRuntime<T>(input: {
   const toolTraces = [...(input.completedToolTraces ?? []), ...(tool ? [tool.trace] : [])];
   const evaluation = evaluateTrust({ claims: input.claims, knowledgeTraces: input.knowledge?.traces, knowledgeConflicts: input.knowledge?.conflicts, toolTraces });
   stages.push({ name: "evaluation", status: "completed", detail: evaluation.level });
-  stages.push({ name: "save", status: "skipped", detail: "persistence adapter not supplied" });
+  const persistence = input.persistence ?? { status: "skipped" as const, detail: "persistence occurs after this runtime" };
+  stages.push({ name: "save", status: persistence.status, detail: persistence.detail });
   return { tool, trace: { id: crypto.randomUUID(), startedAt, finishedAt: new Date().toISOString(), mode, stages, knowledge: input.knowledge?.traces ?? [], tools: toolTraces, evaluation } };
 }

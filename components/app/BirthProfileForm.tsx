@@ -12,7 +12,6 @@ import type { AstrologyResult } from "../../server/tools/astrology/types";
 import { AstrologyChart } from "./AstrologyChart";
 import { LocationPicker } from "./LocationPicker";
 import { ShiguangChat } from "./ShiguangChat";
-import { MirrorSaveButton } from "./MirrorSaveButton";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
 import { formatSavedBirthProfile, getSavedBirthProfile, saveBirthProfile } from "../../lib/birth-profile";
@@ -185,10 +184,9 @@ function BaziChart({ result, savedReflection, historical, onReflection }: { resu
       witty: "也排一次你的盘，看看我们到底是互补还是互相为难。",
     },
   };
-  const [mirrorSummary, setMirrorSummary] = useState(fallback.headline);
   return <section className={styles.chart} aria-live="polite">
     <header><div><small>FOUR PILLARS MIRROR</small><h2>拾光先说你的命盘</h2></div></header>
-    <UnifiedMirrorResult kind="bazi" theme="east" question="我的出生命盘呈现了怎样的资源、张力与节奏？" facts={chatContext} fallback={fallback} title="我的命盘镜像" meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={(reflection) => { setMirrorSummary(reflection.headline); onReflection(reflection); }} />
+    <UnifiedMirrorResult kind="bazi" theme="east" question="我的出生命盘呈现了怎样的资源、张力与节奏？" facts={chatContext} fallback={fallback} title="我的命盘镜像" meta={known} image="/characters/shiguang/shiguang-east-chibi-v2.png" initialResult={savedReflection} historical={historical} onResolved={onReflection} />
     <BaziLifeDomainsReading result={result} />
     <details className={styles.professionalDetails}><summary>查看命盘依据</summary><p className={styles.detailsIntro}>这里保留四柱、五行与大运流年，方便你回看拾光的解读从哪里来。</p>
     <div className={styles.pillars}>{result.pillars.map((pillar, index) => pillar ? <article key={pillar.key}><small>{pillar.label}</small><strong><i>{pillar.stem}</i><i>{pillar.branch}</i></strong><dl><div><dt>十神</dt><dd>{pillar.stemTenGod}</dd></div><div><dt>藏干</dt><dd>{pillar.hiddenStems.join(" · ")}</dd></div><div><dt>藏干十神</dt><dd>{pillar.branchTenGods.join(" · ")}</dd></div><div><dt>五行</dt><dd>{pillar.fiveElements}</dd></div><div><dt>纳音</dt><dd>{pillar.naYin}</dd></div></dl></article> : <article className={styles.emptyPillar} key={index}><small>时柱</small><strong>未知</strong><p>未使用推测时间</p></article>)}</div>
@@ -197,7 +195,6 @@ function BaziChart({ result, savedReflection, historical, onReflection }: { resu
     <section className={styles.analysisSection}><div className={styles.sectionHeading}><div><small>LUCK CYCLES · 大运流年</small><h3>{result.luck ? `${result.luck.direction} · 起运约 ${result.luck.startsAfter}` : "尚未生成排运序列"}</h3></div></div>{result.luck ? <><div className={styles.luckCycles}>{result.luck.cycles.map((cycle) => <article key={`${cycle.ganZhi}-${cycle.startYear}`}><strong>{cycle.ganZhi}</strong><span>{cycle.startYear}–{cycle.endYear}</span><small>{cycle.startAge}–{cycle.endAge} 岁</small></article>)}</div><div className={styles.annuals}>{result.luck.annual.map((item) => <article className={item.year === currentYear ? styles.currentAnnual : ""} key={item.year}><b>{item.year}</b><strong>{item.ganZhi}</strong><span>{item.tenGod} · {item.age} 岁</span></article>)}</div><p className={styles.methodNote}>{result.luck.method} 流年只展示干支与十神关系，不直接生成吉凶结论。</p></> : <p className={styles.emptyAnalysis}>请选择传统排运参数并提供准确出生时间，系统才会计算起运、大运与流年；缺少条件时不会猜测。</p>}</section>
     <div className={styles.evidence}><article><h3>计算时间</h3><p>{result.effectiveLocalTime}{result.trueSolarAdjustmentMinutes !== null && `（真太阳时修正 ${result.trueSolarAdjustmentMinutes >= 0 ? "+" : ""}${result.trueSolarAdjustmentMinutes} 分钟）`}</p><p>引擎 {result.engine.version} · 支持历法范围：{result.engine.calendarRange}</p></article><article><h3>相邻节气</h3><p>{result.solarTerms.previous} · {result.solarTerms.previousAt}</p><p>{result.solarTerms.next} · {result.solarTerms.nextAt}</p></article></div><ul>{result.rules.map((item) => <li key={item}>{item}</li>)}</ul><ul className={styles.warnings}>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul>
     </details>
-    <MirrorSaveButton source="bazi" title="命盘镜像" question="我的出生命盘" summary={mirrorSummary} meta={known} payload={result} />
     <ShiguangChat theme="east" context={chatContext} opening={`盘面已经展开。你的日主是${profile.dayMaster}${profile.dayMasterElement}，基础五行结构与${result.interactions.length ? "刑冲合害" : "地支关系"}${result.luck ? "、大运流年" : ""}都列在上面。你可以追问某一层，我会先引用盘面，再说明解释边界。`} />
   </section>;
 }

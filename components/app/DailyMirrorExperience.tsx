@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, CardsThree, ChartPolar, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, FloppyDisk, Hexagon, LockKey, ShareNetwork, SignOut, Sparkle, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CardsThree, ChartPolar, Check, CircleNotch, ClockCounterClockwise, DownloadSimple, Eye, Hexagon, LockKey, ShareNetwork, SignOut, Sparkle, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { LiuyaoKnowledgeContext } from "@/server/knowledge/liuyao-retrieval";
@@ -882,7 +882,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
             {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>传统结构线索</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{humanizeLiuyaoFactor(item)}</li>)}</ul></div>}
           </details>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>问一个新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存</> : <><FloppyDisk /> 保存这次记录</>}</button></div>
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>问一个新问题</button><p className={styles.savedNote}>{saved ? "✓ 已自动记录到“我的”" : "正在自动记录这次镜像…"}</p></div>
           {saved && <p className={styles.savedNote}>已保存到“我的镜像”。</p>}
         </section>
       )}
@@ -902,8 +902,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
           <div className={styles.reflectionHero}><span>07 · 保存</span><h1>保存这次解读。</h1><p>保存后可以在“我的镜像”里再次查看。</p></div>
           <article className={styles.saveSummary}><small>本次镜像</small><h2>{reflectionResult.question}</h2><p>{reflectionResult.hexagram.originalHexagram.name} → {reflectionResult.hexagram.changedHexagram.name}</p><blockquote>{reflectionResult.reflection.shareableReflection}</blockquote></article>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>暂不保存，开启新问题</button><button className={styles.primaryButton} disabled={busy || saved} onClick={saveReflection}>{busy ? <CircleNotch className={styles.spin} /> : saved ? <><Check /> 已保存</> : <><FloppyDisk /> 保存</>}</button></div>
-          {saved && <p className={styles.savedNote}>已保存到“我的镜像”。</p>}
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>开启新问题</button><p className={styles.savedNote}>{saved ? "✓ 已自动记录到“我的”" : "正在自动记录这次镜像…"}</p></div>
         </section>
       )}
 

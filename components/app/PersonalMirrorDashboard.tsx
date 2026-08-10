@@ -52,13 +52,6 @@ function normalizeServerTimeline(items: Array<MirrorEvent & { occurredAt?: strin
   }));
 }
 
-const dnaTopics = [
-  { key: "relationship", title: "关系中的回应与边界", match: /关系|感情|伴侣|朋友|家人|对方|彼此|爱|复合/ },
-  { key: "career", title: "事业方向与行动节奏", match: /工作|职业|事业|创业|项目|面试|升职|方向/ },
-  { key: "decision", title: "重要选择与内在取舍", match: /选择|决定|要不要|是否|纠结|犹豫/ },
-  { key: "emotion", title: "情绪消耗与自我照顾", match: /焦虑|压力|难过|疲惫|害怕|情绪|失眠/ },
-] as const;
-
 const lifeFields = [
   { key: "self", title: "我如何成为我", subtitle: "外在表达、核心驱动力与个人节奏", match: /自我|性格|我自己|表达|状态/, fallback: "先从你的出生镜像开始，观察你想怎样被看见、又如何确认自己。" },
   { key: "emotion", title: "情绪与安全感", subtitle: "压力反应、恢复方式与真正需要", match: /焦虑|压力|难过|疲惫|害怕|情绪|失眠/, fallback: "还没有足够的当下记录；下一次情绪明显时，试着把当时发生的事也留下一句。" },
@@ -79,40 +72,6 @@ function natalSummary(kind: "bazi" | "astrology", mirror?: SavedNatalMirror) {
   return profile?.dayMaster ? `${profile.dayMaster}日主 · ${profile.dayMasterElement} · 初步${profile.strengthBand}。命盘已读入，等待与你的真实经历一起核对。` : "命盘已读入，等待与你的真实经历一起核对。";
 }
 
-function deriveDnaPatterns(events: MirrorEvent[]): PatternMemory[] {
-  const grouped = new Map<string, { title: string; events: MirrorEvent[] }>();
-  for (const event of events) {
-    const topic = dnaTopics.find((item) => item.match.test(event.question)) ?? { key: "growth", title: "正在展开的自我探索" };
-    const current = grouped.get(topic.key) ?? { title: topic.title, events: [] };
-    current.events.push(event); grouped.set(topic.key, current);
-  }
-  return [...grouped.entries()].map(([key, value]) => {
-    const signalCount = value.events.length;
-    const latest = value.events[0];
-    const clue = latest.reflection?.shareableReflection ?? latest.reflection?.shiguangInterpretation ?? latest.question;
-    return {
-      id: `derived:${key}`,
-      title: value.title,
-      summary: signalCount === 1 ? `这是第一次记录形成的初始观察：${clue}。它还不是稳定结论，后续记录可以加强、修正或推翻它。` : `这个主题已经在 ${signalCount} 次独立镜像中出现。当前只把它视为可继续核对的倾向，新的经历仍会更新判断。`,
-      signalCount,
-      confidence: Math.min(0.82, signalCount === 1 ? 0.28 : 0.35 + signalCount * 0.11),
-    };
-  }).sort((left, right) => right.signalCount - left.signalCount || right.confidence - left.confidence);
-}
-
-function dnaObservation(pattern: PatternMemory, latest?: MirrorEvent) {
-  const source = latest?.sourceLabel ?? "最近一次镜像";
-  const clue = pattern.summary.replace(/^这是第一次记录形成的初始观察：/u, "").replace(/。它还不是[\s\S]*$/u, "").replace(/。当前只把[\s\S]*$/u, "").slice(0, 78);
-  const repeated = pattern.signalCount >= 2;
-  return {
-    focus: `最近反复牵动你的，是${pattern.title}。`,
-    response: repeated ? `这条线索已经出现 ${pattern.signalCount} 次：你会先把局面想清楚，再决定把话说到什么程度。` : `这还是第一次出现，但你没有把它轻轻带过。`,
-    changing: repeated ? "它正在从“一个当下的问题”，慢慢变成值得认真对待的习惯或关系方式。" : "再有新的经历时，拾光会先看它是在被印证，还是应该被推翻。",
-    evidence: clue || `${source}留下了一条与它相关的记录。`,
-    source,
-  };
-}
-
 export function PersonalMirrorDashboard() {
   const [mode, setMode] = useState<DashboardMode>("loading");
   const [events, setEvents] = useState<MirrorEvent[]>([]);
@@ -120,7 +79,6 @@ export function PersonalMirrorDashboard() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "career" | "relationship">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [dnaFeedback, setDnaFeedback] = useState<"yes" | "no" | null>(null);
   const [natalMirrors, setNatalMirrors] = useState<Partial<Record<"bazi" | "astrology", SavedNatalMirror>>>({});
   const [people, setPeople] = useState<PrivatePerson[]>([]);
   const [relationshipLoops, setRelationshipLoops] = useState<RelationshipLoop[]>([]);
@@ -142,7 +100,8 @@ export function PersonalMirrorDashboard() {
         if (!active) return;
         const summary = await api<{ timeline?: MirrorEvent[]; recentPatterns?: PatternMemory[] }>("/api/v1/memories/summary").catch(() => null);
         if (!active) return;
-        setEvents(summary?.timeline?.length ? normalizeServerTimeline(summary.timeline) : readGuestEvents());
+        // A signed-in account must never be silently replaced by stale device history.
+        setEvents(normalizeServerTimeline(summary?.timeline ?? []));
         setPatterns(summary?.recentPatterns ?? []);
         setMode("authenticated");
         const effect = await accountApi<{ summary: EffectLoopSummary }>("/api/v1/account/effect-loop/summary").catch(() => null);
@@ -155,7 +114,10 @@ export function PersonalMirrorDashboard() {
       }
     }
     void load();
-    const refresh = () => { setEvents(readGuestEvents()); setNatalMirrors(getLatestSavedNatalMirrors()); setPeople(getPrivatePeople()); setRelationshipLoops(getRelationshipLoops()); };
+    const refresh = () => {
+      setNatalMirrors(getLatestSavedNatalMirrors()); setPeople(getPrivatePeople()); setRelationshipLoops(getRelationshipLoops());
+      void load();
+    };
     setNatalMirrors(getLatestSavedNatalMirrors());
     setPeople(getPrivatePeople());
     setRelationshipLoops(getRelationshipLoops());
@@ -165,10 +127,7 @@ export function PersonalMirrorDashboard() {
 
   const visibleEvents = useMemo(() => events.filter((event) => filter === "all" || (filter === "career" ? /职业|工作|事业|选择|开始|行动/.test(event.question) : /关系|彼此|感情|伴侣|家庭/.test(event.question))), [events, filter]);
   const latest = events[0];
-  const displayPatterns = useMemo(() => mode === "authenticated" ? patterns : deriveDnaPatterns(events), [events, mode, patterns]);
-  const strongestPatterns = displayPatterns.slice(0, 3);
-  const primaryDna = strongestPatterns[0] ? dnaObservation(strongestPatterns[0], latest) : null;
-  const repeatedPatterns = displayPatterns.filter((pattern) => pattern.signalCount >= 2);
+  const repeatedPatterns = mode === "authenticated" ? patterns.filter((pattern) => pattern.signalCount >= 2) : [];
   const sourceStart = (event: MirrorEvent) => event.sourceLabel ?? event.hexagram?.originalHexagram?.name ?? "镜像";
   const sourceEnd = (event: MirrorEvent) => event.meta ?? event.hexagram?.changedHexagram?.name ?? "成长";
   const natalCards = [
@@ -283,13 +242,13 @@ export function PersonalMirrorDashboard() {
       </article>
 
       <article className={`${styles.card} ${styles.dna}`}>
-        <header><span><Sparkle /> 拾光记得</span><small>只展示有证据的线索</small></header>
-        {primaryDna ? <><div className={styles.dnaInsight}><article><small>此刻主线</small><b>{primaryDna.focus}</b></article><article><small>你的应对方式</small><p>{primaryDna.response}</p></article><article><small>正在变化</small><p>{primaryDna.changing}</p></article></div><div className={styles.dnaEvidence}><span>来自 {primaryDna.source}</span><p>“{primaryDna.evidence}”</p></div><div className={styles.dnaFeedback}><span>这像你吗？</span><button className={dnaFeedback === "yes" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("yes")}>像</button><button className={dnaFeedback === "no" ? styles.feedbackActive : ""} onClick={() => setDnaFeedback("no")}>不太像</button>{dnaFeedback && <small>{dnaFeedback === "yes" ? "记下了，我会继续用新的经历来核对它。" : "记下了，这条观察不会被当成你的标签。"}</small>}</div></> : <div className={stateStyles.empty}><h2>Mirror DNA 等待第一次记录。</h2><p>保存第一次镜像后，这里会出现拾光对你当下状态的具体观察。</p></div>}
+        <header><span><Sparkle /> 拾光记得</span><small>只保留你明确授权的事实</small></header>
+        <div className={stateStyles.empty}><h2>你的明确偏好和确认过的事，会在这里出现。</h2><p>镜像结果与聊天记录不会自动被当作人格事实；你随时可以在“我的”中更正或删除。</p></div>
       </article>
 
       <article className={`${styles.card} ${styles.patterns}`}>
-        <header><span>近期模式</span><small>至少 2 条独立证据后形成</small></header>
-        {repeatedPatterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><span><i style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></span><b>{pattern.title}</b><small>{pattern.signalCount} 条镜像证据 · {Math.round(pattern.confidence * 100)}% 阶段可信度 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
+        <header><span>最近的变化</span><small>只在多条真实证据支持时显示</small></header>
+        {repeatedPatterns.map((pattern) => <button key={pattern.id} onClick={() => setExpanded(expanded === pattern.id ? null : pattern.id)} className={styles.pattern}><b>{pattern.title}</b><small>{pattern.signalCount} 条可追溯记录 · {expanded === pattern.id ? "收起" : "查看"}</small>{expanded === pattern.id && <p>{pattern.summary}</p>}</button>)}
         {!repeatedPatterns.length && <div className={stateStyles.empty}><p>{mode === "authenticated" ? "还没有足够的独立现实证据形成长期线索。" : "登录后，这里只会显示可纠正、可追溯的长期线索。"}</p></div>}
       </article>
     </section>

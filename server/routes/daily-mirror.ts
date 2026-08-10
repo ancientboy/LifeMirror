@@ -269,6 +269,14 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
     }
 
     const eventId = randomUUID();
+    // Generation is intentionally pre-persistence. Persist the final trace with
+    // the actual outcome rather than storing the runtime's provisional "skipped".
+    const persistedRuntimeTrace = draft.runtimeTrace ? {
+      ...draft.runtimeTrace,
+      stages: draft.runtimeTrace.stages.map((stage) => stage.name === "save"
+        ? { ...stage, status: "completed" as const, detail: "reflection event persisted" }
+        : stage),
+    } : undefined;
     const result = await dependencies.database.query<{ id: string; saved_at: Date }>(
       `INSERT INTO reflection_events (
         id, user_id, runtime_id, question, coin_tosses, hexagram_result,
@@ -277,7 +285,7 @@ export async function registerDailyMirrorRoutes(app: FastifyInstance, dependenci
       ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11::jsonb,$12,$13,$14)
       ON CONFLICT (runtime_id) DO UPDATE SET runtime_id = EXCLUDED.runtime_id
       RETURNING id, saved_at`,
-      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), JSON.stringify(draft.explanationTrace ?? null), draft.interactionMode ?? "reflection", JSON.stringify(draft.runtimeTrace ?? null), draft.provider, draft.model, draft.generatedAt],
+      [eventId, user.id, draft.runtimeId, draft.question, JSON.stringify(draft.tosses), JSON.stringify(recalculated), JSON.stringify(draft.knowledge), JSON.stringify(draft.reflection), JSON.stringify(draft.explanationTrace ?? null), draft.interactionMode ?? "reflection", JSON.stringify(persistedRuntimeTrace ?? null), draft.provider, draft.model, draft.generatedAt],
     );
     let memoryProcessing: "completed" | "retry_pending" = "completed";
     try {
