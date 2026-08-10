@@ -2,6 +2,8 @@ import type { Database } from "../database/pool.js";
 
 export type PersonalContextMode = "chat" | "daily_guidance" | "review" | "relationship" | "rehearsal";
 export type PersonalContext = {
+  contractVersion: 1;
+  authority: "analysis_projection";
   explicitFacts: Array<{ id: string; text: string; kind: string; updatedAt: string }>;
   relevantHistory: Array<{ id: string; sourceKind: string; title: string; summary: string; occurredAt: string; openLoopStatus: string; personId: string | null }>;
   relevantPatterns: Array<{ id: string; title: string; summary: string; confidence: number; signalCount: number }>;
@@ -43,6 +45,11 @@ export async function buildPersonalContext(database: Database, userId: string, i
     .sort((a, b) => b.score - a.score || b.row.occurred_at.getTime() - a.row.occurred_at.getTime()).slice(0, limit);
   const selected = ranked.map(({ row }) => ({ id: row.id, sourceKind: row.source_kind, title: row.title, summary: row.summary, occurredAt: row.occurred_at.toISOString(), openLoopStatus: row.open_loop_status, personId: row.person_id }));
   return {
+    // The D1 account context is the user-facing authority. This Postgres
+    // builder is intentionally a ranked analysis projection and must never
+    // overwrite a user edit/deletion from that account source.
+    contractVersion: 1,
+    authority: "analysis_projection",
     explicitFacts: facts.rows.map((row) => ({ id: row.id, text: row.fact_text, kind: row.fact_kind, updatedAt: row.updated_at.toISOString() })),
     relevantHistory: selected,
     relevantPatterns: patterns.rows.map((row) => ({ id: row.id, title: row.title, summary: row.summary, confidence: row.confidence, signalCount: row.signal_count })),
