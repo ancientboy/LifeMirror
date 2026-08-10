@@ -1,0 +1,17 @@
+.profileForm{display:block!important;margin-top:18px;padding:16px;border:1px solid #e5dfd1;border-radius:14px;background:#faf8f1}
+.profileFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.profileFields label{display:grid;gap:6px;min-width:0;font-size:14px;font-weight:600}
+.profileFields label span{color:#48635b}
+.profileFields input,.profileFields textarea{box-sizing:border-box;width:100%;min-width:0;border:1px solid #d8d0bf;border-radius:10px;padding:10px 11px;background:#fff;color:#24443d;font:inherit;font-weight:400}
+.profileFields textarea{min-height:84px;resize:vertical}
+.wideField{grid-column:1 / -1}
+.birthDetails{margin-top:16px;padding-top:14px;border-top:1px solid #e5dfd1}
+.birthDetails summary{cursor:pointer;color:#315d52;font-weight:600}
+.birthDetails summary em{margin-left:5px;color:#92743e;font-size:12px;font-style:normal;font-weight:400}
+.birthDetails>p{margin:8px 0 12px;color:#66756f;font-size:13px;line-height:1.55}
+.minorCheck{display:flex!important;align-items:center;gap:9px;margin:16px 0;font-size:14px;cursor:pointer}
+.minorCheck input{width:18px;height:18px;margin:0;accent-color:#315d52}
+.minorCheck span{display:grid;gap:2px}
+.minorCheck small{color:#66756f;font-size:12px;font-weight:400}
+.saveProfile{background:#315d52!important;color:#fff!important}
+@media(max-width:620px){.profileFields{grid-template-columns:1fr}.wideField{grid-column:auto}}
