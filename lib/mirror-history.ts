@@ -1,5 +1,5 @@
 import { createClientId } from "./client-id";
-import { markAccountDataChanged } from "./account-data";
+import { markAccountDataChanged, writeLocalAccountData, type AccountSnapshot } from "./account-data";
 
 export type MirrorHistorySource = "liuyao" | "tarot" | "bazi" | "astrology";
 export type MirrorHistoryRecord = {
@@ -43,6 +43,13 @@ export function saveMirrorHistory(record: Omit<MirrorHistoryRecord, "id" | "save
   const next: MirrorHistoryRecord = { ...record, id: createClientId(), savedAt: new Date().toISOString() };
   window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify([next, ...current].slice(0, 80)));
   markAccountDataChanged();
+  // A signed-in user writes to D1 immediately; localStorage is then only a
+  // cache/offline fallback. Guests receive 401 and keep the local record.
+  void fetch("/api/v1/account/history", {
+    method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ history: next }),
+  }).then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
+    .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
+    .catch(() => undefined);
   return next;
 }
 
