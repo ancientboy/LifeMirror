@@ -12,9 +12,24 @@ export type PrivatePerson = {
   relationshipType?: string;
   userDescription?: string;
   communicationNotes?: string;
+  /** Owner-entered birth data. It is private and never a claim made by TA. */
+  birthProfile?: PersonBirthProfile;
+  /** Prevents social linking/invitation flows for a private minor mirror. */
+  isMinor?: boolean;
   observations?: RelationshipObservation[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type PersonBirthProfile = {
+  date: string;
+  time?: string;
+  place?: string;
+  utcOffsetMinutes?: number;
+  latitude?: number;
+  longitude?: number;
+  timeKnown: boolean;
+  profileKey: string;
 };
 
 export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" };
@@ -89,7 +104,7 @@ export function getPrivatePeople(): PrivatePerson[] {
   return Array.isArray(value) ? value.filter((item): item is PrivatePerson => Boolean(item && typeof item === "object" && typeof (item as PrivatePerson).id === "string" && typeof (item as PrivatePerson).displayName === "string")) : [];
 }
 
-export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "userDescription" | "communicationNotes"> & { id?: string }) {
+export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "userDescription" | "communicationNotes" | "birthProfile" | "isMinor"> & { id?: string }) {
   const displayName = input.displayName.trim().slice(0, 40);
   if (!displayName) return null;
   const current = getPrivatePeople();
@@ -100,6 +115,8 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
     relationshipType: input.relationshipType?.trim().slice(0, 40) || undefined,
     userDescription: input.userDescription?.trim().slice(0, 300) || undefined,
     communicationNotes: input.communicationNotes?.trim().slice(0, 300) || undefined,
+    birthProfile: input.birthProfile,
+    isMinor: input.isMinor === true,
     observations: existing?.observations ?? [], createdAt: existing?.createdAt ?? now, updatedAt: now,
   };
   write([person, ...current.filter((item) => item.id !== person.id)]);

@@ -1,5 +1,6 @@
 import type { PrivatePerson } from "./relationship-context";
 import type { RelationshipCalibration } from "./relationship-learning";
+import type { PersonContext } from "./person-context";
 
 export type RehearsalPath = { id: "receptive" | "needs-space" | "defensive"; label: string; response: string; nextMove: string };
 export type RelationshipRehearsal = { opening: string; perspective: string; checkpoints: string[]; paths: RehearsalPath[]; calibration?: RelationshipCalibration };
@@ -38,9 +39,12 @@ export function coachRehearsalReply(reply: string) {
 }
 
 /** A short, corrigible possible reply. Corrections and real feedback outrank this hypothesis. */
-export function createPersonSimulationReply(person: PrivatePerson, userMessage: string) {
-  const corrections = (person.observations ?? []).filter((item) => item.source === "owner_correction").map((item) => item.text).join(" ");
-  if (corrections) return `${person.displayName} · 模拟：${corrections.slice(0, 120)}`;
+export function createPersonSimulationReply(person: PrivatePerson, userMessage: string, context?: PersonContext) {
+  const latestReality = context?.realInteractions.find((item) => item.reflection?.trim())?.reflection?.trim();
+  // Reality feedback changes the next rehearsal before a one-off simulation correction.
+  if (latestReality) return `${person.displayName} · 模拟：我记得上次这件事没有那么容易。你这次最想先让我听懂的，是哪一部分？`;
+  const correction = context?.simulationCorrections[0]?.text ?? (person.observations ?? []).find((item) => item.source === "owner_correction")?.text;
+  if (correction) return `${person.displayName} · 模拟：${correction.slice(0, 120)}`;
   const notes = person.communicationNotes || person.userDescription;
   if (notes) return `${person.displayName} · 模拟：我听见你在说“${userMessage.slice(0, 42)}”，但我现在不太知道怎么回应。你能先告诉我，你最在意的是什么吗？`;
   return `${person.displayName} · 模拟：我先听着。你想从哪一件具体的事开始？`;
