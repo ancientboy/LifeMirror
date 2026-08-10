@@ -4,7 +4,8 @@ import type { ReviewCadence, ReviewMemory, ReviewPattern } from "./types.js";
 
 export async function generateUserReview(database: Database, userId: string, cadence: ReviewCadence, now = new Date(), timezone = "UTC") {
   const days = cadence === "weekly" ? 7 : 30;
-  const [memoryResult, patternResult] = await Promise.all([
+  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1_000);
+  const [memoryResult, contextResult, patternResult] = await Promise.all([
     database.query<{
       source_event_id: string; occurred_at: Date; title: string; topic: string; summary: string;
       insight: string; reflection_question: string; action_suggestion: string; concepts: string[];
@@ -16,7 +17,17 @@ export async function generateUserReview(database: Database, userId: string, cad
         WHERE events.user_id = $1 AND events.visibility = 'visible' AND reflections.visibility = 'visible'
           AND events.occurred_at >= $2
         ORDER BY events.occurred_at ASC`,
-      [userId, new Date(now.getTime() - days * 24 * 60 * 60 * 1_000)],
+      [userId, since],
+    ),
+    database.query<{
+      id: string; source_kind: string; title: string; summary: string; occurred_at: Date;
+      important: boolean; open_loop_status: string;
+    }>(
+      `SELECT id, source_kind, title, summary, occurred_at, important, open_loop_status
+         FROM user_history_records
+        WHERE user_id = $1 AND deleted_at IS NULL AND occurred_at >= $2
+        ORDER BY occurred_at ASC`,
+      [userId, since],
     ),
     database.query<{
       id: string; title: string; summary: string; signal_count: number; confidence: number; source_event_ids: string[];
@@ -36,6 +47,23 @@ export async function generateUserReview(database: Database, userId: string, cad
     summary: row.summary, insight: row.insight, reflectionQuestion: row.reflection_question,
     actionSuggestion: row.action_suggestion, concepts: row.concepts,
   }));
+  // Review is not a 六爻-only feature: every user-authorized mirror or chat
+  // record can become evidence. Symbolic output remains a record, not a fact.
+  for (const row of contextResult.rows) {
+    const sourceEventId = `history:${row.id}`;
+    if (memories.some((item) => item.sourceEventId === sourceEventId)) continue;
+    memories.push({
+      sourceEventId,
+      occurredAt: row.occurred_at,
+      title: row.title,
+      topic: row.source_kind,
+      summary: row.summary,
+      insight: row.important ? "用户标记为重要。" : "",
+      reflectionQuestion: row.open_loop_status === "open" ? "这件事后来有什么新的现实进展？" : "",
+      actionSuggestion: row.open_loop_status === "open" ? "先记录一个已经发生的变化。" : "",
+      concepts: [row.source_kind],
+    });
+  }
   const patterns: ReviewPattern[] = patternResult.rows.map((row) => ({
     id: row.id, title: row.title, summary: row.summary, signalCount: row.signal_count,
     confidence: row.confidence, sourceEventIds: row.source_event_ids,
