@@ -131,6 +131,59 @@ function snapshot(input) {
   return { settings, facts, history, tarot, chats };
 }
 
+function factId(value) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function cleanFactText(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim().slice(0, 180);
+  return text.length >= 2 ? text : "";
+}
+
+/**
+ * Product Personal Context contract:
+ * - D1 account_data is the authenticated product source of truth.
+ * - The Fastify PersonalContextBuilder is an analysis projection only. It may
+ *   derive rankings and patterns, but never wins a user edit or deletion.
+ * - Symbolic tool results are History; only user-authored facts live in facts.
+ */
+function productContext(account) {
+  return {
+    contractVersion: 1,
+    authority: "d1_account_context",
+    facts: account.facts,
+    history: account.history,
+    settings: account.settings,
+    provenance: {
+      facts: "user_authored_explicit",
+      history: "user_owned_mirror_history",
+      analysis: "projection_only",
+    },
+  };
+}
+
+function accountReview(account, cadence) {
+  const days = cadence === "monthly" ? 30 : 7;
+  const start = Date.now() - days * 24 * 60 * 60 * 1000;
+  const history = account.history.filter((item) => item && Date.parse(item.savedAt || item.updatedAt || "") >= start);
+  const facts = account.facts.filter((item) => item && Date.parse(item.updatedAt || item.createdAt || "") >= start)
+    .map((item) => ({ id: "fact:" + String(item.id || ""), occurredAt: item.updatedAt || item.createdAt, title: "你明确保留的现实信息", summary: String(item.text || ""), topic: "授权现实" }));
+  const evidence = [...history.map((item) => ({ id: "history:" + String(item.id || ""), occurredAt: item.savedAt || item.updatedAt, title: String(item.question || "一次已记录的镜像"), summary: historySummary(item), topic: String(item.sourceLabel || item.source || "个人镜像") })), ...facts]
+    .filter((item) => item.summary || item.title).sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)));
+  const groups = new Map();
+  for (const item of evidence) groups.set(item.topic, [...(groups.get(item.topic) || []), item.id]);
+  const themes = [...groups.entries()].map(([name, evidenceIds]) => ({ name, signalCount: evidenceIds.length, evidenceIds })).sort((a, b) => b.signalCount - a.signalCount);
+  const ready = evidence.length >= 2;
+  return {
+    cadence, period: { start: new Date(start).toISOString(), end: new Date().toISOString(), timezone: "account" }, status: ready ? "ready" : "insufficient_evidence",
+    summary: ready ? "本周期保留了 " + evidence.length + " 条经你授权的记录，较多涉及 " + themes.slice(0, 2).map((item) => item.name).join("、") + "。这些是阶段性线索，不是固定结论。" : "当前记录还不足以生成周期回顾。继续留下真实经历或镜像记录后，拾光才会尝试呈现阶段性线索。",
+    themes, changes: themes.filter((item) => item.signalCount >= 2).map((item) => ({ kind: "recurring", description: "反复出现的主题：" + item.name, evidenceIds: item.evidenceIds })),
+    reflectionQuestions: ready ? history.filter((item) => item.openLoopStatus === "open").slice(0, 2).map((item) => "“" + String(item.question || "这件事").slice(0, 42) + "”后来有什么新的现实进展？") : [],
+    gentleSuggestions: ready ? ["只补充一条已经发生的事实，让下一次回顾更接近现实。"] : [], evidence,
+    trust: { confidence: ready ? Math.min(.85, .45 + evidence.length * .08) : .25, evidenceCount: evidence.length, limitations: ready ? [] : ["当前周期内少于两条经授权记录，无法形成可靠趋势。"] },
+  };
+}
+
 function mergeById(serverItems, localItems, limit) {
   const byId = new Map();
   for (const item of [...serverItems, ...localItems]) {
@@ -373,6 +426,98 @@ async function authApi(request, env, pathname) {
   if (pathname === "/api/v1/account/data" && request.method === "PUT") {
     const input = await body(request);
     return json({ data: await writeAccountData(env.DB, user.id, input?.data) });
+  }
+  if (pathname === "/api/v1/account/context" && request.method === "GET") return json({ context: productContext(await readAccountData(env.DB, user.id)) });
+  if (pathname === "/api/v1/reviews" && request.method === "GET") {
+    const cadence = new URL(request.url).searchParams.get("cadence") === "monthly" ? "monthly" : "weekly";
+    return json({ review: accountReview(await readAccountData(env.DB, user.id), cadence), runtime: { mode: "review", source: "d1_account_context" } });
+  }
+  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "GET") {
+    const account = await readAccountData(env.DB, user.id);
+    const defaults = { enabled: true, weeklyEnabled: true, monthlyEnabled: true, cooldownHours: 168 };
+    return json({ preferences: { ...defaults, ...(account.settings?.reviewPreferences || {}) } });
+  }
+  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "PATCH") {
+    const input = await body(request);
+    const account = await readAccountData(env.DB, user.id);
+    const preferences = { enabled: Boolean(input?.enabled), weeklyEnabled: Boolean(input?.weeklyEnabled), monthlyEnabled: Boolean(input?.monthlyEnabled), cooldownHours: [72, 168, 336, 720].includes(Number(input?.cooldownHours)) ? Number(input.cooldownHours) : 168 };
+    await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, reviewPreferences: preferences } });
+    return json({ preferences });
+  }
+  if (pathname === "/api/v1/account/history" && request.method === "POST") {
+    const input = await body(request);
+    const candidate = input?.history;
+    if (!candidate || typeof candidate !== "object") return json({ error: "invalid_history" }, 400);
+    const id = String(candidate.id || "").trim().slice(0, 120);
+    const question = String(candidate.question || "").trim().slice(0, 500);
+    if (!id || !question) return json({ error: "invalid_history" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const dedupKey = String(candidate.dedupKey || "");
+    const index = account.history.findIndex((item) => item && (String(item.id || "") === id || (dedupKey && String(item.dedupKey || "") === dedupKey)));
+    const history = { ...candidate, id: index >= 0 ? account.history[index].id : id, updatedAt: new Date().toISOString() };
+    if (index >= 0) account.history[index] = { ...account.history[index], ...history, important: Boolean(account.history[index].important || history.important) };
+    else account.history = [history, ...account.history].slice(0, 50);
+    const data = await writeAccountData(env.DB, user.id, account);
+    return json({ history, data }, index >= 0 ? 200 : 201);
+  }
+  const historyMatch = pathname.match(/^\/api\/v1\/account\/history\/([^/]+)$/);
+  if (historyMatch && request.method === "PATCH") {
+    const input = await body(request);
+    const account = await readAccountData(env.DB, user.id);
+    const id = decodeURIComponent(historyMatch[1]);
+    const allowed = input && typeof input === "object" ? input : {};
+    const index = account.history.findIndex((item) => item && String(item.id || "") === id);
+    if (index < 0) return json({ error: "history_not_found" }, 404);
+    const current = account.history[index];
+    const next = { ...current, updatedAt: new Date().toISOString() };
+    if (typeof allowed.important === "boolean") next.important = allowed.important;
+    if (["open", "resolved", "unknown"].includes(String(allowed.openLoopStatus || ""))) next.openLoopStatus = allowed.openLoopStatus;
+    if (Object.prototype.hasOwnProperty.call(allowed, "personId")) next.personId = typeof allowed.personId === "string" && allowed.personId.trim() ? allowed.personId.trim().slice(0, 120) : undefined;
+    if (Object.prototype.hasOwnProperty.call(allowed, "personName")) next.personName = typeof allowed.personName === "string" && allowed.personName.trim() ? allowed.personName.trim().slice(0, 80) : undefined;
+    account.history[index] = next;
+    const data = await writeAccountData(env.DB, user.id, account);
+    return json({ history: next, data });
+  }
+  if (historyMatch && request.method === "DELETE") {
+    const account = await readAccountData(env.DB, user.id);
+    const id = decodeURIComponent(historyMatch[1]);
+    const next = account.history.filter((item) => item && String(item.id || "") !== id);
+    if (next.length === account.history.length) return json({ error: "history_not_found" }, 404);
+    const data = await writeAccountData(env.DB, user.id, { ...account, history: next });
+    return json({ data });
+  }
+  if (pathname === "/api/v1/account/facts" && request.method === "POST") {
+    const input = await body(request);
+    const text = cleanFactText(input?.text);
+    if (!text) return json({ error: "invalid_fact" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const now = new Date().toISOString();
+    const existing = account.facts.find((item) => item && String(item.text || "") === text);
+    const fact = existing ? { ...existing, updatedAt: now } : { id: crypto.randomUUID(), text, createdAt: now, updatedAt: now };
+    const data = await writeAccountData(env.DB, user.id, { ...account, facts: [fact, ...account.facts.filter((item) => item && String(item.id || "") !== String(fact.id))] });
+    return json({ fact, data }, existing ? 200 : 201);
+  }
+  const factMatch = pathname.match(/^\/api\/v1\/account\/facts\/([^/]+)$/);
+  if (factMatch && request.method === "PATCH") {
+    const input = await body(request);
+    const text = cleanFactText(input?.text);
+    if (!text) return json({ error: "invalid_fact" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const id = factId(decodeURIComponent(factMatch[1]));
+    const index = account.facts.findIndex((item) => item && String(item.id || "") === id);
+    if (index < 0) return json({ error: "fact_not_found" }, 404);
+    const fact = { ...account.facts[index], text, updatedAt: new Date().toISOString() };
+    account.facts[index] = fact;
+    const data = await writeAccountData(env.DB, user.id, account);
+    return json({ fact, data });
+  }
+  if (factMatch && request.method === "DELETE") {
+    const account = await readAccountData(env.DB, user.id);
+    const id = factId(decodeURIComponent(factMatch[1]));
+    const facts = account.facts.filter((item) => item && String(item.id || "") !== id);
+    if (facts.length === account.facts.length) return json({ error: "fact_not_found" }, 404);
+    const data = await writeAccountData(env.DB, user.id, { ...account, facts });
+    return json({ data });
   }
   if (pathname === "/api/v1/account/effect-loop/events" && request.method === "POST") {
     const input = await body(request);
