@@ -1,0 +1,1320 @@
+---
+title: PHASE-010 Person Mirror & Relationship Simulation
+status: planned
+version: 0.10.0
+updated: August 2026
+---
+
+# PHASE-010 — Person Mirror & Relationship Simulation
+
+## 1. 阶段定位
+
+PHASE-010 承接 PHASE-009 已建立的 History、Memory、People、Open Loop、Relationship Context、Real Relationship Bridge 等基础能力。
+
+这一阶段不再继续把“我在意的人”做成一个人物备注卡或一次性的沟通建议工具，而是把它升级成 LifeMirror 的核心产品对象：
+
+> **TA 镜像（Person Mirror）：一份由用户视角、真实互动、出生底图、模拟纠正和未来 TA 自己授权的信息共同构成、持续校准的关系模型。**
+
+目标不是创造真实人物的数字分身，也不是声称知道 TA 的内心。
+
+目标是：
+
+> **让拾光逐渐知道“这个人是谁、你们之间发生过什么、哪些方式更容易沟通、哪些判断已经被现实纠正”，从而帮助用户在真实关系里做更好的准备和行动。**
+
+PHASE-010 是 LifeMirror 从“拥有 Relationship Foundation”走向“真正可持续使用的 Relationship Product”的产品阶段。
+
+---
+
+# 2. 为什么需要 PHASE-010
+
+当前“我在意的人”已经具备：
+
+- Private Person
+- 用户视角的人物描述
+- Relationship Sandbox
+- 沟通演练
+- Reality feedback
+- Person → Real User link
+- Relationship question / answer
+- Shared relationship events
+
+这些底座是正确的，但当前体验仍然容易退化成：
+
+```text
+填写人物备注
+→ 输入一个沟通场景
+→ 系统给几个可能回应
+→ 演练结束
+```
+
+这个体验的问题是：
+
+1. 用户很难看到过去和 TA 的完整历史。
+2. 演练之间缺少连续性。
+3. 用户无法明显感受到“系统越来越认识这个 TA”。
+4. 当前模拟更像固定沟通建议，不像与一个具体 Person Mirror 对话。
+5. Person Profile 不完整，没有生日、本命八字、本命星盘等 stable reference。
+6. 用户对模拟结果缺少直接校准机制，例如“这不像 TA”。
+7. 模拟与现实反馈虽然已有基础，但还没有成为 Person 页面最核心的使用闭环。
+8. 页面在数据不足时仍容易展示“还没有足够信息”一类系统状态，而不是即时给用户价值。
+
+因此 PHASE-010 的核心不是增加更多 Relationship 功能，而是把这些能力收敛成一个真正的 **Person Experience**。
+
+---
+
+# 3. 核心产品原则
+
+## 3.1 Person Mirror ≠ Digital Twin
+
+LifeMirror 永远不能声称：
+
+> “这就是现实中的 TA。”
+
+Person Mirror 实际表示：
+
+> **“基于当前可用证据，用户目前视角下的一份 TA 模型。”**
+
+所有信息都必须保留 provenance。
+
+建议至少区分：
+
+```text
+owner_observation
+owner_reported_interaction
+owner_correction
+symbolic_birth_reference
+simulation_hypothesis
+real_world_feedback
+other_user_self_report
+explicitly_shared_relationship_event
+```
+
+禁止把不同来源合并成无来源的“人物事实”。
+
+例如用户说：
+
+> “小诺最近很叛逆。”
+
+不能存成：
+
+```text
+personality = rebellious
+```
+
+应该表达成：
+
+```text
+source = owner_observation
+observer = current user
+content = 用户认为小诺最近表现出较明显的反抗行为
+```
+
+---
+
+## 3.2 Reality Evidence 优先于 Symbolic Prior
+
+Person Mirror 的证据优先级建议为：
+
+```text
+TA 本人明确提供的信息
+        ↑
+真实互动结果
+        ↑
+用户持续、重复的现实观察
+        ↑
+用户单次现实观察
+        ↑
+八字 / 星盘 stable symbolic prior
+        ↑
+simulation output
+```
+
+其中：
+
+- Simulation 永远不能成为 TA 的现实事实。
+- Birth chart / Bazi 只能提供初始 hypothesis。
+- 用户修正必须覆盖过去 simulation 假设。
+- 真实互动反馈必须可以推翻出生象征或过去推断。
+
+---
+
+## 3.3 用户第一天就必须获得价值
+
+Person Mirror 不能要求用户积累很多记录后才变得可用。
+
+即使用户刚创建一个 Person，只输入：
+
+- 名字
+- 关系
+- 一两条观察
+
+页面也应该立即返回一个有价值的下一步：
+
+> “目前最值得区分的是：TA 是在抗拒事情本身，还是在抗拒你们现在的沟通方式。”
+
+而不是：
+
+> “还没有足够数据。”
+
+禁止把“系统正在建模”作为主要用户反馈。
+
+---
+
+# 4. 信息架构重构
+
+## 4.1 “我在意的人”从大卡片改成人物列表
+
+“我的”页面中的“我在意的人”只承担入口作用。
+
+每个人物显示：
+
+```text
+小诺
+女儿 · 最近 3 天有更新
+最近：关于作业的一次沟通演练还没有带回现实结果
+[进入 TA 的镜像]
+```
+
+另一例：
+
+```text
+Alex
+朋友
+上次记录：还在等一次回复
+[进入 TA 的镜像]
+```
+
+底部：
+
+```text
++ 添加一个我在意的人
+```
+
+列表页不再展开完整 Relationship Archive、演练细节或大量系统解释。
+
+---
+
+## 4.2 每个 Person 拥有独立 Person Mirror 页面
+
+建议路由：
+
+```text
+/app/people/[personId]/
+```
+
+或符合现有路由约定的等价路径。
+
+顶部：
+
+```text
+小诺
+女儿 · 六年级
+这是你目前视角下的小诺镜像，它会随着真实互动继续更新。
+```
+
+高频动作只保留三个：
+
+```text
+和 TA 聊之前练一下
+记录刚刚发生的事
+完善 TA 的镜像
+```
+
+Person 页面主体分为：
+
+1. 拾光目前怎么看 TA
+2. 你们最近发生的事
+3. TA 的镜像资料
+4. Stable Birth Reference
+5. 未结束的事
+6. 真实关系 / 邀请状态
+
+---
+
+# 5. Person Mirror 主页面设计
+
+## 5.1 拾光目前怎么看 TA
+
+这不是人格报告。
+
+只展示当前 evidence-backed observation。
+
+例如：
+
+> **最近最明显的一条线索**
+>
+> 你最近几次提到小诺时，“学习”和“希望被关注”经常同时出现。
+>
+> 目前更值得区分的是：她是在抗拒学习本身，还是在抗拒你们之间现在的互动方式。
+
+下面明确来源：
+
+```text
+来自你的 3 条观察
+2 次真实互动
+1 次沟通演练纠正
+```
+
+禁止显示：
+
+```text
+TA 的人格 83%
+Mirror DNA forming
+建模进度 62%
+```
+
+---
+
+## 5.2 “你们最近发生的事”——Relationship Timeline
+
+不要叫“演练历史”。
+
+因为未来 Timeline 包含：
+
+```text
+Observation
+Mirror
+Rehearsal
+Simulation Correction
+Planned Action
+Real Interaction
+Reality Feedback
+Shared Interaction
+Open Loop Update
+```
+
+示例：
+
+### 今天 · 沟通演练
+
+> 怎么和小诺聊最近没有完成作业的问题
+
+状态：
+
+> 等待现实反馈
+
+CTA：
+
+> 后来怎么样了？
+
+### 8 月 8 日 · 真实互动
+
+> 你先问了学校发生什么，而不是先问成绩。
+
+结果：
+
+> 她主动讲了一会儿学校里的事情。
+
+拾光更新：
+
+> “先进入当天经历”目前比“直接进入学习问题”更容易保持对话。
+
+### 8 月 5 日 · 你的观察
+
+> 最近回家以后更喜欢自己待着。
+
+每一条用户必须可以：
+
+- 查看
+- 编辑自己的 Observation
+- 删除
+- 标记重要
+- 关联 Open Loop
+
+删除后的数据不得继续进入 Person Context。
+
+---
+
+# 6. 完善 TA 的镜像
+
+资料输入必须渐进式，不要求一次填完。
+
+## 6.1 基本资料
+
+建议支持：
+
+- 昵称
+- 与我的关系
+- 生日 / 年龄
+- 性别（可选）
+- 备注标签（谨慎使用，只允许用户自己定义）
+
+---
+
+## 6.2 出生资料
+
+支持：
+
+- 出生年月日
+- 出生时间（允许未知）
+- 出生地点
+- timezone / coordinates 复用当前 Birth Profile 能力
+
+如果信息满足要求：
+
+```text
+自动建立 Person Bazi Stable Reference
+自动建立 Person Astrology Stable Reference
+```
+
+不得要求用户再进入八字或星盘 Tool 手动生成。
+
+如果出生时间未知：
+
+- 八字不得伪造时柱。
+- Astrology 不得伪造 Ascendant / houses。
+
+沿用现有专业引擎的真实性边界。
+
+---
+
+## 6.3 “我眼中的 TA”不要做成冰冷字段
+
+不要只提供：
+
+```text
+性格特点
+沟通特点
+Soul
+```
+
+建议改成自然问题：
+
+- TA 在你心里是什么样的人？
+- 什么事情最容易让 TA 防御？
+- TA 开心的时候通常是什么样？
+- 你们最容易卡在哪里？
+- TA 更喜欢怎么被沟通？
+- 有什么事情你觉得别人经常误解 TA？
+
+用户可以跳过任意项。
+
+这些答案全部属于 `owner_observation`，不是 TA 客观事实。
+
+---
+
+# 7. Person BirthProfile / Stable Reference
+
+PHASE-010 不开发新的八字或占星引擎。
+
+必须复用：
+
+```text
+server/tools/bazi
+server/tools/astrology
+```
+
+建议建立 Person BirthProfile adapter。
+
+输入：
+
+```ts
+{
+  birthDate,
+  birthTime?,
+  birthLocation?,
+  timezone?,
+  coordinates?
+}
+```
+
+输出：
+
+```text
+PersonStableReference
+```
+
+至少包含：
+
+```text
+calculationVersion
+profileKey
+baziFacts
+astrologyFacts
+birthDataCompleteness
+```
+
+Stable reference 必须按 profileKey 去重。
+
+重复打开 Person 页面不能制造新的 Relationship Timeline 事件。
+
+---
+
+# 8. 出生底图如何进入 Person Understanding
+
+出生底图只能作为：
+
+> **symbolic prior / 待现实验证的初始视角。**
+
+例如允许：
+
+> “星盘在情绪回应和沟通方式上出现了某些值得观察的线索；你实际记录中也曾提到 TA 在被连续追问时容易结束对话。这两个来源目前方向接近。”
+
+禁止：
+
+> “因为 TA 月亮巨蟹，所以 TA 缺乏安全感。”
+
+禁止：
+
+> “因为八字某结构，所以 TA 天生叛逆。”
+
+当现实 evidence 与 symbolic prior 冲突：
+
+> **以现实 evidence 为准。**
+
+---
+
+# 9. 建立 Person Context Builder
+
+PHASE-009 已有 Personal Context Builder。
+
+PHASE-010 不应复制一套完整 Memory 系统，而是在其基础上增加 Person Context 组合层。
+
+建议 contract：
+
+```ts
+type PersonContext = {
+  person: {
+    id: string;
+    displayName: string;
+    relationshipType?: string;
+  };
+
+  ownerObservations: Array<...>;
+
+  birthReference?: {
+    bazi?: ...;
+    astrology?: ...;
+  };
+
+  realInteractions: Array<...>;
+
+  simulationCorrections: Array<...>;
+
+  openLoops: Array<...>;
+
+  sharedFacts?: Array<...>;
+
+  provenance: {
+    excluded: string[];
+    ranking: string[];
+  };
+};
+```
+
+最终 Relationship Simulation 使用：
+
+```text
+Personal Context
++
+Person Context
++
+Relationship Context
+```
+
+不能直接把全部账户 Memory 塞给模拟模型。
+
+---
+
+# 10. Relationship Sandbox 2.0
+
+## 10.1 现有固定分支模式降级为 fallback
+
+现有：
+
+```text
+输入场景
+输入目标
+→ 多种可能回应
+→ 用户选择路径
+```
+
+可以保留作为：
+
+- 无 LLM fallback
+- 快速练习
+- 第一次 Person 信息很少时的低风险模式
+
+但它不再是核心体验。
+
+---
+
+## 10.2 新核心：与 TA 镜像自由对话
+
+用户进入：
+
+> **和小诺练习一下**
+
+开始真正的 chat-style rehearsal。
+
+示例：
+
+**用户**
+
+> 你最近为什么都不写作业？
+
+**小诺 · 模拟**
+
+> 我又不是没写，你为什么每天回来第一件事就问这个？
+
+**用户**
+
+> 因为你最近成绩下降很多。
+
+**小诺 · 模拟**
+
+> 所以你还是只关心成绩啊。
+
+Simulation 的目标不是戏剧性，而是：
+
+> 根据当前 Person Context 给出一种合理但可纠正的可能回应。
+
+---
+
+# 11. TA Simulation 与 Shiguang Coach 必须角色分离
+
+产品仍保持一个 Shiguang Runtime，不引入多 Agent 核心架构。
+
+但输出职责必须区分：
+
+```text
+User
+│
+├── TA Simulation
+│
+└── Shiguang Coach
+```
+
+### TA Simulation
+
+职责：
+
+> 用自然对话方式给出一种可能回应。
+
+不得：
+
+- 分析自己的心理
+- 解释自己为什么这样回答
+- 自称真实 TA
+- 确定预测 TA 下一步行为
+
+### Shiguang Coach
+
+职责：
+
+> 观察演练，在真正有价值时帮助用户调整表达或指出互动模式。
+
+不需要每轮插话。
+
+可以在：
+
+- 用户明显进入重复冲突
+- 用户请求建议
+- 对话停住
+- 用户表达目标与当前说法明显冲突
+
+时介入。
+
+---
+
+# 12. TA Simulation Prompt Boundary
+
+必须明确以下系统规则：
+
+> 你不是现实中的 TA。
+>
+> 你是在帮助用户演练沟通。
+>
+> 只能依据提供的 Person Context 模拟一种可能回应。
+>
+> 不得声称知道 TA 的真实内心、意图、心理诊断或未来行为。
+>
+> 用户明确提供的沟通习惯优先于出生象征信息。
+>
+> 真实互动优先于用户推测。
+>
+> 用户对过去 simulation 的纠正优先于 simulation 自己生成的内容。
+>
+> 当 Context 不足时，生成更中性、更短、更低假设的回应，而不是更戏剧化的回应。
+>
+> 只以自然对话回应，不替 TA 做人格分析。
+
+---
+
+# 13. “像 TA / 不像 TA” Calibration Loop
+
+这是 PHASE-010 的核心能力之一。
+
+每条 TA 模拟回复下面支持：
+
+```text
+像 TA
+有一点像
+不像 TA
+```
+
+如果用户点：
+
+> 不像 TA
+
+再出现一个非常轻的纠正：
+
+> TA 更可能怎么说？
+
+例如用户输入：
+
+> “她不会说这么多，一般就是‘知道了，你烦不烦’。”
+
+系统保存的是：
+
+```text
+source = owner_correction
+context = 当前 rehearsal situation
+observation = 用户认为 TA 在类似压力场景下更常使用简短、结束式回应
+```
+
+不是：
+
+```text
+TA personality = avoidant
+```
+
+下一次相关 simulation 必须优先考虑用户纠正。
+
+---
+
+# 14. Simulation 不能自动训练成“事实”
+
+必须严格禁止：
+
+```text
+Simulation Output
+→ Person Fact
+```
+
+正确数据流：
+
+```text
+Simulation
+   ↓
+用户评价像 / 不像
+   ↓
+Simulation Correction
+   ↓
+现实行动
+   ↓
+Reality Feedback
+   ↓
+Person Context 校准
+```
+
+没有用户 correction 或现实反馈的 simulation 对话，仅属于临时 rehearsal history。
+
+---
+
+# 15. Reality Loop
+
+模拟结束后不要只有：
+
+> “练习完成。”
+
+应该提供：
+
+```text
+我准备这么说
+我还不准备开口
+```
+
+如果用户准备现实行动：
+
+创建 Relationship Open Loop：
+
+```text
+和小诺谈最近的学习问题
+status = awaiting_real_world_feedback
+```
+
+之后在首页、Person 页面或相关聊天中自然出现：
+
+> “上次你准备和小诺聊作业的问题，后来怎么样了？”
+
+用户可以快速反馈：
+
+```text
+顺利
+一般
+不太顺
+还没聊
+```
+
+并可补充：
+
+> TA 怎么回应？
+
+这才成为真实 Relationship Evidence。
+
+---
+
+# 16. Relationship Timeline 自动记录规则
+
+以下事件默认进入该 Person 的 Relationship Timeline：
+
+```text
+owner_observation
+rehearsal_started
+rehearsal_completed
+simulation_correction
+planned_action
+real_interaction
+reality_feedback
+shared_relationship_event
+open_loop_resolved
+```
+
+但 Timeline 自动记录不等于长期人格 Pattern。
+
+用户可删除任意自己拥有的记录。
+
+删除之后：
+
+- UI 不再显示。
+- Person Context 不再读取。
+- Simulation 不再使用。
+- 后台聚合需按现有 privacy/ownership contract 重新计算。
+
+---
+
+# 17. Relationship Archive 从“总结”升级成可解释校准
+
+Person 页面应该能回答：
+
+> **拾光这段时间对你们的理解更新了什么？**
+
+例如：
+
+> 之前你担心小诺只要谈到学习就一定会拒绝沟通。
+>
+> 最近两次现实反馈显示，问题更可能出在“从成绩直接进入”，而不是学习这个主题本身。
+>
+> 这是当前较值得继续验证的变化。
+
+必须展示 evidence 数量和来源类型，但不要前台展示技术 confidence 百分比作为人格精度。
+
+---
+
+# 18. Real TA Bridge 延续 PHASE-009
+
+不重新开发社交网络。
+
+复用已有：
+
+```text
+relationship_person_links
+relationship_questions
+relationship_shared_events
+relationships
+```
+
+流程：
+
+```text
+Private Person
+      ↓
+用户邀请 TA
+      ↓
+TA 注册 / 已有账户
+      ↓
+TA 确认这个 Private Person 指的是自己
+      ↓
+Linked Relationship
+```
+
+Link 以后绝对不能覆盖原有用户 Perspective。
+
+必须保持：
+
+```text
+User's view of TA
++
+TA's self-provided data
++
+Explicitly shared relationship events
+```
+
+三层独立。
+
+---
+
+# 19. TA 本人加入之后的 Person Mirror
+
+如果真实 TA 已关联：
+
+Person Mirror 可以显示：
+
+```text
+你的观察
+TA 自己愿意分享的信息
+你们双方明确共享的事件
+```
+
+不能显示：
+
+- TA 私人 Chat History
+- TA 未共享 Memory
+- TA 完整 Birth Profile（除非 TA 明确授权）
+- TA 的 Private Person 数据
+- TA 与其他人的 Relationship Context
+
+---
+
+# 20. 未成年人特殊边界
+
+截图中的典型场景可能是家长创建子女 Person Mirror。
+
+如果 Person 是未成年人，PHASE-010 第一阶段只定位为：
+
+> **家长私人建立的沟通准备工具。**
+
+默认：
+
+- Person Mirror 私密。
+- 出生信息私密。
+- 不进入公开搜索。
+- 不自动邀请未成年人注册。
+- 不进行心理诊断、疾病判断、依恋类型判断或固定人格标签。
+- 不允许系统声称“孩子其实怎么想”。
+
+未成年人真实账户、社交邀请和数据共享如果未来需要支持，必须单独设计安全与隐私规范，不作为 PHASE-010 MVP 默认能力。
+
+---
+
+# 21. 首页与拾光主聊天的回访整合
+
+Person Mirror 的 Open Loop 必须能进入统一 Personal Context。
+
+首页可以自然出现：
+
+> **小诺这件事还没结束**
+>
+> 上次你准备换一种方式聊学习问题。
+>
+> 后来怎么样了？
+
+普通拾光 Chat 在用户再次提到“小诺”时，也应该知道：
+
+- Person 是谁
+- 上次发生了什么
+- 是否存在 Open Loop
+- 最近现实 feedback
+
+但不得无关时频繁主动提起私人 Person。
+
+---
+
+# 22. 用户体验层必须避免的内容
+
+不要再出现：
+
+```text
+还没有足够数据
+模型正在形成
+人物画像完成度 30%
+TA Mirror DNA 62%
+再记录几次系统会更了解
+```
+
+在数据不足时，优先给用户：
+
+```text
+目前已知什么
+还有哪一点值得区分
+下一次最有价值的观察是什么
+```
+
+例如：
+
+> “目前你已经告诉拾光两件重要的事：她最近会主动寻求关注，同时你们陪伴时间变少了。下一次如果又因为学习发生冲突，先观察争执是在争成绩，还是在争回应。”
+
+---
+
+# 23. 推荐技术影响范围
+
+预计涉及：
+
+```text
+components/app/PersonalMirrorDashboard.tsx
+components/app/RelationshipSandbox.tsx
+components/app/RelationshipsHub.tsx
+lib/relationship-context.ts
+lib/relationship-learning.ts
+lib/relationship-rehearsal.ts
+lib/birth-profile.ts
+server/memory/context-builder.ts
+server/routes/context.ts
+scripts/build-sites.mjs
+```
+
+可能新增：
+
+```text
+components/app/PersonMirror.tsx
+components/app/PersonMirror.module.css
+components/app/PersonTimeline.tsx
+components/app/PersonProfileEditor.tsx
+components/app/PersonSimulationChat.tsx
+lib/person-context.ts
+lib/person-birth-profile.ts
+lib/person-simulation.ts
+```
+
+如果使用 Fastify/Postgres 持久化，可能新增：
+
+```text
+server/database/migrations/008_person_mirror.sql
+server/routes/people.ts
+server/memory/person-context-builder.ts
+```
+
+如果生产 authoritative path 仍在 Sites/D1，则必须在正式实现前确认 PHASE-009 规定的数据 source-of-truth，不允许再次创造新的平行 People 系统。
+
+---
+
+# 24. 数据模型建议
+
+最终概念模型：
+
+```text
+Person
+│
+├── Profile
+├── BirthProfile
+├── OwnerObservations
+├── SymbolicReference
+├── RelationshipTimeline
+│    ├── Observation
+│    ├── Rehearsal
+│    ├── Correction
+│    ├── PlannedAction
+│    ├── RealInteraction
+│    └── RealityFeedback
+│
+├── OpenLoops
+└── RealUserLink?
+```
+
+Relationship 层：
+
+```text
+Relationship
+│
+├── ownerUserId
+├── personId
+├── relationshipType
+├── privatePerspective
+├── sharedEvents
+└── linkedUserId?
+```
+
+---
+
+# 25. Success Metrics
+
+PHASE-010 不以“创建多少 Person”为主要成功指标。
+
+真正观察：
+
+| Metric | Meaning |
+| --- | --- |
+| Person → first rehearsal conversion | Person 创建后是否立即有价值 |
+| Rehearsal → planned real action | 演练是否帮助用户走向现实 |
+| Reality feedback rate | AI → Reality 闭环是否成立 |
+| Same Person return rate | 用户是否再次回来处理同一个人 |
+| Simulation correction rate | 用户是否愿意校准 Person Mirror |
+| 30-day interactions per Person | Person continuity 是否成立 |
+| Reality feedback → next rehearsal | 校准是否真的改善后续体验 |
+| Private Person → real TA invite | Social conversion |
+| User returns with “后来发生了什么” | 最关键长期行为 |
+
+最核心的 North Star 行为：
+
+> **用户回来告诉拾光：我和这个人后来发生了什么。**
+
+---
+
+# 26. 开发顺序
+
+## Slice 1 — Person Mirror UX
+
+1. “我在意的人”改成人物入口列表。
+2. 新建独立 Person Mirror 页面。
+3. 增加 Relationship Timeline。
+4. 增加 Observation / delete / edit / important。
+5. 把现有 Relationship Archive 搬到 Person 上下文中。
+
+## Slice 2 — Person Profile & Birth Reference
+
+1. 完善 Person Profile 编辑。
+2. Birth profile。
+3. Bazi adapter。
+4. Astrology adapter。
+5. profileKey / stable reference dedup。
+6. UI 明确 symbolic prior 边界。
+
+## Slice 3 — Person Context
+
+1. 建立 Person Context Builder。
+2. owner observation。
+3. real interaction。
+4. simulation correction。
+5. open loop。
+6. stable reference。
+7. provenance / ranking。
+
+## Slice 4 — Relationship Simulation 2.0
+
+1. Chat-style TA simulation。
+2. Shiguang Coach。
+3. “像 / 有一点像 / 不像 TA”。
+4. correction writeback。
+5. fallback 保留当前 deterministic rehearsal。
+
+## Slice 5 — Reality Loop
+
+1. “我准备这么说”。
+2. planned action → open loop。
+3. homepage follow-up。
+4. reality feedback。
+5. relationship calibration。
+6. next simulation 使用现实反馈。
+
+## Slice 6 — Real Relationship Integration
+
+1. Person link status。
+2. real TA shared facts boundary。
+3. shared events into Person Timeline。
+4. Relationship Context 与 Person Context 合并读取。
+
+---
+
+# 27. MVP Acceptance Criteria
+
+PHASE-010 MVP 必须完整走通以下行为：
+
+```text
+创建 Person
+↓
+填写关系和基础观察
+↓
+可选填写生日
+↓
+自动生成星盘 / 八字 stable reference
+↓
+看到“拾光目前对 TA 的理解”
+↓
+进入自由对话式模拟
+↓
+告诉系统“像 / 不像 TA”
+↓
+模拟历史自动进入 Person Timeline
+↓
+用户准备现实沟通
+↓
+创建 Open Loop
+↓
+下次回来得到 follow-up
+↓
+记录真实回应
+↓
+下一次模拟根据现实 feedback 发生变化
+```
+
+只有这条闭环成立，PHASE-010 MVP 才算完成。
+
+---
+
+# 28. 关键验收案例
+
+## Case 1 — Person 创建即有价值
+
+用户只填写：
+
+```text
+小诺
+女儿
+六年级
+最近开始有些反抗，学习时比较容易顶嘴
+```
+
+保存后不能只显示“资料不足”。
+
+必须立即提供一个低假设、可验证的关系观察和演练入口。
+
+## Case 2 — Birth Profile 不产生人格断言
+
+用户补充完整生日。
+
+系统可以生成 Bazi / Astrology stable reference。
+
+但不能直接断言：
+
+> “小诺就是敏感、叛逆的人。”
+
+## Case 3 — 用户纠正 Simulation
+
+模拟回复：
+
+> “你就是只关心成绩。”
+
+用户点“不像 TA”，并输入：
+
+> “她通常只会说：知道了，你烦不烦。”
+
+下一次类似 rehearsal 应显著减少长篇情绪表达式模拟。
+
+## Case 4 — Timeline 可找回
+
+用户一周内进行三次 rehearsal。
+
+全部应在 Person Timeline 中可查看，不依赖用户手动保存。
+
+## Case 5 — Reality Feedback 更新模型
+
+用户第一次 rehearsal 后现实沟通结果为 rough。
+
+用户记录原因。
+
+下一次 simulation / Shiguang Coach 必须能引用这条现实 feedback，而不是继续重复原建议。
+
+## Case 6 — 删除即停止使用
+
+用户删除某条 Person Observation 或 Reality Feedback。
+
+后续 Person Context 和 Simulation 不得继续使用。
+
+## Case 7 — Real TA Link 不覆盖 Perspective
+
+TA 后续接受 link。
+
+原用户对 TA 的观察继续保持 owner-authored perspective，不能转换成 TA self-profile。
+
+---
+
+# 29. 非目标 / Do Not Build
+
+PHASE-010 不做：
+
+- 陌生人匹配
+- Public Feed
+- “灵魂伴侣”推荐
+- Character.AI 式虚拟人物陪伴
+- TA 的声音克隆
+- TA 照片生成 avatar clone
+- AI 心理诊断 TA
+- 依恋类型自动诊断
+- 自动读取 TA 私聊
+- 未授权双方 Memory 合并
+- 新的八字/占星引擎
+- Multi-Agent 核心架构
+- 第二套 Memory Core
+
+---
+
+# 30. 与 PHASE-009 的边界
+
+PHASE-009 负责：
+
+```text
+History
+Memory
+Explicit Facts
+Open Loops
+People foundation
+Relationship Context foundation
+provenance
+server-authoritative context
+Real Relationship Bridge foundation
+```
+
+PHASE-010 负责：
+
+```text
+Person Mirror UX
+Person Profile
+Person BirthProfile
+Relationship Timeline
+Person Context Builder
+Free-form TA Simulation
+Simulation Calibration
+Reality Feedback Loop
+Person-specific Shiguang Coaching
+```
+
+因此 PHASE-010 不应成为 PHASE-009 的继续堆叠，而是消费 PHASE-009 已经提供的基础能力。
+
+---
+
+# 31. 完成状态定义
+
+PHASE-010 只有同时满足以下条件才能从 `planned` 改为 `completed`：
+
+1. Person Mirror 独立页面真实上线。
+2. Relationship Timeline 可查看、删除、回访。
+3. Person BirthProfile 可选且 stable dedup。
+4. Bazi / Astrology 复用现有专业引擎。
+5. Person Context provenance 正确。
+6. 自由对话式 TA Simulation 可用。
+7. Simulation Correction 可改变后续模拟。
+8. Reality Loop 完整闭环。
+9. Open Loop 能进入拾光首页 / Chat 相关上下文。
+10. Real TA link 后 perspective 保持独立。
+11. 未成年人边界有测试和 UI 保护。
+12. Typecheck / unit / integration / build 通过。
+13. GitHub CI 绿色。
+
+---
+
+# 32. 最终产品循环
+
+```text
+现实中的 TA
+      ↓
+用户观察 / 出生信息 / 已发生互动
+      ↓
+Person Mirror
+      ↓
+Person Context
+      ↓
+Relationship Simulation
+      ↓
+用户纠正模拟
+      ↓
+准备现实行动
+      ↓
+现实互动
+      ↓
+Reality Feedback
+      ↓
+Person Mirror 校准
+      ↓
+下一次更贴近这段关系
+```
+
+未来真实 TA 加入后：
+
+```text
+User Perspective
+        +
+TA Self Perspective
+        +
+Explicit Shared Events
+        ↓
+Real Relationship Mirror
+```
+
+PHASE-010 的最终价值不是：
+
+> “AI 会模拟一个人。”
+
+而是：
+
+> **“LifeMirror 记得这段关系是怎么一路走过来的，并能帮助用户下一次更好地回到现实里。”**
