@@ -12,9 +12,12 @@ export type PrivatePerson = {
   relationshipType?: string;
   userDescription?: string;
   communicationNotes?: string;
+  observations?: RelationshipObservation[];
   createdAt: string;
   updatedAt: string;
 };
+
+export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" };
 
 export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; reportedAt?: string };
 type RelationshipEffectEvent = "rehearsal_started" | "followup_seen" | "action_taken" | "feedback_reported";
@@ -97,10 +100,25 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
     relationshipType: input.relationshipType?.trim().slice(0, 40) || undefined,
     userDescription: input.userDescription?.trim().slice(0, 300) || undefined,
     communicationNotes: input.communicationNotes?.trim().slice(0, 300) || undefined,
-    createdAt: existing?.createdAt ?? now, updatedAt: now,
+    observations: existing?.observations ?? [], createdAt: existing?.createdAt ?? now, updatedAt: now,
   };
   write([person, ...current.filter((item) => item.id !== person.id)]);
   return person;
+}
+
+/** Observations stay explicitly owner-authored; they are never TA personality facts. */
+export function savePersonObservation(personId: string, text: string, source: RelationshipObservation["source"] = "owner_observation") {
+  const clean = text.trim().slice(0, 300); if (!clean) return null;
+  const now = new Date().toISOString(); const people = getPrivatePeople(); const person = people.find((item) => item.id === personId); if (!person) return null;
+  const observation: RelationshipObservation = { id: createClientId(), text: clean, source, createdAt: now, updatedAt: now };
+  write(people.map((item) => item.id === personId ? { ...item, observations: [observation, ...(item.observations ?? [])].slice(0, 30), updatedAt: now } : item));
+  return observation;
+}
+
+export function deletePersonObservation(personId: string, observationId: string) {
+  const people = getPrivatePeople(); const person = people.find((item) => item.id === personId); if (!person) return false;
+  write(people.map((item) => item.id === personId ? { ...item, observations: (item.observations ?? []).filter((entry) => entry.id !== observationId), updatedAt: new Date().toISOString() } : item));
+  return true;
 }
 
 export function deletePrivatePerson(id: string) {

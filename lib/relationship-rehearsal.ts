@@ -36,3 +36,12 @@ export function coachRehearsalReply(reply: string) {
   if (!hasFeeling) return "这句已经在回应对方了；再加上你的感受或需要，会让谈话更容易落到真实问题上。";
   return "这句话既保留了你的感受，也没有替对方下结论。下一步可以加一个小而具体、对方能回答的请求。";
 }
+
+/** A short, corrigible possible reply. Corrections and real feedback outrank this hypothesis. */
+export function createPersonSimulationReply(person: PrivatePerson, userMessage: string) {
+  const corrections = (person.observations ?? []).filter((item) => item.source === "owner_correction").map((item) => item.text).join(" ");
+  if (corrections) return `${person.displayName} · 模拟：${corrections.slice(0, 120)}`;
+  const notes = person.communicationNotes || person.userDescription;
+  if (notes) return `${person.displayName} · 模拟：我听见你在说“${userMessage.slice(0, 42)}”，但我现在不太知道怎么回应。你能先告诉我，你最在意的是什么吗？`;
+  return `${person.displayName} · 模拟：我先听着。你想从哪一件具体的事开始？`;
+}
