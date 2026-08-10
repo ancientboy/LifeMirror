@@ -4,7 +4,7 @@ import { ArrowUp, Brain, CircleNotch, ClockCounterClockwise, Plus, Sparkle, Tras
 import { useEffect, useRef, useState } from "react";
 import { captureExplicitMemory, getMemorySettings, MEMORY_CHANGED_EVENT, retrieveRelevantMemory, type MemorySettings } from "@/lib/shiguang-memory";
 import { createClientId } from "@/lib/client-id";
-import { ACCOUNT_DATA_CHANGED_EVENT } from "@/lib/account-data";
+import { ACCOUNT_DATA_CHANGED_EVENT, writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 import { AccountDataSync } from "./AccountDataSync";
 import { CHAT_HISTORY_CHANGED_EVENT, createChatThread, deleteChatThread, getChatThreads, saveChatThread, type ChatMessage, type ChatThread } from "@/lib/shiguang-chat-history";
 import styles from "./ShiguangChat.module.css";
@@ -33,6 +33,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const [temporary, setTemporary] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [sources, setSources] = useState<ResearchSource[]>([]);
+  const [authenticated, setAuthenticated] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi-v2.png" : "/characters/shiguang/shiguang-west-chibi-v2.png";
   const quickPrompts = mode === "home" ? ["有件事我不知道该跟谁说", "我想理清一段关系", "我不知道该怎么开口", "我只是想先说说"] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
@@ -58,6 +59,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     return () => window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, hydrate);
   }, [context, mode, theme]);
   useEffect(() => { const sync = () => setMemorySettings(getMemorySettings()); sync(); window.addEventListener(MEMORY_CHANGED_EVENT, sync); return () => window.removeEventListener(MEMORY_CHANGED_EVENT, sync); }, []);
+  useEffect(() => { fetch("/api/v1/auth/session", { credentials: "include" }).then((response) => setAuthenticated(response.ok)).catch(() => setAuthenticated(false)); }, []);
   useEffect(() => { const seed = (event: Event) => { const detail = (event as CustomEvent<string>).detail; if (typeof detail === "string") setInput(detail); }; window.addEventListener("life-mirror:chat-seed", seed); return () => window.removeEventListener("life-mirror:chat-seed", seed); }, []);
   useEffect(() => { messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
 
@@ -69,7 +71,16 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     const question = input.trim();
     if (!question || streaming || !thread) return;
     const activeSettings = temporary ? { ...memorySettings, enabled: false } : memorySettings;
-    if (captureExplicitMemory(question, activeSettings)) { setSavedNotice(true); window.setTimeout(() => setSavedNotice(false), 2800); }
+    const capturedFact = captureExplicitMemory(question, activeSettings);
+    if (capturedFact) {
+      if (authenticated) {
+        void fetch("/api/v1/account/facts", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: capturedFact.text }) })
+          .then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
+          .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
+          .catch(() => undefined);
+      }
+      setSavedNotice(true); window.setTimeout(() => setSavedNotice(false), 2800);
+    }
     const memory = retrieveRelevantMemory(question, activeSettings);
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: createClientId(), role: "user", text: question, createdAt: now };
