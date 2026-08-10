@@ -15,7 +15,7 @@ type MirrorHistoryItem = {
   reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string };
 };
 
-export type DailyEvidence = { label: "本命底图" | "今日行运" | "近期状态" | "近期镜像"; detail: string };
+export type DailyEvidence = { label: "本命底图" | "今日行运" | "近期状态" | "近期镜像" | "授权现实"; detail: string };
 
 export type DailyGuidanceContext = {
   mode: "personal_daily_fortune" | "daily_state_note";
@@ -26,7 +26,7 @@ export type DailyGuidanceContext = {
 
 export type DailyGuidance = { theme: string; reason: string; action: string; sources: DailyEvidence["label"][] };
 
-const EVIDENCE_LABELS = new Set<DailyEvidence["label"]>(["本命底图", "今日行运", "近期状态", "近期镜像"]);
+const EVIDENCE_LABELS = new Set<DailyEvidence["label"]>(["本命底图", "今日行运", "近期状态", "近期镜像", "授权现实"]);
 
 /** The model can phrase the note, but never invent its provenance. */
 export function sanitizeDailyGuidance(value: unknown, fallback: DailyGuidance, evidence: DailyEvidence[]): DailyGuidance {
@@ -68,14 +68,16 @@ function recentContext(history: MirrorHistoryItem[]) {
   })).filter((item) => item.question || item.summary);
 }
 
-export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, history: MirrorHistoryItem[]): DailyGuidanceContext {
+export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, history: MirrorHistoryItem[], explicitFacts: Array<{ text?: string; updatedAt?: string }> = []): DailyGuidanceContext {
   const recent = recentContext(history);
+  const authorizedFacts = explicitFacts.map((item) => ({ text: item.text?.trim() ?? "", updatedAt: item.updatedAt ?? "" })).filter((item) => item.text).slice(0, 3);
   if (!profile || !hasUsableCoordinates(profile)) {
     const date = new Date().toISOString().slice(0, 10);
     const evidence: DailyEvidence[] = recent.length
       ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }, { label: "近期镜像", detail: recent[0].source }]
       : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }];
-    return { mode: "daily_state_note", date, evidence, modelContext: { date, mode: "daily_state_note", recent } };
+    if (authorizedFacts.length) evidence.push({ label: "授权现实", detail: `你明确保留：${authorizedFacts[0].text}` });
+    return { mode: "daily_state_note", date, evidence, modelContext: { date, mode: "daily_state_note", recent, authorizedFacts } };
   }
 
   try {
@@ -118,12 +120,13 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
       evidence.push({ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` });
       if (recent[0].source) evidence.push({ label: "近期镜像", detail: recent[0].source });
     }
+    if (authorizedFacts.length) evidence.push({ label: "授权现实", detail: `你明确保留：${authorizedFacts[0].text}` });
     return {
       mode: "personal_daily_fortune",
       date: `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`,
       evidence,
       modelContext: {
-        mode: "personal_daily_fortune", date: today, recent,
+        mode: "personal_daily_fortune", date: today, recent, authorizedFacts,
         natal: {
           bazi: {
             dayMaster: natalBazi.fiveElementProfile.dayMaster, dayMasterElement: natalBazi.fiveElementProfile.dayMasterElement,
@@ -143,7 +146,7 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
     return {
       mode: "daily_state_note", date,
       evidence: recent.length ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }] : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }],
-      modelContext: { date, mode: "daily_state_note", recent },
+      modelContext: { date, mode: "daily_state_note", recent, authorizedFacts },
     };
   }
 }

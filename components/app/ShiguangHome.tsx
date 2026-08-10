@@ -77,17 +77,21 @@ export function ShiguangHome() {
       setLatestQuestion(history[0]?.question?.trim() ?? "");
       const savedAt = history[0]?.savedAt ? Date.parse(history[0].savedAt) : Number.NaN;
       setFollowUpDue(Number.isFinite(savedAt) && Date.now() - savedAt >= 3 * 86_400_000);
-      const profile = getSavedBirthProfile();
-      const dailyContext = buildDailyGuidanceContext(profile, history);
-      const base = fallbackFor(dailyContext, dayIndex);
-      setDaily(base);
-      setDailyMode(dailyContext.mode);
-      setDailyEvidence(dailyContext.evidence);
-      const context = JSON.stringify(dailyContext.modelContext);
-      void fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "daily_guidance", theme: "east", context, messages: [{ role: "user", content: "生成我今天的个人导航。" }] }) })
-        .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); setDaily(sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence)); })
-        .catch(() => setDaily(base))
-        .finally(() => setDailyLoading(false));
+      const applyDaily = (nextHistory: MirrorHistoryItem[], facts: Array<{ text?: string; updatedAt?: string }> = []) => {
+        const dailyContext = buildDailyGuidanceContext(getSavedBirthProfile(), nextHistory, facts);
+        const base = fallbackFor(dailyContext, dayIndex);
+        setDaily(base); setDailyMode(dailyContext.mode); setDailyEvidence(dailyContext.evidence);
+        const context = JSON.stringify(dailyContext.modelContext);
+        void fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "daily_guidance", theme: "east", context, messages: [{ role: "user", content: "生成我今天的个人导航。" }] }) })
+          .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); setDaily(sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence)); })
+          .catch(() => setDaily(base))
+          .finally(() => setDailyLoading(false));
+      };
+      applyDaily(history);
+      // For a signed-in user the D1 account context replaces this device cache.
+      void fetch("/api/v1/account/context", { credentials: "include" }).then(async (response) => response.ok ? await response.json() as { context?: { history?: MirrorHistoryItem[]; facts?: Array<{ text?: string; updatedAt?: string }> } } : null)
+        .then((value) => { if (value?.context) applyDaily(value.context.history ?? [], value.context.facts ?? []); })
+        .catch(() => undefined);
     } catch { setDaily(stateFallbacks[dayIndex]); setDailyMode("daily_state_note"); setDailyLoading(false); }
     const hasGuestSession = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     fetch("/api/v1/auth/session", { credentials: "include" })
