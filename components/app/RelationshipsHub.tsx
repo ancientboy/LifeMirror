@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChatCenteredText, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, ChatCenteredText, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, Warning, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
@@ -111,6 +111,16 @@ export function RelationshipsHub() {
     finally { setBusy(false); }
   }
 
+  async function reportAndBlock(id: string) {
+    if (!window.confirm("举报后会立即屏蔽这位用户，双方的关系镜像和真实对话将无法继续打开。继续吗？")) return;
+    setBusy(true); setNotice("");
+    try {
+      await api(`/api/v1/social/relationships/${id}/report`, { method: "POST", body: JSON.stringify({ reasonCode: "other" }) });
+      await refresh(); setMirror(null); setBridge(null); setNotice("已举报并屏蔽。我们没有上传聊天内容或你的私人资料。");
+    } catch { setNotice("暂时无法完成举报，请稍后重试。"); }
+    finally { setBusy(false); }
+  }
+
   async function updatePrivacy(shareBirth: boolean) {
     if (!data) return;
     const payload = await api<{ profile: SocialPayload["profile"] }>("/api/v1/social/privacy", { method: "PATCH", body: JSON.stringify({ discoverable: Boolean(data.profile.discoverable), shareBirth }) });
@@ -198,10 +208,10 @@ export function RelationshipsHub() {
         {searchResult && <div className={styles.searchResult}><Avatar person={searchResult} /><span><b>{searchResult.name}</b><small>{searchResult.publicId}</small></span><button disabled={busy} onClick={() => void sendRequest(searchResult.id)}><UserPlus />发送申请</button></div>}
       </section>
 
-      {incoming.length > 0 && <section className={styles.panel}><header><div><small>等待你回应</small><h2>好友申请</h2></div><span>{incoming.length}</span></header><div className={styles.people}>{incoming.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>想与你建立私密关系镜像</small></div><button disabled={busy} onClick={() => void act(item.id, "accept")}><Check />接受</button><button className={styles.iconButton} aria-label="忽略申请" onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div></section>}
+      {incoming.length > 0 && <section className={styles.panel}><header><div><small>等待你回应</small><h2>好友申请</h2></div><span>{incoming.length}</span></header><div className={styles.people}>{incoming.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>想与你建立私密关系镜像</small></div><button disabled={busy} onClick={() => void act(item.id, "accept")}><Check />接受</button><button className={styles.iconButton} aria-label="忽略申请" onClick={() => void act(item.id, "remove")}><X /></button><button className={styles.iconButton} aria-label={`举报并屏蔽 ${item.person.name}`} onClick={() => void reportAndBlock(item.id)}><Warning /></button></article>)}</div></section>}
 
       <section className={styles.panel}><header><div><small>RELATIONSHIPS</small><h2>我的关系</h2></div><span>{accepted.length}</span></header>
-        {accepted.length ? <div className={styles.people}>{accepted.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>已建立私密关系</small></div><button disabled={loadingMirror === item.id} onClick={() => void openMirror(item.id)}><Sparkle />{loadingMirror === item.id ? "正在打开" : "关系镜像"}</button><button disabled={busy} onClick={() => void openBridge(item.id)}><ChatCenteredText />真实对话</button><button className={styles.iconButton} aria-label={`移除 ${item.person.name}`} onClick={() => void act(item.id, "remove")}><X /></button></article>)}</div> : <div className={styles.empty}><Heart /><p>关系页还是空的。先邀请一个你真正想理解的人。</p></div>}
+        {accepted.length ? <div className={styles.people}>{accepted.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>已建立私密关系</small></div><button disabled={loadingMirror === item.id} onClick={() => void openMirror(item.id)}><Sparkle />{loadingMirror === item.id ? "正在打开" : "关系镜像"}</button><button disabled={busy} onClick={() => void openBridge(item.id)}><ChatCenteredText />真实对话</button><button className={styles.iconButton} aria-label={`移除 ${item.person.name}`} onClick={() => void act(item.id, "remove")}><X /></button><button className={styles.iconButton} aria-label={`举报并屏蔽 ${item.person.name}`} onClick={() => void reportAndBlock(item.id)}><Warning /></button></article>)}</div> : <div className={styles.empty}><Heart /><p>关系页还是空的。先邀请一个你真正想理解的人。</p></div>}
         {outgoing.length > 0 && <p className={styles.pendingText}>另有 {outgoing.length} 个邀请正在等待回应。</p>}
       </section>
 
