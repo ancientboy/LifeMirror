@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 2591)
+Total output lines: 160
+
 import { calculateAstrology, calculateAstrologyTransits } from "../server/tools/astrology/core.js";
 import { calculateBazi, relateBaziDay } from "../server/tools/bazi/engine.js";
 
@@ -14,6 +17,8 @@ type MirrorHistoryItem = {
   sourceLabel?: string;
   reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string };
 };
+
+type DailyLoopItem = { date?: string; theme?: string; action?: string; status?: "done" | "later" | "release"; checkedInAt?: string };
 
 export type DailyEvidence = { label: "本命底图" | "今日行运" | "近期状态" | "近期镜像" | "授权现实"; detail: string };
 
@@ -34,90 +39,7 @@ export function sanitizeDailyGuidance(value: unknown, fallback: DailyGuidance, e
   const item = value as Record<string, unknown>;
   const text = (key: "theme" | "reason" | "action", max: number) => typeof item[key] === "string" && item[key].trim().length >= 4
     ? [...item[key].trim()].slice(0, max).join("") : fallback[key];
-  const allowed = new Set(evidence.map((entry) => entry.label));
-  const sources = Array.isArray(item.sources)
-    ? item.sources.filter((source): source is DailyEvidence["label"] => typeof source === "string" && EVIDENCE_LABELS.has(source as DailyEvidence["label"]) && allowed.has(source as DailyEvidence["label"])).slice(0, 3)
-    : [];
-  return { theme: text("theme", 52), reason: text("reason", 120), action: text("action", 80), sources: sources.length ? sources : fallback.sources };
-}
-
-function localDate(offsetMinutes: number) {
-  const shifted = new Date(Date.now() + offsetMinutes * 60_000);
-  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
-}
-
-function toNumber(value: string) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function hasUsableCoordinates(profile: DailyBirthProfile) {
-  if (!profile.latitude.trim() || !profile.longitude.trim()) return false;
-  const latitude = Number(profile.latitude);
-  const longitude = Number(profile.longitude);
-  return profile.place.trim().length > 0 && Number.isFinite(latitude) && Number.isFinite(longitude)
-    && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
-}
-
-function recentContext(history: MirrorHistoryItem[]) {
-  return history.slice(0, 3).map((item) => ({
-    question: item.question?.trim() ?? "",
-    source: item.sourceLabel ?? item.source ?? "个人镜像",
-    summary: item.reflection?.shiguangInterpretation ?? item.reflection?.shareableReflection ?? item.reflection?.traditionalJudgment ?? "",
-    savedAt: item.savedAt ?? "",
-  })).filter((item) => item.question || item.summary);
-}
-
-export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, history: MirrorHistoryItem[], explicitFacts: Array<{ text?: string; updatedAt?: string }> = []): DailyGuidanceContext {
-  const recent = recentContext(history);
-  const authorizedFacts = explicitFacts.map((item) => ({ text: item.text?.trim() ?? "", updatedAt: item.updatedAt ?? "" })).filter((item) => item.text).slice(0, 3);
-  if (!profile || !hasUsableCoordinates(profile)) {
-    const date = new Date().toISOString().slice(0, 10);
-    const evidence: DailyEvidence[] = recent.length
-      ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }, { label: "近期镜像", detail: recent[0].source }]
-      : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }];
-    if (authorizedFacts.length) evidence.push({ label: "授权现实", detail: `你明确保留：${authorizedFacts[0].text}` });
-    return { mode: "daily_state_note", date, evidence, modelContext: { date, mode: "daily_state_note", recent, authorizedFacts } };
-  }
-
-  try {
-    const today = localDate(profile.utcOffsetMinutes);
-    const birthHour = profile.unknownTime ? null : profile.hour;
-    const natalAstrology = calculateAstrology({
-      year: profile.year, month: profile.month, day: profile.day, hour: birthHour, minute: profile.minute,
-      utcOffsetMinutes: profile.utcOffsetMinutes, latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
-    });
-    const natalBazi = calculateBazi({
-      year: profile.year, month: profile.month, day: profile.day, hour: birthHour, minute: profile.minute,
-      utcOffsetMinutes: profile.utcOffsetMinutes, longitude: profile.longitude ? toNumber(profile.longitude) : null,
-      useTrueSolarTime: profile.useTrueSolarTime, dayBoundary: profile.dayBoundary, luckGender: profile.luckGender,
-    });
-    const dailyAstrology = calculateAstrology({
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes,
-      latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
-    });
-    const dailyBazi = calculateBazi({
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes, longitude: null,
-      useTrueSolarTime: false, dayBoundary: "midnight", luckGender: null,
-    });
-    const transit = calculateAstrologyTransits(natalAstrology, {
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes,
-      latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
-    });
-    const baziDayRelation = relateBaziDay(natalBazi, dailyBazi);
-    const natalSun = natalAstrology.planets.find((item) => item.key === "sun");
-    const natalMoon = natalAstrology.planets.find((item) => item.key === "moon");
-    const dailySun = dailyAstrology.planets.find((item) => item.key === "sun");
-    const dailyMoon = dailyAstrology.planets.find((item) => item.key === "moon");
-    const dayPillar = dailyBazi.pillars[2];
-    const evidence: DailyEvidence[] = [
-      { label: "本命底图", detail: `日主${natalBazi.fiveElementProfile.dayMaster}${natalBazi.fiveElementProfile.dayMasterElement} · 月令${natalBazi.seasonalProfile.relationToDayMaster} · 太阳${natalSun?.sign.name ?? ""}${natalMoon ? ` · 月亮${natalMoon.sign.name}` : ""}` },
-      { label: "今日行运", detail: transit.contacts[0]
-        ? `${transit.contacts[0].transit}${transit.contacts[0].name}本命${transit.contacts[0].natal} · ${transit.contacts[0].window}主题 · 今日${baziDayRelation.dayPillar}日`
-        : `太阳${dailySun?.sign.name ?? ""} · 月亮${dailyMoon?.sign.name ?? ""}${dayPillar ? ` · 今日${dayPillar.ganZhi}日` : ""}` },
-    ];
-    if (recent.length) {
-      evidence.push({ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` });
+  const allowed = new Set(evidence.map((entry) => entry.label)…1591 tokens truncated…, detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` });
       if (recent[0].source) evidence.push({ label: "近期镜像", detail: recent[0].source });
     }
     if (authorizedFacts.length) evidence.push({ label: "授权现实", detail: `你明确保留：${authorizedFacts[0].text}` });
@@ -126,7 +48,7 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
       date: `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`,
       evidence,
       modelContext: {
-        mode: "personal_daily_fortune", date: today, recent, authorizedFacts,
+        mode: "personal_daily_fortune", date: today, recent, recentCheckins, authorizedFacts,
         natal: {
           bazi: {
             dayMaster: natalBazi.fiveElementProfile.dayMaster, dayMasterElement: natalBazi.fiveElementProfile.dayMasterElement,
@@ -146,7 +68,7 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
     return {
       mode: "daily_state_note", date,
       evidence: recent.length ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }] : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }],
-      modelContext: { date, mode: "daily_state_note", recent, authorizedFacts },
+      modelContext: { date, mode: "daily_state_note", recent, recentCheckins, authorizedFacts },
     };
   }
 }

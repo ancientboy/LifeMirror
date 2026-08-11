@@ -61,9 +61,20 @@ export function updateMirrorHistoryFeedback(id: string, feedback: MirrorHistoryR
 export function updateMirrorHistory(id: string, patch: Pick<MirrorHistoryRecord, "important" | "personId" | "personName" | "openLoopStatus">) {
   window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify(read().map((item) => item.id === id ? { ...item, ...patch } : item)));
   markAccountDataChanged();
+  // Persist edits on the authoritative path immediately. The generic snapshot
+  // sync remains an offline fallback, never the only way a deletion/edit wins.
+  void fetch(`/api/v1/account/history/${encodeURIComponent(id)}`, {
+    method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
+  }).then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
+    .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
+    .catch(() => undefined);
 }
 
 export function deleteMirrorHistory(id: string) {
   window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify(read().filter((item) => item.id !== id)));
   markAccountDataChanged();
+  void fetch(`/api/v1/account/history/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" })
+    .then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
+    .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
+    .catch(() => undefined);
 }
