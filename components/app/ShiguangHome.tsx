@@ -1,17 +1,39 @@
 "use client";
 
-import { Aperture, ArrowRight, Brain, ClockCounterClockwise, Sparkle } from "@phosphor-icons/react";
+import { Aperture, ArrowRight, Brain, CheckCircle, ClockCounterClockwise, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
 import { ShiguangChat } from "./ShiguangChat";
 import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
+import { ACCOUNT_DATA_CHANGED_EVENT, readLocalAccountData, writeLocalAccountData } from "@/lib/account-data";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
 import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 type StartingPath = { label: string; tool: string; href: string; question?: string };
+type DailyLoopStatus = "done" | "later" | "release";
+type DailyLoopRecord = { date: string; theme: string; action: string; status?: DailyLoopStatus; checkedInAt?: string };
+
+const DAILY_LOOP_KEY = "dailyLoop";
+
+function localDay(date = new Date()) {
+  // A daily promise and its evening check-in must follow the user's device day.
+  // Hard-coding a single timezone made the card roll over at the wrong time for
+  // anyone outside China.
+  return new Intl.DateTimeFormat("en-CA").format(date);
+}
+
+function readDailyLoop(): DailyLoopRecord[] {
+  const value = readLocalAccountData().settings[DAILY_LOOP_KEY];
+  return Array.isArray(value) ? value.filter((item): item is DailyLoopRecord => Boolean(item && typeof item === "object" && typeof (item as DailyLoopRecord).date === "string" && typeof (item as DailyLoopRecord).action === "string")).slice(0, 14) : [];
+}
+
+function saveDailyLoop(records: DailyLoopRecord[]) {
+  const snapshot = readLocalAccountData();
+  writeLocalAccountData({ ...snapshot, settings: { ...snapshot.settings, [DAILY_LOOP_KEY]: records.slice(0, 14) } });
+}
 
 const startingPaths: StartingPath[] = [
   { label: "我想更了解自己", tool: "从命盘开始", href: "/app/chart/" },
@@ -57,6 +79,7 @@ export function ShiguangHome() {
   const [dailyLoading, setDailyLoading] = useState(true);
   const [dailyMode, setDailyMode] = useState<DailyGuidanceContext["mode"]>("daily_state_note");
   const [dailyEvidence, setDailyEvidence] = useState<DailyEvidence[]>([]);
+  const [dailyLoop, setDailyLoop] = useState<DailyLoopRecord[]>([]);
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
@@ -71,6 +94,24 @@ export function ShiguangHome() {
     setReady(true);
   }
 
+  function ensureTodayAction(next: DailyGuidance) {
+    const today = localDay();
+    setDailyLoop((current) => {
+      const existing = current.find((item) => item.date === today);
+      const records = existing
+        ? current.map((item) => item.date === today && !item.status ? { ...item, theme: next.theme, action: next.action } : item)
+        : [{ date: today, theme: next.theme, action: next.action }, ...current].slice(0, 14);
+      saveDailyLoop(records);
+      return records;
+    });
+  }
+
+  function checkIn(status: DailyLoopStatus) {
+    const today = localDay();
+    const records = dailyLoop.some((item) => item.date === today) ? dailyLoop.map((item) => item.date === today ? { ...item, status, checkedInAt: new Date().toISOString() } : item) : [{ date: today, theme: daily.theme, action: daily.action, status, checkedInAt: new Date().toISOString() }, ...dailyLoop];
+    setDailyLoop(records); saveDailyLoop(records);
+  }
+
   useEffect(() => {
     try {
       const history = JSON.parse(window.localStorage.getItem("life-mirror:guest-history:v1") ?? "[]") as MirrorHistoryItem[];
@@ -80,10 +121,10 @@ export function ShiguangHome() {
       const applyDaily = (nextHistory: MirrorHistoryItem[], facts: Array<{ text?: string; updatedAt?: string }> = []) => {
         const dailyContext = buildDailyGuidanceContext(getSavedBirthProfile(), nextHistory, facts);
         const base = fallbackFor(dailyContext, dayIndex);
-        setDaily(base); setDailyMode(dailyContext.mode); setDailyEvidence(dailyContext.evidence);
+        setDaily(base); setDailyMode(dailyContext.mode); setDailyEvidence(dailyContext.evidence); ensureTodayAction(base);
         const context = JSON.stringify(dailyContext.modelContext);
         void fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "daily_guidance", theme: "east", context, messages: [{ role: "user", content: "生成我今天的个人导航。" }] }) })
-          .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); setDaily(sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence)); })
+          .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); const generated = sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence); setDaily(generated); ensureTodayAction(generated); })
           .catch(() => setDaily(base))
           .finally(() => setDailyLoading(false));
       };
@@ -93,11 +134,26 @@ export function ShiguangHome() {
         .then((value) => { if (value?.context) applyDaily(value.context.history ?? [], value.context.facts ?? []); })
         .catch(() => undefined);
     } catch { setDaily(stateFallbacks[dayIndex]); setDailyMode("daily_state_note"); setDailyLoading(false); }
+    setDailyLoop(readDailyLoop());
     const hasGuestSession = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     fetch("/api/v1/auth/session", { credentials: "include" })
       .then((response) => { if (!response.ok) throw new Error("signed_out"); window.localStorage.removeItem("life-mirror:guest-session:v1"); setReady(true); })
       .catch(() => setReady(hasGuestSession));
   }, []);
+
+  useEffect(() => {
+    // AccountDataSync hydrates the local cache from the authenticated account
+    // after this screen mounts. Re-read it so a signed-in user's daily loop
+    // cannot be momentarily replaced by stale device data.
+    const refresh = () => setDailyLoop(readDailyLoop());
+    window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
+  }, []);
+
+  const todayRecord = dailyLoop.find((item) => item.date === localDay());
+  const weeklyRecords = dailyLoop.filter((item) => item.status && Date.now() - Date.parse(`${item.date}T12:00:00`) < 7 * 86_400_000);
+  const weeklyDone = weeklyRecords.filter((item) => item.status === "done").length;
+  const weeklyReleased = weeklyRecords.filter((item) => item.status === "release").length;
 
   useEffect(() => {
     const continuation = new URLSearchParams(window.location.search).get("continue");
@@ -123,8 +179,12 @@ export function ShiguangHome() {
     <section className={styles.daily} aria-busy={dailyLoading}>
       <div className={styles.dailyHeading}><small><Sparkle /> {dateLabel} · {dailyMode === "personal_daily_fortune" ? "今日运势" : "给你的轻提醒"}</small><h2>{daily.theme}</h2><p>{daily.reason}</p></div>
       <div className={styles.dailyAction}><b>如果今天只做一件小事</b><span>{daily.action}</span></div>
+      <div className={styles.checkIn}>
+        {todayRecord?.status ? <><small><CheckCircle weight="fill" /> 今天已回访：{todayRecord.status === "done" ? "我做了" : todayRecord.status === "later" ? "还没" : "今天先放下"}</small><button type="button" onClick={() => seedChat(`今天的「${todayRecord.action}」我${todayRecord.status === "done" ? "做了" : todayRecord.status === "later" ? "还没做" : "决定先放下"}。`)}>和拾光接着聊</button></> : <><small>今晚回来告诉拾光，今天这一步后来怎样了。</small><span><button type="button" onClick={() => checkIn("done")}>我做了</button><button type="button" onClick={() => checkIn("later")}>还没</button><button type="button" onClick={() => checkIn("release")}>先放下</button></span></>}
+      </div>
       <details><summary>这条提醒从哪里来？</summary><div className={styles.evidenceList}>{dailyEvidence.filter((item) => daily.sources.includes(item.label)).map((item) => <div key={`${item.label}-${item.detail}`}><b>{item.label}</b><span>{item.detail}</span></div>)}</div>{dailyMode === "daily_state_note" && <Link href="/app/profile/birth/">补充出生资料，开启个人运势 <ArrowRight /></Link>}</details>
     </section>
+    {weeklyRecords.length >= 2 && <section className={styles.weeklyMirror}><small><Sparkle /> 本周镜像 · 只根据你确认过的回访</small><h2>这周你给了 {weeklyDone} 件事一个落点{weeklyReleased ? `，也允许 ${weeklyReleased} 件事暂时放下` : ""}。</h2><p>不是每天都要完成什么。你愿意回来确认一件事，本身就在让拾光更贴近你的真实节奏。</p><button type="button" onClick={() => seedChat(`我想一起回看这周：我完成了${weeklyDone}件今日行动，暂时放下了${weeklyReleased}件。请从这些真实回访开始聊，不要编造经历。`)}>一起回看 <ArrowRight /></button></section>}
     <AppBottomNav active="home" />
   </main>;
 }
