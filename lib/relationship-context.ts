@@ -14,6 +14,9 @@ export type PrivatePerson = {
   communicationNotes?: string;
   /** Owner-entered birth data. It is private and never a claim made by TA. */
   birthProfile?: PersonBirthProfile;
+  /** Deterministic symbolic facts for this exact birth profile. Never promoted
+   * to a fact or observation about the person's character. */
+  stableReferences?: PersonStableReferences;
   /** Prevents social linking/invitation flows for a private minor mirror. */
   isMinor?: boolean;
   observations?: RelationshipObservation[];
@@ -30,6 +33,13 @@ export type PersonBirthProfile = {
   longitude?: number;
   timeKnown: boolean;
   profileKey: string;
+};
+
+export type PersonStableReferences = {
+  profileKey: string;
+  calculatedAt: string;
+  bazi: { summary: string; payload: unknown };
+  astrology: { summary: string; payload: unknown };
 };
 
 export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" | "simulation_assessment" };
@@ -110,7 +120,7 @@ export function getPrivatePeople(): PrivatePerson[] {
   return Array.isArray(value) ? value.filter((item): item is PrivatePerson => Boolean(item && typeof item === "object" && typeof (item as PrivatePerson).id === "string" && typeof (item as PrivatePerson).displayName === "string")) : [];
 }
 
-export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "userDescription" | "communicationNotes" | "birthProfile" | "isMinor"> & { id?: string }) {
+export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "userDescription" | "communicationNotes" | "birthProfile" | "stableReferences" | "isMinor"> & { id?: string }) {
   const displayName = input.displayName.trim().slice(0, 40);
   if (!displayName) return null;
   const current = getPrivatePeople();
@@ -122,6 +132,7 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
     userDescription: input.userDescription?.trim().slice(0, 300) || undefined,
     communicationNotes: input.communicationNotes?.trim().slice(0, 300) || undefined,
     birthProfile: input.birthProfile,
+    stableReferences: input.stableReferences ?? (existing?.stableReferences?.profileKey === input.birthProfile?.profileKey ? existing?.stableReferences : undefined),
     isMinor: input.isMinor === true,
     observations: existing?.observations ?? [], createdAt: existing?.createdAt ?? now, updatedAt: now,
   };

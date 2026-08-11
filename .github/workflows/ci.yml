@@ -11,23 +11,8 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: life_mirror_test
-          POSTGRES_USER: life_mirror
-          POSTGRES_PASSWORD: life_mirror
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U life_mirror -d life_mirror_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       NODE_ENV: test
-      DATABASE_URL: postgres://life_mirror:life_mirror@localhost:5432/life_mirror_test
       WEB_ORIGIN: http://localhost:4173
       LLM_PROVIDER: disabled
       REFLECTION_TOKEN_SECRET: integration-reflection-secret-at-least-32-chars
@@ -45,11 +30,9 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
-      - name: Migrate database
-        run: npm run db:migrate
-      - name: Test authentication and Daily Mirror against PostgreSQL
-        run: npm run test:integration
-      - name: Build web and API
+      - name: Build Sites Worker and static app
         run: npm run build
+      - name: Verify D1 Worker release contract
+        run: npm run test:worker
       - name: Build API container
         run: docker build --build-arg SOURCE_COMMIT="$GITHUB_SHA" -f deploy/api.Dockerfile .

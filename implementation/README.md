@@ -26,11 +26,13 @@ Development must follow phase order and preserve separation between Knowledge, D
 | 002 Daily Mirror MVP | Completed | 0.6.0 | — |
 | 003 Memory System | Completed | 0.7.0 | — |
 | 004 Personal Mirror Dashboard | Completed | 0.8.0 | Initial Mirror DNA ships on first save; repeated patterns still require two independent signals |
-| 005 Knowledge Expansion | In progress | 0.8.0 foundation | Reviewed sources and expert fixtures for non-Liuyao systems |
-| 006 Advanced Mirror Runtime | Core complete | 0.8.0 | Add asynchronous delivery and production observability |
-| 007 Professional Symbolic Systems | Beta | 0.8.0 | Historical timezone, source completion and expert gold-case review |
-| 008 Retention & Private Relationships | Beta | 0.8.0 | Notification delivery, relationship model depth, moderation operations |
-| 009 Shiguang Context & Relationship Foundation | Planned | 0.9.0 | Finish context/history source-of-truth, remove legacy Mirror DNA/manual-save paths, and close CI gates |
-| 010 Person Mirror & Relationship Simulation | Planned | 0.10.0 | Build Person Mirror UX, timeline, birth references, calibrated TA simulation, and reality-feedback loop on PHASE-009 foundations |
+| 005 Knowledge Expansion | Foundation complete | 0.8.0 | Ongoing expert source curation is content maintenance, not a P0–P3 runtime blocker |
+| 006 Advanced Mirror Runtime | Implementation complete | 0.8.0 | Validate configured providers and delivery channel after deployment |
+| 007 Professional Symbolic Systems | Unified beta complete | 0.8.0 | Continue expert gold-case curation without changing the symbolic/reality boundary |
+| 008 Retention & Private Relationships | Implementation complete | 0.8.0 | Run production notification and moderation smoke tests after deployment |
+| 009 Shiguang Context & Relationship Foundation | Completed | 0.9.0 | — |
+| 010 Person Mirror & Relationship Simulation | Implementation complete | 0.10.0 | Verify the deployed D1 cross-device and real-relationship paths |
+
+The consolidated P0–P3 implementation in `PHASE-011-TO-019-EXECUTION-ROADMAP.md` is code-complete. Production-only acceptance remains explicitly separated from implementation status.
 
 Status is based on acceptance evidence in each phase file, not commit titles. Update the relevant phase document in the same change as implementation.

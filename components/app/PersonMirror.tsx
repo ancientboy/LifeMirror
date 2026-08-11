@@ -5,6 +5,8 @@ import { useState } from "react";
 import { buildPersonContext, personMirrorInsight } from "@/lib/person-context";
 import { coachRehearsalReply, createPersonSimulationReply } from "@/lib/relationship-rehearsal";
 import { createRelationshipLoop, deletePersonObservation, getPrivatePeople, getRelationshipLoopsForPerson, savePersonObservation, savePrivatePerson, saveSimulationAssessment, type PrivatePerson } from "@/lib/relationship-context";
+import { calculateBazi } from "@/server/tools/bazi/engine";
+import { calculateAstrology } from "@/server/tools/astrology/core";
 import styles from "./PersonMirror.module.css";
 import profileStyles from "./PersonMirrorProfile.module.css";
 
@@ -42,8 +44,22 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
     const utcOffsetMinutes = Number(form.get("utcOffsetMinutes")); const latitude = Number(form.get("latitude")); const longitude = Number(form.get("longitude"));
     const hasCoordinates = Number.isFinite(utcOffsetMinutes) && Number.isFinite(latitude) && Number.isFinite(longitude);
     const birthProfile = date ? { date, time: time || undefined, place: place || undefined, utcOffsetMinutes: hasCoordinates ? utcOffsetMinutes : undefined, latitude: hasCoordinates ? latitude : undefined, longitude: hasCoordinates ? longitude : undefined, timeKnown: Boolean(time), profileKey: `${date}|${time || "unknown"}|${place}|${hasCoordinates ? `${utcOffsetMinutes}|${latitude.toFixed(4)}|${longitude.toFixed(4)}` : "location-pending"}` } : undefined;
-    const saved = savePrivatePerson({ id: person.id, displayName: String(form.get("displayName") ?? ""), relationshipType: String(form.get("relationshipType") ?? ""), userDescription: String(form.get("description") ?? ""), communicationNotes: String(form.get("communicationNotes") ?? ""), birthProfile, isMinor: form.get("isMinor") === "on" });
-    if (saved?.birthProfile && hasCoordinates) void fetch(`/api/v1/people/${encodeURIComponent(saved.id)}/stable-reference`, { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ date: saved.birthProfile.date, time: saved.birthProfile.time, place: saved.birthProfile.place, utcOffsetMinutes, latitude, longitude, isMinor: saved.isMinor === true }) }).catch(() => undefined);
+    let stableReferences = currentPerson.stableReferences?.profileKey === birthProfile?.profileKey ? currentPerson.stableReferences : undefined;
+    if (birthProfile && hasCoordinates && !stableReferences) {
+      const [year, month, day] = birthProfile.date.split("-").map(Number);
+      const [hour, minute] = birthProfile.time ? birthProfile.time.split(":").map(Number) : [null, 0];
+      const bazi = calculateBazi({ year, month, day, hour, minute, utcOffsetMinutes, timeZone: null, dayBoundary: "midnight", useTrueSolarTime: false, longitude: null, luckGender: null });
+      const astrology = calculateAstrology({ year, month, day, hour, minute, utcOffsetMinutes, timeZone: null, latitude, longitude });
+      const sun = astrology.planets.find((item) => item.key === "sun");
+      const ascendant = astrology.angles.find((item) => item.key === "asc");
+      stableReferences = {
+        profileKey: birthProfile.profileKey,
+        calculatedAt: new Date().toISOString(),
+        bazi: { summary: `${bazi.pillars.filter(Boolean).map((item) => item!.ganZhi).join(" · ")}；${bazi.fiveElementProfile.dayMaster}${bazi.fiveElementProfile.dayMasterElement}日主`, payload: bazi },
+        astrology: { summary: `${sun ? `太阳${sun.sign.name}` : "太阳位置已计算"}${ascendant ? ` · 上升${ascendant.sign.name}` : " · 出生时间未知，未生成上升"}`, payload: astrology },
+      };
+    }
+    savePrivatePerson({ id: person.id, displayName: String(form.get("displayName") ?? ""), relationshipType: String(form.get("relationshipType") ?? ""), userDescription: String(form.get("description") ?? ""), communicationNotes: String(form.get("communicationNotes") ?? ""), birthProfile, stableReferences, isMinor: form.get("isMinor") === "on" });
     setProfileOpen(false); refresh((value) => value + 1);
   }
 
@@ -51,7 +67,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
     <header><button onClick={onClose}><ArrowLeft />返回</button><small>你的视角 · 私密保存</small></header>
     <section className={styles.hero}><p>{currentPerson.relationshipType || "我在意的人"}</p><h1>{currentPerson.displayName}</h1><span>这是你目前视角下的 TA 镜像；真实互动会比模拟更重要。</span><div><button onClick={() => onPractice(currentPerson)}><Sparkle />快速演练</button><button onClick={() => document.getElementById("person-observation")?.focus()}><Plus />记录刚刚发生的事</button></div></section>
     <section className={styles.grid}><article><small>拾光目前看到的线索</small><h2>{personMirrorInsight(context)}</h2><p>来自你的 {context.ownerObservations.length} 条观察、{context.realInteractions.length} 次真实反馈、{context.simulationCorrections.length} 条模拟纠正和 {context.simulationAssessments.length} 次轻量校正。它们不是对 TA 的人格结论。</p></article><article><small>未结束的事</small><h2>{context.openLoops.length ? `有 ${context.openLoops.length} 次沟通正等你带回结果` : "暂时没有等待中的沟通"}</h2><p>现实里的回应会成为下一次练习最优先的线索。</p></article></section>
-    <section className={styles.timeline}><header><span><small>TA 的镜像资料</small><h2>只保留你的视角</h2></span><button type="button" onClick={() => setProfileOpen((value) => !value)}>{profileOpen ? "收起" : "完善资料"}</button></header><p>{currentPerson.userDescription || "目前还没有你的观察。可以从一件最近发生的具体事开始。"}</p>{currentPerson.communicationNotes && <p>沟通时你想留意：{currentPerson.communicationNotes}</p>}{currentPerson.birthProfile && <p>出生底图：{currentPerson.birthProfile.date}{currentPerson.birthProfile.timeKnown ? ` · ${currentPerson.birthProfile.time}` : " · 时间未知"}{currentPerson.birthProfile.place ? ` · ${currentPerson.birthProfile.place}` : ""}。它只作为待现实验证的象征参考，不会成为人格结论。</p>}{currentPerson.isMinor && <p>未成年人保护已启用：此镜像仅作为你的私密沟通准备，不提供邀请或共享入口。</p>}{profileOpen && <form className={profileStyles.profileForm} onSubmit={(event) => { event.preventDefault(); void updateProfile(new FormData(event.currentTarget)); }}>
+    <section className={styles.timeline}><header><span><small>TA 的镜像资料</small><h2>只保留你的视角</h2></span><button type="button" onClick={() => setProfileOpen((value) => !value)}>{profileOpen ? "收起" : "完善资料"}</button></header><p>{currentPerson.userDescription || "目前还没有你的观察。可以从一件最近发生的具体事开始。"}</p>{currentPerson.communicationNotes && <p>沟通时你想留意：{currentPerson.communicationNotes}</p>}{currentPerson.birthProfile && <p>出生底图：{currentPerson.birthProfile.date}{currentPerson.birthProfile.timeKnown ? ` · ${currentPerson.birthProfile.time}` : " · 时间未知"}{currentPerson.birthProfile.place ? ` · ${currentPerson.birthProfile.place}` : ""}。它只作为待现实验证的象征参考，不会成为人格结论。</p>}{currentPerson.stableReferences && <p>稳定参考：命盘 {currentPerson.stableReferences.bazi.summary}；星盘 {currentPerson.stableReferences.astrology.summary}。这里保留的是可复算盘面，不是对 TA 的人格判断。</p>}{currentPerson.isMinor && <p>未成年人保护已启用：此镜像仅作为你的私密沟通准备，不提供邀请或共享入口。</p>}{profileOpen && <form className={profileStyles.profileForm} onSubmit={(event) => { event.preventDefault(); void updateProfile(new FormData(event.currentTarget)); }}>
       <div className={profileStyles.profileFields}>
         <label><span>TA 的昵称</span><input name="displayName" defaultValue={currentPerson.displayName} required maxLength={40}/></label>
         <label><span>和你的关系</span><input name="relationshipType" defaultValue={currentPerson.relationshipType} maxLength={40} placeholder="例如：女儿、朋友、同事"/></label>

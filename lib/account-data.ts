@@ -62,6 +62,10 @@ export function getGuestMigrationId() {
 }
 
 export function markAccountDataChanged() {
+  // This timestamp marks an intentional local mutation.  The Worker compares
+  // it with the authoritative D1 snapshot before accepting scalar settings,
+  // while record collections are still merged by stable id and tombstone.
+  window.localStorage.setItem(KEYS.updatedAt, new Date().toISOString());
   window.dispatchEvent(new CustomEvent(ACCOUNT_DATA_CHANGED_EVENT));
 }
 

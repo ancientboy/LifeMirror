@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, ChatCenteredText, Check, Copy, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, Warning, X } from "@phosphor-icons/react";
+import { ArrowRight, Bell, ChatCenteredText, Check, Copy, EnvelopeSimple, Heart, LinkSimple, LockKey, MagnifyingGlass, PaperPlaneTilt, ShareNetwork, ShieldCheck, Sparkle, UserPlus, UsersThree, Warning, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
 import { getPrivatePeople, type PrivatePerson } from "@/lib/relationship-context";
 import styles from "./RelationshipsHub.module.css";
+import notificationStyles from "./RelationshipsHubNotifications.module.css";
 
 type Person = { id: string; name: string; avatar: string };
 type Relationship = { id: string; status: "pending" | "accepted" | "blocked"; direction: "incoming" | "outgoing"; person: Person; createdAt: string };
@@ -15,6 +16,17 @@ type RelationMirror = { ready: boolean; me: Person; other: Person; mySign?: stri
 type BridgeQuestion = { id: string; question: string; response?: string | null; status: "open" | "answered" | "archived"; createdAt: string; answeredAt?: string | null };
 type BridgeLink = { id: string; privatePersonId: string; displayName: string; ownerUserId: string; linkedUserId: string; status: "pending" | "linked" | "declined"; createdAt: string };
 type Bridge = { relationshipId: string; other: Person; links: BridgeLink[]; receivedQuestions: BridgeQuestion[]; sentQuestions: BridgeQuestion[]; events: Array<{ id: string; kind: string; content: string; createdAt: string; authorUserId: string }> };
+type NotificationType = "relationship_request" | "relationship_accepted" | "relationship_question" | "share_response";
+type NotificationItem = { id: string; type: NotificationType; relationshipId?: string | null; state: "unread" | "read"; createdAt: string; readAt?: string | null };
+type NotificationPreferences = { relationshipRequest: boolean | number; relationshipAccepted: boolean | number; relationshipQuestion: boolean | number; shareResponse: boolean | number; quietHoursEnabled: boolean | number; emailEnabled: boolean | number };
+type NotificationPayload = { notifications: NotificationItem[]; preferences: NotificationPreferences };
+
+const notificationCopy: Record<NotificationType, string> = {
+  relationship_request: "你收到一条新的关系邀请",
+  relationship_accepted: "你的关系邀请已被接受",
+  relationship_question: "有人在等你的真实回应",
+  share_response: "你的镜像分享收到回应",
+};
 
 async function api<T>(path: string, init?: RequestInit) {
   const response = await fetch(path, { credentials: "include", headers: { "content-type": "application/json", ...init?.headers }, ...init });
@@ -44,9 +56,13 @@ export function RelationshipsHub() {
   const [privatePeople, setPrivatePeople] = useState<PrivatePerson[]>([]);
   const [personToLink, setPersonToLink] = useState("");
   const [busy, setBusy] = useState(false);
+  const [notificationData, setNotificationData] = useState<NotificationPayload | null>(null);
 
   async function refresh() {
-    try { setData(await api<SocialPayload>("/api/v1/social/me")); setSignedOut(false); }
+    try {
+      const [social, notifications] = await Promise.all([api<SocialPayload>("/api/v1/social/me"), api<NotificationPayload>("/api/v1/account/notifications")]);
+      setData(social); setNotificationData(notifications); setSignedOut(false);
+    }
     catch { setSignedOut(true); }
   }
 
@@ -186,6 +202,21 @@ export function RelationshipsHub() {
     finally { setBusy(false); }
   }
 
+  async function readNotification(item: NotificationItem) {
+    if (item.state === "read") return;
+    await api(`/api/v1/account/notifications/${item.id}`, { method: "PATCH", body: JSON.stringify({ state: "read" }) });
+    setNotificationData((current) => current ? { ...current, notifications: current.notifications.map((entry) => entry.id === item.id ? { ...entry, state: "read", readAt: new Date().toISOString() } : entry) } : current);
+  }
+
+  async function saveNotificationPreferences(patch: Partial<NotificationPreferences>) {
+    if (!notificationData) return;
+    const next = { ...notificationData.preferences, ...patch };
+    const value = await api<{ preferences: NotificationPreferences }>("/api/v1/account/notifications/preferences", { method: "PATCH", body: JSON.stringify({
+      relationshipRequest: Boolean(next.relationshipRequest), relationshipAccepted: Boolean(next.relationshipAccepted), relationshipQuestion: Boolean(next.relationshipQuestion), shareResponse: Boolean(next.shareResponse), quietHoursEnabled: Boolean(next.quietHoursEnabled), emailEnabled: Boolean(next.emailEnabled),
+    }) });
+    setNotificationData({ ...notificationData, preferences: value.preferences });
+  }
+
   const returnPath = typeof window === "undefined" ? "/app/relationships/" : window.location.pathname + window.location.search;
   const loginHref = `/app/?login=1&return=${encodeURIComponent(returnPath)}`;
   const inviteLink = data && typeof window !== "undefined" ? `${window.location.origin}/app/relationships/?invite=${data.profile.inviteCode}` : "";
@@ -207,6 +238,12 @@ export function RelationshipsHub() {
         <div className={styles.codeEntry}><input aria-label="好友 LifeMirror ID" value={inviteCode} onChange={(event) => { setInviteCode(event.target.value.toUpperCase()); setSearchResult(null); }} placeholder="输入 LM-A1B2C3D4" /><button disabled={busy || !inviteCode.trim()} onClick={() => void searchFriend()}><MagnifyingGlass />搜索</button></div>
         {searchResult && <div className={styles.searchResult}><Avatar person={searchResult} /><span><b>{searchResult.name}</b><small>{searchResult.publicId}</small></span><button disabled={busy} onClick={() => void sendRequest(searchResult.id)}><UserPlus />发送申请</button></div>}
       </section>
+
+      {notificationData && <section className={notificationStyles.card}>
+        <header><div><small><Bell /> 私密通知</small><h2>最近发生的事</h2><p>这里只显示固定提示，不复制关系问题、分享文案或人物资料。</p></div><span>{notificationData.notifications.filter((item) => item.state === "unread").length}</span></header>
+        <div className={notificationStyles.list}>{notificationData.notifications.length ? notificationData.notifications.slice(0, 8).map((item) => <button type="button" className={item.state === "unread" ? notificationStyles.unread : ""} key={item.id} onClick={() => void readNotification(item)}><Bell /><span><b>{notificationCopy[item.type]}</b><small>{new Date(item.createdAt).toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}{item.state === "unread" ? " · 点击标为已读" : " · 已读"}</small></span></button>) : <p>暂时没有新的关系通知。</p>}</div>
+        <details className={notificationStyles.settings}><summary>提醒设置</summary><label><input type="checkbox" checked={Boolean(notificationData.preferences.relationshipRequest)} onChange={(event) => void saveNotificationPreferences({ relationshipRequest: event.target.checked })}/>关系邀请</label><label><input type="checkbox" checked={Boolean(notificationData.preferences.relationshipAccepted)} onChange={(event) => void saveNotificationPreferences({ relationshipAccepted: event.target.checked })}/>邀请接受</label><label><input type="checkbox" checked={Boolean(notificationData.preferences.relationshipQuestion)} onChange={(event) => void saveNotificationPreferences({ relationshipQuestion: event.target.checked })}/>真实问题</label><label><input type="checkbox" checked={Boolean(notificationData.preferences.shareResponse)} onChange={(event) => void saveNotificationPreferences({ shareResponse: event.target.checked })}/>分享回应</label><label><input type="checkbox" checked={Boolean(notificationData.preferences.quietHoursEnabled)} onChange={(event) => void saveNotificationPreferences({ quietHoursEnabled: event.target.checked })}/>夜间不发站外提醒</label><label><EnvelopeSimple /><input type="checkbox" checked={Boolean(notificationData.preferences.emailEnabled)} onChange={(event) => void saveNotificationPreferences({ emailEnabled: event.target.checked })}/>允许发送不含私人内容的邮件提醒</label></details>
+      </section>}
 
       {incoming.length > 0 && <section className={styles.panel}><header><div><small>等待你回应</small><h2>好友申请</h2></div><span>{incoming.length}</span></header><div className={styles.people}>{incoming.map((item) => <article key={item.id}><Avatar person={item.person} /><div><b>{item.person.name}</b><small>想与你建立私密关系镜像</small></div><button disabled={busy} onClick={() => void act(item.id, "accept")}><Check />接受</button><button className={styles.iconButton} aria-label="忽略申请" onClick={() => void act(item.id, "remove")}><X /></button><button className={styles.iconButton} aria-label={`举报并屏蔽 ${item.person.name}`} onClick={() => void reportAndBlock(item.id)}><Warning /></button></article>)}</div></section>}
 

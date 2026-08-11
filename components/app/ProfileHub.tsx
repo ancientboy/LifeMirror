@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, Camera, Check, Copy, DeviceMobile, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, Check, Copy, DeviceMobile, DownloadSimple, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -108,6 +108,23 @@ export function ProfileHub() {
     window.location.href = "/app/";
   }
 
+  async function exportAccount() {
+    const response = await fetch("/api/v1/account/export", { credentials: "include" });
+    if (!response.ok) return;
+    const blob = new Blob([JSON.stringify(await response.json(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = `lifemirror-export-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm("这会永久删除账户、镜像记录、人物与关系数据，且无法恢复。确定继续吗？")) return;
+    const confirmation = window.prompt("请输入“永久删除”以确认：");
+    if (confirmation !== "永久删除") return;
+    const response = await fetch("/api/v1/account", { method: "DELETE", credentials: "include" });
+    if (response.ok) { window.localStorage.clear(); window.location.href = "/app/"; }
+  }
+
   function persistProfile() {
     setProfile(saveUserProfile(profile));
     setProfileSaved(true);
@@ -154,7 +171,9 @@ export function ProfileHub() {
       <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>邀请朋友、处理申请与查看双方关系镜像</small></span><ArrowRight /></Link>
       {guest ? <Link href="/app/?login=1"><LockKey /><span><b>登录并同步</b><small>进入邮箱登录，不再跳回聊天首页</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
       {publicId && <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicId); setProfileSaved(true); window.setTimeout(() => setProfileSaved(false), 1800); } catch { /* ID remains visible for manual copy */ } }}><IdentificationCard /><span><b>LifeMirror ID</b><small>{publicId} · 点击复制，好友可用它搜索你</small></span><Copy /></button>}
+      {accountEmail && <button type="button" onClick={() => void exportAccount()}><DownloadSimple /><span><b>导出我的数据</b><small>下载账户、镜像、表达偏好与可追溯理解记录</small></span><ArrowRight /></button>}
       {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
+      {accountEmail && <button type="button" onClick={() => void deleteAccount()}><Trash /><span><b>永久删除账户</b><small>删除后，后台任务也不能重建这些记录</small></span><ArrowRight /></button>}
     </section>
 
     <section className={styles.birthPanel} aria-labelledby="birth-profile-title">

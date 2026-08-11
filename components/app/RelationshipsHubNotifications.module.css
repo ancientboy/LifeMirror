@@ -1,0 +1,17 @@
+.card { max-width: 720px; margin: 14px auto; padding: 22px; border: 1px solid #d8d2c6; border-radius: 24px; background: rgba(255,252,246,.9); box-shadow: 0 16px 42px rgba(49,63,58,.07); }
+.card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.card header small { display: flex; align-items: center; gap: 6px; color: #a9823d; font-size: 8px; letter-spacing: .13em; }
+.card h2 { margin: 6px 0; font: 25px Georgia, "Songti SC", serif; }
+.card header p, .list > p { margin: 0; color: #68716c; font-size: 10px; line-height: 1.6; }
+.card > header > span { display: grid; place-items: center; min-width: 30px; height: 30px; border-radius: 50%; color: #315d52; background: #dce8e1; font-weight: 700; }
+.list { display: grid; gap: 8px; margin-top: 15px; }
+.list > button { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e0dbd0; border-radius: 13px; text-align: left; background: #faf8f2; color: #59645f; }
+.list > button.unread { border-color: rgba(49,93,82,.25); background: #edf5f0; }
+.list > button > svg { width: 20px; color: #315d52; }
+.list > button span { display: grid; gap: 3px; }
+.list > button small { color: #7b847f; font-size: 9px; }
+.settings { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e0dbd0; }
+.settings summary { cursor: pointer; color: #315d52; font-size: 11px; font-weight: 700; }
+.settings label { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: #59645f; font-size: 10px; }
+.settings label svg { width: 16px; }
+@media (max-width: 600px) { .card { padding: 18px; border-radius: 20px; } }
