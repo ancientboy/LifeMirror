@@ -10,7 +10,9 @@ RUN npm run build:api && cp -R server/database/migrations dist/server/database/m
 
 FROM node:22-alpine AS runtime
 
+ARG SOURCE_COMMIT=0000000
 ENV NODE_ENV=production
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

@@ -17,6 +17,7 @@ const config: AppConfig = {
   REFLECTION_TOKEN_SECRET: "test-reflection-secret-at-least-32-characters",
   LLM_PROVIDER: "disabled",
   LLM_BASE_URL: "https://api.openai.com/v1",
+  SOURCE_COMMIT: "13fe75d",
 };
 
 test("liveness endpoint does not depend on external services", async () => {
@@ -29,7 +30,8 @@ test("liveness endpoint does not depend on external services", async () => {
   assert.deepEqual(response.json(), {
     status: "ok",
     service: "life-mirror-api",
-    phase: "PHASE-006",
+    phase: "PHASE-011-019",
+    sourceCommit: "13fe75d",
   });
 
   await app.close();

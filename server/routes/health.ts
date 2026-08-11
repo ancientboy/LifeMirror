@@ -11,7 +11,8 @@ export async function registerHealthRoutes(
   app.get("/health/live", async () => ({
     status: "ok",
     service: "life-mirror-api",
-    phase: "PHASE-006",
+    phase: "PHASE-011-019",
+    sourceCommit: dependencies.config?.SOURCE_COMMIT ?? "unknown",
   }));
 
   app.get("/health/metrics", async (request, reply) => {

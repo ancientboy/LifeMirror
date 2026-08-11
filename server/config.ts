@@ -15,6 +15,10 @@ const environmentSchema = z.object({
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
   METRICS_TOKEN: z.string().min(24).optional(),
+  // Release identity is intentionally supplied at build/deploy time.  It is
+  // exposed only by liveness so an incident can be tied back to the exact
+  // source revision without logging any account or request data.
+  SOURCE_COMMIT: z.string().regex(/^[0-9a-f]{7,64}$/i).optional(),
 });
 
 export type AppConfig = z.infer<typeof environmentSchema>;

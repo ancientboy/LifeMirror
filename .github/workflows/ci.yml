@@ -52,4 +52,4 @@ jobs:
       - name: Build web and API
         run: npm run build
       - name: Build API container
-        run: docker build -f deploy/api.Dockerfile .
+        run: docker build --build-arg SOURCE_COMMIT="$GITHUB_SHA" -f deploy/api.Dockerfile .

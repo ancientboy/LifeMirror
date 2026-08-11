@@ -34,7 +34,7 @@ export type PersonBirthProfile = {
 
 export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" | "simulation_assessment" };
 
-export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; reportedAt?: string };
+export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; updatedAt: string; reportedAt?: string };
 type RelationshipEffectEvent = "rehearsal_started" | "followup_seen" | "action_taken" | "feedback_reported";
 type RelationshipFollowupSettings = { enabled?: boolean; dismissed?: Record<string, string>; seen?: Record<string, string> };
 
@@ -50,6 +50,12 @@ function readSettings(): Record<string, unknown> {
 function write(people: PrivatePerson[], loops = getRelationshipLoops()) {
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readSettings(), privatePeople: people.slice(0, 40), relationshipLoops: loops.slice(0, 100), privatePeopleUpdatedAt: new Date().toISOString() }));
   markAccountDataChanged();
+}
+
+function addDeletedSettingId(key: "deletedPrivatePeople" | "deletedRelationshipLoops", id: string) {
+  const settings = readSettings();
+  const current = Array.isArray(settings[key]) ? settings[key].filter((value): value is string => typeof value === "string") : [];
+  return [...new Set([id, ...current])].slice(0, 100);
 }
 
 function followupSettings(): RelationshipFollowupSettings {
@@ -148,7 +154,18 @@ export function deletePersonObservation(personId: string, observationId: string)
 }
 
 export function deletePrivatePerson(id: string) {
-  write(getPrivatePeople().filter((person) => person.id !== id), getRelationshipLoops().filter((loop) => loop.personId !== id));
+  const people = getPrivatePeople().filter((person) => person.id !== id);
+  const removedLoops = getRelationshipLoops().filter((loop) => loop.personId === id).map((loop) => loop.id);
+  const settings = readSettings();
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    ...settings,
+    privatePeople: people.slice(0, 40),
+    relationshipLoops: getRelationshipLoops().filter((loop) => loop.personId !== id).slice(0, 100),
+    deletedPrivatePeople: addDeletedSettingId("deletedPrivatePeople", id),
+    deletedRelationshipLoops: [...new Set([...removedLoops, ...(Array.isArray(settings.deletedRelationshipLoops) ? settings.deletedRelationshipLoops.filter((value): value is string => typeof value === "string") : [])])].slice(0, 100),
+    privatePeopleUpdatedAt: new Date().toISOString(),
+  }));
+  markAccountDataChanged();
   void deleteRelationshipEffectData({ relationshipKey: id });
 }
 
@@ -164,20 +181,23 @@ export function getRelationshipLoopsForPerson(personId: string): RelationshipLoo
 export function deleteRelationshipLoop(id: string) {
   const loop = getRelationshipLoops().find((item) => item.id === id);
   if (!loop) return false;
-  write(getPrivatePeople(), getRelationshipLoops().filter((item) => item.id !== id));
+  const settings = readSettings();
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, relationshipLoops: getRelationshipLoops().filter((item) => item.id !== id), deletedRelationshipLoops: addDeletedSettingId("deletedRelationshipLoops", id), privatePeopleUpdatedAt: new Date().toISOString() }));
+  markAccountDataChanged();
   void deleteRelationshipEffectData({ loopId: id });
   return true;
 }
 
 export function createRelationshipLoop(input: Pick<RelationshipLoop, "personId" | "situation" | "need">) {
-  const now = new Date().toISOString(); const loop: RelationshipLoop = { id: createClientId(), personId: input.personId, situation: input.situation.trim().slice(0, 180), need: input.need?.trim().slice(0, 180) || undefined, status: "awaiting_action", createdAt: now };
+  const now = new Date().toISOString(); const loop: RelationshipLoop = { id: createClientId(), personId: input.personId, situation: input.situation.trim().slice(0, 180), need: input.need?.trim().slice(0, 180) || undefined, status: "awaiting_action", createdAt: now, updatedAt: now };
   write(getPrivatePeople(), [loop, ...getRelationshipLoops()]);
   void recordRelationshipEffectEvent(loop, "rehearsal_started");
   return loop;
 }
 
 export function reportRelationshipLoop(id: string, input: { actionTaken: boolean; outcome?: RelationshipLoop["outcome"]; reflection?: string }) {
-  const next = getRelationshipLoops().map((loop) => loop.id === id ? { ...loop, status: "reported" as const, actionTaken: input.actionTaken, outcome: input.outcome, reflection: input.reflection?.trim().slice(0, 300) || undefined, reportedAt: new Date().toISOString() } : loop);
+  const reportedAt = new Date().toISOString();
+  const next = getRelationshipLoops().map((loop) => loop.id === id ? { ...loop, status: "reported" as const, actionTaken: input.actionTaken, outcome: input.outcome, reflection: input.reflection?.trim().slice(0, 300) || undefined, reportedAt, updatedAt: reportedAt } : loop);
   write(getPrivatePeople(), next);
   const reported = next.find((loop) => loop.id === id) ?? null;
   if (reported) {
