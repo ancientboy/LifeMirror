@@ -199,18 +199,31 @@ function luckProfile(eightChar: EightCharValue, input: BaziInput, dayStem: strin
   });
   const currentYear = new Date().getUTCFullYear();
   const active = yun.getDaYun(12).find((item: any) => currentYear >= item.getStartYear() && currentYear <= item.getEndYear()) ?? yun.getDaYun(12)[0];
-  const annual = active.getLiuNian().filter((item: any) => item.getYear() >= currentYear - 1 && item.getYear() <= currentYear + 8).map((item: any) => {
+  const annualItems = active.getLiuNian().filter((item: any) => item.getYear() >= currentYear - 1 && item.getYear() <= currentYear + 8);
+  const annual = annualItems.map((item: any) => {
     const ganZhi = item.getGanZhi();
     const branch = [...ganZhi][1];
     return { year: item.getYear(), ganZhi, age: item.getAge(), tenGod: tenGod(dayStem, [...ganZhi][0]), branchTenGod: tenGod(dayStem, BRANCH_MAIN_STEM[branch]), branchRelations: branchRelationsTo(branch, natalBranches) };
   });
+  const currentAnnual = annualItems.find((item: any) => item.getYear() === currentYear);
+  const monthly = currentAnnual ? currentAnnual.getLiuYue().map((item: any) => {
+    const ganZhi = item.getGanZhi();
+    const branch = [...ganZhi][1];
+    return {
+      month: `${item.getMonthInChinese()}月`, ganZhi,
+      tenGod: tenGod(dayStem, [...ganZhi][0]),
+      branchTenGod: tenGod(dayStem, BRANCH_MAIN_STEM[branch]),
+      branchRelations: branchRelationsTo(branch, natalBranches),
+    };
+  }) : [];
   return {
     gender: input.luckGender,
     direction: yun.isForward() ? "顺排" : "逆排",
     startsAfter: `${yun.getStartYear()} 年 ${yun.getStartMonth()} 个月 ${yun.getStartDay()} 天${yun.getStartHour() ? ` ${yun.getStartHour()} 小时` : ""}`,
     cycles,
     annual,
-    method: `按出生年干阴阳与${input.luckGender === "male" ? "男" : "女"}命顺逆规则排运；采用三天折一年（lunar-javascript sect 2）计算起运。年龄按虚岁序列展示。`,
+    monthly,
+    method: `按出生年干阴阳与${input.luckGender === "male" ? "男" : "女"}命顺逆规则排运；采用三天折一年（lunar-javascript sect 2）计算起运。年龄按虚岁序列展示；流月按当年节令月序列列出，只呈现干支与本命关系。`,
   };
 }
 

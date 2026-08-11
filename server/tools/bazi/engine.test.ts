@@ -41,6 +41,8 @@ test("adds reproducible five-element, branch relation and luck-cycle layers", ()
   assert.ok(result.luck);
   assert.equal(result.luck?.cycles.length, 8);
   assert.ok(result.luck?.annual.length);
+  assert.equal(result.luck?.monthly.length, 12);
+  assert.equal(new Set(result.luck?.monthly.map((item) => item.ganZhi)).size, 12);
   assert.ok(result.tenGodProfile.dominant.length);
   assert.equal(result.seasonalProfile.monthBranch, result.pillars[1]?.branch);
   assert.match(result.seasonalProfile.method, /月支主气/);

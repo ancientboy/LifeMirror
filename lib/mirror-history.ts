@@ -36,26 +36,71 @@ function read(): MirrorHistoryRecord[] {
   } catch { return []; }
 }
 
-export function saveMirrorHistory(record: Omit<MirrorHistoryRecord, "id" | "savedAt">) {
+export type MirrorHistoryPersistence = "server" | "guest" | "pending";
+
+function writeLocalRecord(next: MirrorHistoryRecord) {
   const current = read();
-  const existing = record.dedupKey ? current.find((item) => item.dedupKey === record.dedupKey) : undefined;
-  if (existing) return existing;
-  const next: MirrorHistoryRecord = { ...record, id: createClientId(), savedAt: new Date().toISOString() };
-  window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify([next, ...current].slice(0, 80)));
+  const existingIndex = current.findIndex((item) => item.id === next.id || (next.dedupKey && item.dedupKey === next.dedupKey));
+  const history = existingIndex >= 0
+    ? current.map((item, index) => index === existingIndex ? { ...item, ...next } : item)
+    : [next, ...current];
+  window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify(history.slice(0, 80)));
   markAccountDataChanged();
-  // A signed-in user writes to D1 immediately; localStorage is then only a
-  // cache/offline fallback. Guests receive 401 and keep the local record.
-  void fetch("/api/v1/account/history", {
-    method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ history: next }),
-  }).then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
-    .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
-    .catch(() => undefined);
-  return next;
 }
 
-export function updateMirrorHistoryFeedback(id: string, feedback: MirrorHistoryRecord["feedback"]) {
+export async function persistMirrorHistory(next: MirrorHistoryRecord): Promise<MirrorHistoryPersistence> {
+  try {
+    const response = await fetch("/api/v1/account/history", {
+      method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ history: next }),
+    });
+    if (response.ok) {
+      const value = await response.json() as { data?: AccountSnapshot };
+      if (value.data) writeLocalAccountData(value.data);
+      return "server";
+    }
+    if (response.status === 401) {
+      writeLocalRecord(next);
+      return "guest";
+    }
+    writeLocalRecord(next);
+    return "pending";
+  } catch {
+    // Keep an explicit offline copy. AccountDataSync will retry the D1 merge,
+    // while the result page remains honest that the write is not confirmed.
+    writeLocalRecord(next);
+    return "pending";
+  }
+}
+
+export async function saveMirrorHistory(record: Omit<MirrorHistoryRecord, "id" | "savedAt">) {
+  const current = read();
+  const existing = record.dedupKey ? current.find((item) => item.dedupKey === record.dedupKey) : undefined;
+  const next: MirrorHistoryRecord = existing ?? { ...record, id: createClientId(), savedAt: new Date().toISOString() };
+  const persistence = await persistMirrorHistory(next);
+  return { record: next, persistence };
+}
+
+function writeLocalFeedback(id: string, feedback: MirrorHistoryRecord["feedback"]) {
   window.localStorage.setItem(MIRROR_HISTORY_KEY, JSON.stringify(read().map((item) => item.id === id ? { ...item, feedback } : item)));
   markAccountDataChanged();
+}
+
+export async function updateMirrorHistoryFeedback(id: string, feedback: MirrorHistoryRecord["feedback"]): Promise<MirrorHistoryPersistence> {
+  try {
+    const response = await fetch(`/api/v1/account/history/${encodeURIComponent(id)}`, {
+      method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ feedback }),
+    });
+    if (response.ok) {
+      const value = await response.json() as { data?: AccountSnapshot };
+      if (value.data) writeLocalAccountData(value.data);
+      return "server";
+    }
+    writeLocalFeedback(id, feedback);
+    return response.status === 401 ? "guest" : "pending";
+  } catch {
+    writeLocalFeedback(id, feedback);
+    return "pending";
+  }
 }
 
 export function updateMirrorHistory(id: string, patch: Pick<MirrorHistoryRecord, "important" | "personId" | "personName" | "openLoopStatus">) {

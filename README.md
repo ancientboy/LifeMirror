@@ -2,9 +2,9 @@
 
 **AI 人生镜像理论与产品项目**
 
-**Current application version:** 0.8.0
+**Current application version:** 0.9.0
 
-**Development status:** the personal companion loop and private relationship beta are live; professional symbolic systems and proactive delivery remain in staged completion. See [`implementation/README.md`](implementation/README.md).
+**Development status:** the P0–P3 engineering release is implemented with D1 as the production authority, content-free operations, deterministic professional-system tests, and a production acceptance runner. Independent human expert certification remains a separate external review. See [`implementation/README.md`](implementation/README.md).
 
 > 帮助每一个人，看见自己，理解自己，成为自己。
 
@@ -25,7 +25,7 @@ The shipped product now includes:
 - LifeMirror ID、好友搜索／申请、私密关系列表、双方授权的关系镜像；
 - 分享链接回应与关系申请承接，而非仅导出图片。
 
-仍未完成的关键能力：站外推送／邮件触达、关系洞察的专业匹配模型、专家金标准抽检，以及公开发布前所需的举报与风控运营后台。站内通知中心、用户按类别的通知开关和发布前的匿名金标准门禁已接入 D1／Worker。
+当前工程版本还包括：站外邮件 outbox 与用户 opt-in、关系举报与固定原因码处置、无正文运行后台、反馈聚合，以及可在真实 D1 上重复执行且自动清理合成账户的发布验收。独立命理师／占星师人工抽检不由软件测试替代，仍作为外部认证项单独记录。
 
 ---
 

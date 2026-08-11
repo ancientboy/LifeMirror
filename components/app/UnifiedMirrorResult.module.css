@@ -29,6 +29,11 @@
 .shell aside a { width: max-content; display: flex; align-items: center; gap: 6px; margin-top: 13px; padding: 9px 12px; border-radius: 999px; color: #315d52; background: #edf4ef; font-size: 11px; font-weight: 700; }
 .shell aside a svg { width: 14px; }
 .notice { display: flex; align-items: center; gap: 7px; margin: 0; padding: 10px 12px; border-radius: 12px; background: #a9823d12; color: #76694f; font-size: 12px; }
+.notice button { margin-left: .3rem; border: 0; border-bottom: 1px solid currentColor; padding: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+.feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #6b756f; font-size: 12px; }
+.feedback button { border: 1px solid rgba(49, 93, 82, .18); border-radius: 999px; padding: 7px 12px; color: inherit; background: rgba(255, 255, 255, .72); cursor: pointer; }
+.feedback button[aria-pressed="true"] { border-color: #315d52; color: #315d52; background: #edf4ef; }
+.feedback small { flex-basis: 100%; color: #82745b; }
 .west { border-color: rgba(98, 93, 130, .2); background: linear-gradient(145deg, rgba(255, 252, 246, .95), rgba(241, 238, 248, .94)); color: #302d42; }
 .west header small, .west article small, .west aside small { color: #625d82; }
 .west .grid article, .west aside { border-color: rgba(98, 93, 130, .14); }

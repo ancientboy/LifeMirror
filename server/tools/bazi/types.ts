@@ -63,6 +63,7 @@ export interface BaziResult {
     startsAfter: string;
     cycles: Array<{ ganZhi: string; startYear: number; endYear: number; startAge: number; endAge: number; stemTenGod: string; branchTenGod: string }>;
     annual: Array<{ year: number; ganZhi: string; age: number; tenGod: string; branchTenGod: string; branchRelations: Array<{ natalBranch: string; kind: "合" | "冲" | "害" | "刑" }> }>;
+    monthly: Array<{ month: string; ganZhi: string; tenGod: string; branchTenGod: string; branchRelations: Array<{ natalBranch: string; kind: "合" | "冲" | "害" | "刑" }> }>;
     method: string;
   };
   rules: string[];

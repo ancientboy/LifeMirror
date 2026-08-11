@@ -15,6 +15,9 @@ test("professional deck contains 22 major and 56 unique minor arcana", () => {
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "major").length, 22);
   assert.equal(TAROT_DECK.filter((card) => card.arcana === "minor").length, 56);
   assert.equal(new Set(TAROT_DECK.map((card) => card.id)).size, 78);
+  assert.ok(TAROT_DECK.every((card) => card.provenance.sourceEdition === "The Pictorial Key to the Tarot (1910)"));
+  assert.equal(new Set(TAROT_DECK.map((card) => card.provenance.sourceLocator)).size, 78);
+  assert.ok(TAROT_DECK.every((card) => card.provenance.interpretationVersion === "tarot-rws-reference/1.1"));
   assert.match(TAROT_DECK.find((card) => card.id === "cups-five")?.upright ?? "", /失落/);
   assert.match(TAROT_DECK.find((card) => card.id === "swords-seven")?.reversed ?? "", /隐瞒暴露/);
   assert.notEqual(TAROT_DECK.find((card) => card.id === "wands-two")?.upright, TAROT_DECK.find((card) => card.id === "cups-two")?.upright);

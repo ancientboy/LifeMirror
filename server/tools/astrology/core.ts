@@ -1,5 +1,5 @@
 import { AstroTime, Body, Ecliptic, GeoVector, MakeTime, SiderealTime, e_tilt } from "astronomy-engine";
-import type { AstrologyInput, AstrologyResult, AstrologyTransitResult, ChartAngle, NatalAspect, PlanetPosition, TransitAspect, ZodiacSign } from "./types.js";
+import type { AstrologyInput, AstrologyProgressionResult, AstrologyResult, AstrologyTransitResult, ChartAngle, NatalAspect, PlanetPosition, TransitAspect, ZodiacSign } from "./types.js";
 import { resolveCivilOffsetMinutes } from "../../civil-time.js";
 
 export const ZODIAC: ZodiacSign[] = [
@@ -182,5 +182,34 @@ export function calculateAstrologyTransits(natal: AstrologyResult, input: Astrol
     transits,
     contacts: transitAspects(transits, natal).slice(0, 8),
     method: "以当天当地中午的热带黄道地心行星位置，与本命行星及出生时间已知时的上升点、天顶计算主要相位；按行星速度、作用点与相位紧密度排序，并标注观察时间尺度。",
+  };
+}
+
+/**
+ * Secondary progressions use the conventional day-for-a-year mapping. They
+ * are calculated separately from transits and never overwrite the natal chart.
+ */
+export function calculateSecondaryProgressions(natal: AstrologyResult, birth: AstrologyInput, target: AstrologyInput): AstrologyProgressionResult {
+  const birthUtc = Date.parse(natal.utcTime);
+  const targetUtc = Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0);
+  if (!Number.isFinite(birthUtc) || targetUtc < birthUtc) throw new Error("推运目标日期不能早于出生日期");
+  const ageYears = (targetUtc - birthUtc) / (365.2425 * 86_400_000);
+  const progressed = new Date(birthUtc + ageYears * 86_400_000);
+  const progressedChart = calculateAstrology({
+    year: progressed.getUTCFullYear(), month: progressed.getUTCMonth() + 1, day: progressed.getUTCDate(),
+    hour: progressed.getUTCHours(), minute: progressed.getUTCMinutes(), utcOffsetMinutes: 0,
+    latitude: birth.latitude, longitude: birth.longitude,
+  });
+  const contacts = transitAspects(progressedChart.planets, natal).map((contact) => ({
+    ...contact,
+    window: "长期" as const,
+    rationale: `次限${contact.transit}与本命${contact.natal}形成${contact.name}，容许度 ${contact.orb}°；只作为阶段性象征线索，并与当期现实经历核对。`,
+  })).slice(0, 8);
+  return {
+    targetDate: new Date(targetUtc).toISOString().slice(0, 10),
+    progressedDate: progressed.toISOString(),
+    progressedPlanets: progressedChart.planets,
+    contacts,
+    method: "采用次限推运 day-for-a-year：出生后一个民用日对应一回归年。推运与行运、本命盘分层保存，不将推运相位解释为必然事件。",
   };
 }

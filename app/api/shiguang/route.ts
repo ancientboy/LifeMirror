@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formatJudgmentFactPack, hasOnlyKnownFactIds, isJudgmentFactPack, type JudgmentFactPack } from "@/lib/shiguang-judgment";
 import { mirrorResultQualityError } from "@/lib/mirror-result-quality";
 import { buildPlannerMessages, formatResearchContext, normalizeResearchResult, parseShiguangPlan, type ResearchResult } from "@/server/llm/shiguang-runtime";
+import { classifySafetyBoundary, CRISIS_RESPONSE, safetyPrompt } from "@/lib/safety-boundary";
 
 export const runtime = "nodejs";
 
@@ -179,6 +180,10 @@ export async function POST(request: Request) {
     ? parsed.data.factPack : undefined;
   if (parsed.data.mode === "mirror_result" && !pack) return Response.json({ error: "missing_or_invalid_fact_pack" }, { status: 400 });
 
+  const latestUserMessage = [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const safetyBoundary = parsed.data.mode === "chat" ? classifySafetyBoundary(latestUserMessage) : "none";
+  if (safetyBoundary === "crisis") return new Response(CRISIS_RESPONSE, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-shiguang-safety-boundary": "crisis" } });
+
   const plan = parsed.data.mode === "chat" ? await planChat(baseUrl, apiKey, model, parsed.data.messages) : { intent: "conversation" as const };
   const research = plan.intent === "research" && plan.searchQuery ? await searchWeb(plan.searchQuery) : undefined;
   const prompt = parsed.data.mode === "mirror_result" && parsed.data.kind
@@ -189,7 +194,7 @@ export async function POST(request: Request) {
         ? researchedChatPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory, research)
         : plan.intent === "research"
           ? `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}\n\n用户要核实实时外部事实，但本服务当前没有可用检索来源。坦诚说明你此刻无法可靠查证；不要凭记忆或猜测作答。你仍可帮用户明确接下来应从哪类官方来源核实。`
-          : systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory);
+          : `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}${safetyPrompt(safetyBoundary) ? `\n\n<high_risk_boundary>\n${safetyPrompt(safetyBoundary)}\n</high_risk_boundary>` : ""}`;
   let text: string;
   try {
     text = await complete(baseUrl, apiKey, { model, stream: true, temperature: .72, max_tokens: 900, messages: [{ role: "system", content: prompt }, ...parsed.data.messages] });

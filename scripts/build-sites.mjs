@@ -88,6 +88,22 @@ function decodeModelResponse(source) {
   return chunks.join("");
 }
 
+function safetyBoundary(text) {
+  const value = String(text || "");
+  if (/自杀|轻生|不想活|结束生命|伤害自己|割腕|跳楼|活不下去/u.test(value)) return "crisis";
+  if (/症状|确诊|用药|停药|剂量|手术|疼痛|生病|治疗|心理疾病|抑郁|焦虑症/u.test(value)) return "health";
+  if (/起诉|诉讼|仲裁|合同纠纷|报警|法律责任|判刑|律师/u.test(value)) return "legal";
+  if (/投资|借贷|贷款|加杠杆|合约交易|买入|卖出|理财|税务/u.test(value)) return "finance";
+  return "none";
+}
+
+function highRiskInstruction(boundary) {
+  if (boundary === "health") return "这是健康相关问题：不得诊断、解释检查结果、指导用药或替代医生；明确建议联系合格医疗人员。";
+  if (boundary === "legal") return "这是法律相关问题：不判断法律责任或替代律师；提醒核对所在地规则并咨询合格法律专业人士。";
+  if (boundary === "finance") return "这是财务相关问题：不得给出个性化买卖、杠杆或收益承诺；先说明风险与信息缺口。";
+  return "";
+}
+
 function randomHex(bytes = 24) {
   const values = new Uint8Array(bytes);
   crypto.getRandomValues(values);
@@ -357,7 +373,7 @@ async function writeAccountData(db, userId, data) {
   return { ...clean, updatedAt: now };
 }
 
-const RUNTIME_VERSIONS = { observation_extractor: 1, context_builder: 2, shiguang_expression_policy: 1, account_merge_policy: 2, notification_policy: 2, release_recovery_contract: 1 };
+const RUNTIME_VERSIONS = { observation_extractor: 1, context_builder: 2, shiguang_expression_policy: 1, account_merge_policy: 2, notification_policy: 2, release_recovery_contract: 1, release_acceptance_contract: 1 };
 
 async function enqueueObservationTask(env, userId, sourceEventId) {
   const now = new Date().toISOString();
@@ -736,6 +752,11 @@ async function authApi(request, env, pathname) {
     const current = account.history[index];
     const next = { ...current, updatedAt: new Date().toISOString() };
     if (typeof allowed.important === "boolean") next.important = allowed.important;
+    if (["resonates", "needs_correction"].includes(String(allowed.feedback || ""))) {
+      next.feedback = allowed.feedback;
+      await env.DB.prepare("INSERT INTO mirror_feedback_events (user_id, history_id, feedback, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, history_id) DO UPDATE SET feedback = excluded.feedback, updated_at = excluded.updated_at")
+        .bind(user.id, id, allowed.feedback, next.updatedAt).run();
+    }
     if (["open", "resolved", "unknown"].includes(String(allowed.openLoopStatus || ""))) next.openLoopStatus = allowed.openLoopStatus;
     if (Object.prototype.hasOwnProperty.call(allowed, "personId")) next.personId = typeof allowed.personId === "string" && allowed.personId.trim() ? allowed.personId.trim().slice(0, 120) : undefined;
     if (Object.prototype.hasOwnProperty.call(allowed, "personName")) next.personName = typeof allowed.personName === "string" && allowed.personName.trim() ? allowed.personName.trim().slice(0, 80) : undefined;
@@ -749,6 +770,7 @@ async function authApi(request, env, pathname) {
     const next = account.history.filter((item) => item && String(item.id || "") !== id);
     if (next.length === account.history.length) return json({ error: "history_not_found" }, 404);
     await recordTombstone(env.DB, user.id, "history", id);
+    await env.DB.prepare("DELETE FROM mirror_feedback_events WHERE user_id = ? AND history_id = ?").bind(user.id, id).run();
     await deleteMemoryEvent(env, user.id, "mirror_history", id);
     const data = await writeAccountData(env.DB, user.id, { ...account, history: next });
     return json({ data });
@@ -1137,22 +1159,85 @@ async function drainNotificationOutbox(env, limit = 8) {
   return { processed: (rows.results || []).length, sent, failed };
 }
 
-function opsAuthorized(request, env) {
+async function opsAuthorized(request, env) {
   const expected = String(env.OPS_TOKEN || env.METRICS_TOKEN || "");
-  return expected.length >= 24 && request.headers.get("x-ops-token") === expected;
+  if (expected.length >= 24 && request.headers.get("x-ops-token") === expected) return true;
+  const allowed = String(env.OPS_ADMIN_EMAILS || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  if (!allowed.length) return false;
+  const user = await sessionUser(request, env);
+  return Boolean(user?.email && allowed.includes(String(user.email).toLowerCase()));
+}
+
+async function runReleaseAcceptance(env) {
+  const runId = crypto.randomUUID();
+  const userA = crypto.randomUUID();
+  const userB = crypto.randomUUID();
+  const relationshipId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const checks = {
+    twoDeviceMerge: false,
+    deletionWinsOverStaleDevice: false,
+    guestMigrationIdempotent: false,
+    logicalBackupRestore: false,
+    relationshipBlockIsolation: false,
+    syntheticCleanup: false,
+  };
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO identity_users (id, email, display_name, provider, created_at, updated_at) VALUES (?, ?, 'Release A', 'release_acceptance', ?, ?)").bind(userA, "acceptance+" + userA + "@invalid.lifemirror.local", now, now),
+      env.DB.prepare("INSERT INTO identity_users (id, email, display_name, provider, created_at, updated_at) VALUES (?, ?, 'Release B', 'release_acceptance', ?, ?)").bind(userB, "acceptance+" + userB + "@invalid.lifemirror.local", now, now),
+    ]);
+    await mergeAuthoritativeAccountData(env.DB, userA, { history: [{ id: "device-a-history", question: "synthetic", savedAt: now, updatedAt: now }] });
+    const merged = await mergeAuthoritativeAccountData(env.DB, userA, { facts: [{ id: "device-b-fact", text: "synthetic", createdAt: now, updatedAt: now }] });
+    checks.twoDeviceMerge = merged.history.some((item) => item.id === "device-a-history") && merged.facts.some((item) => item.id === "device-b-fact");
+
+    await recordTombstone(env.DB, userA, "history", "device-a-history");
+    const afterStaleDevice = await mergeAuthoritativeAccountData(env.DB, userA, { history: [{ id: "device-a-history", question: "stale", savedAt: now, updatedAt: now }] });
+    checks.deletionWinsOverStaleDevice = !afterStaleDevice.history.some((item) => item.id === "device-a-history");
+
+    const migrationId = "release-" + runId;
+    await migrateGuestData(env, userA, { migrationId, guestData: { history: [{ id: "guest-first", question: "synthetic", savedAt: now }] } });
+    const afterDuplicate = await migrateGuestData(env, userA, { migrationId, guestData: { history: [{ id: "guest-duplicate", question: "must-not-merge", savedAt: now }] } });
+    checks.guestMigrationIdempotent = afterDuplicate.history.some((item) => item.id === "guest-first") && !afterDuplicate.history.some((item) => item.id === "guest-duplicate");
+
+    const backup = await readAccountData(env.DB, userA);
+    const restored = await writeAccountData(env.DB, userB, backup);
+    checks.logicalBackupRestore = JSON.stringify(restored.facts.map((item) => item.id).sort()) === JSON.stringify(backup.facts.map((item) => item.id).sort())
+      && JSON.stringify(restored.history.map((item) => item.id).sort()) === JSON.stringify(backup.history.map((item) => item.id).sort());
+
+    await env.DB.prepare("INSERT INTO relationships (id, requester_id, recipient_id, status, created_at, updated_at) VALUES (?, ?, ?, 'accepted', ?, ?)").bind(relationshipId, userA, userB, now, now).run();
+    await env.DB.prepare("INSERT INTO relationship_shared_events (id, relationship_id, author_user_id, event_kind, content, created_at) VALUES (?, ?, ?, 'shared_note', 'synthetic', ?)").bind(crypto.randomUUID(), relationshipId, userA, now).run();
+    const visibleBefore = await env.DB.prepare("SELECT count(*) AS total FROM relationship_shared_events AS events JOIN relationships AS relations ON relations.id = events.relationship_id WHERE relations.status = 'accepted' AND (relations.requester_id = ? OR relations.recipient_id = ?)").bind(userA, userA).first();
+    await env.DB.prepare("UPDATE relationships SET status = 'blocked', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), relationshipId).run();
+    const visibleAfter = await env.DB.prepare("SELECT count(*) AS total FROM relationship_shared_events AS events JOIN relationships AS relations ON relations.id = events.relationship_id WHERE relations.status = 'accepted' AND (relations.requester_id = ? OR relations.recipient_id = ?)").bind(userA, userA).first();
+    checks.relationshipBlockIsolation = Number(visibleBefore?.total || 0) === 1 && Number(visibleAfter?.total || 0) === 0;
+  } catch {
+    // The persisted result contains no exception text or customer-shaped data.
+  } finally {
+    await env.DB.prepare("DELETE FROM identity_users WHERE id IN (?, ?)").bind(userA, userB).run().catch(() => undefined);
+    const remaining = await env.DB.prepare("SELECT count(*) AS total FROM identity_users WHERE id IN (?, ?)").bind(userA, userB).first().catch(() => ({ total: 1 }));
+    checks.syntheticCleanup = Number(remaining?.total || 0) === 0;
+  }
+  const passed = Object.values(checks).every(Boolean);
+  await env.DB.prepare("INSERT INTO release_acceptance_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 13, ?, ?, ?)")
+    .bind(runId, String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), new Date().toISOString()).run();
+  return { passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13, runId };
 }
 
 async function opsApi(request, env, pathname) {
-  if (pathname === "/api/v1/ops/health" && request.method === "GET") return json({ status: "ok", phase: "P0-P3", sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 12, runtimeVersions: RUNTIME_VERSIONS });
-  if (!opsAuthorized(request, env)) return json({ error: "operations_authentication_required" }, 401);
+  if (pathname === "/api/v1/ops/health" && request.method === "GET") return json({ status: "ok", phase: "P0-P3", sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13, runtimeVersions: RUNTIME_VERSIONS });
+  if (!(await opsAuthorized(request, env))) return json({ error: "operations_authentication_required" }, 401);
+  if (pathname === "/api/v1/ops/access" && request.method === "GET") return json({ authorized: true });
   if (pathname === "/api/v1/ops/summary" && request.method === "GET") {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [audits, tasks, reports, deliveries, shareFunnel, budget] = await Promise.all([
+    const [audits, tasks, reports, deliveries, shareFunnel, feedback, acceptance, budget] = await Promise.all([
       env.DB.prepare("SELECT operation, outcome, count(*) AS total, round(avg(latency_ms)) AS averageLatencyMs, sum(estimated_cost_microusd) AS estimatedCostMicrousd FROM llm_call_audits WHERE occurred_at >= ? GROUP BY operation, outcome").bind(since).all(),
       env.DB.prepare("SELECT status, count(*) AS total FROM background_tasks GROUP BY status").all(),
       env.DB.prepare("SELECT status, count(*) AS total FROM relationship_safety_reports GROUP BY status").all(),
       env.DB.prepare("SELECT state, count(*) AS total FROM notification_delivery_outbox GROUP BY state").all(),
       env.DB.prepare("SELECT event_type AS eventType, count(*) AS total FROM share_funnel_events WHERE occurred_at >= ? GROUP BY event_type").bind(since).all(),
+      env.DB.prepare("SELECT feedback, count(*) AS total FROM mirror_feedback_events WHERE updated_at >= ? GROUP BY feedback").bind(since).all(),
+      env.DB.prepare("SELECT id, source_commit AS sourceCommit, schema_version AS schemaVersion, result, checks_json AS checksJson, created_at AS createdAt FROM release_acceptance_runs ORDER BY created_at DESC LIMIT 1").first(),
       checkDailyLlmBudget(env),
     ]);
     const grouped = {};
@@ -1166,7 +1251,15 @@ async function opsApi(request, env, pathname) {
       if (failureRate >= Number(env.LLM_FAILURE_ALERT_RATE || .1)) alerts.push({ kind: "llm_failure_rate", operation, value: failureRate });
       if (latencyMs >= Number(env.LLM_LATENCY_ALERT_MS || 12000)) alerts.push({ kind: "llm_latency", operation, value: Math.round(latencyMs) });
     }
-    return json({ windowHours: 24, llm: audits.results || [], tasks: tasks.results || [], moderation: reports.results || [], deliveries: deliveries.results || [], shareFunnel: shareFunnel.results || [], budget, alerts, privacy: "aggregate_content_free" });
+    return json({ windowHours: 24, llm: audits.results || [], tasks: tasks.results || [], moderation: reports.results || [], deliveries: deliveries.results || [], shareFunnel: shareFunnel.results || [], feedback: feedback.results || [], acceptance: acceptance ? { ...acceptance, checks: safeParse(acceptance.checksJson, {}) } : null, budget, alerts, privacy: "aggregate_content_free" });
+  }
+  if (pathname === "/api/v1/ops/acceptance/run" && request.method === "POST") {
+    const result = await runReleaseAcceptance(env);
+    return json(result, result.passed ? 200 : 503);
+  }
+  if (pathname === "/api/v1/ops/acceptance/latest" && request.method === "GET") {
+    const latest = await env.DB.prepare("SELECT id, source_commit AS sourceCommit, schema_version AS schemaVersion, result, checks_json AS checksJson, created_at AS createdAt FROM release_acceptance_runs ORDER BY created_at DESC LIMIT 1").first();
+    return json({ acceptance: latest ? { ...latest, checks: safeParse(latest.checksJson, {}) } : null });
   }
   if (pathname === "/api/v1/ops/tasks/replay" && request.method === "POST") {
     const input = await body(request); const version = Number(input?.taskVersion || RUNTIME_VERSIONS.observation_extractor);
@@ -1191,10 +1284,10 @@ async function opsApi(request, env, pathname) {
     const [tables, versions] = await Promise.all([env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all(), env.DB.prepare("SELECT component, version FROM runtime_versions").all()]);
     const tableNames = new Set((tables.results || []).map((item) => String(item.name)));
     const versionMap = Object.fromEntries((versions.results || []).map((item) => [item.component, Number(item.version)]));
-    const checks = { sourceCommit: /^[0-9a-f]{7,64}$/i.test(String(env.SOURCE_COMMIT || "")), schema: ["account_data", "memory_events", "memory_observations", "background_tasks", "account_item_tombstones"].every((name) => tableNames.has(name)), versions: ["observation_extractor", "context_builder", "account_merge_policy", "release_recovery_contract"].every((name) => Number(versionMap[name]) >= 1) };
+    const checks = { sourceCommit: /^[0-9a-f]{7,64}$/i.test(String(env.SOURCE_COMMIT || "")), schema: ["account_data", "memory_events", "memory_observations", "background_tasks", "account_item_tombstones", "release_acceptance_runs", "mirror_feedback_events"].every((name) => tableNames.has(name)), versions: ["observation_extractor", "context_builder", "account_merge_policy", "release_recovery_contract", "release_acceptance_contract"].every((name) => Number(versionMap[name]) >= 1) };
     const passed = Object.values(checks).every(Boolean); const now = new Date().toISOString();
-    await env.DB.prepare("INSERT INTO recovery_drill_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 12, ?, ?, ?)").bind(crypto.randomUUID(), String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), now).run();
-    return json({ passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 12 }, passed ? 200 : 503);
+    await env.DB.prepare("INSERT INTO recovery_drill_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 13, ?, ?, ?)").bind(crypto.randomUUID(), String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), now).run();
+    return json({ passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13 }, passed ? 200 : 503);
   }
   return json({ error: "not_found" }, 404);
 }
@@ -1270,6 +1363,8 @@ async function shiguang(request, env) {
   if (messages.length !== input.messages.length) return json({ error: "invalid_chat_input" }, 400);
   const user = await sessionUser(request, env);
   const question = String(messages.at(-1)?.content || "");
+  const boundary = input.mode === "chat" || !input.mode ? safetyBoundary(question) : "none";
+  if (boundary === "crisis") return new Response("我很在意你刚才说的这句话。现在先别一个人扛：如果你正准备伤害自己，或已经无法保证安全，请立即联系当地急救电话，去最近的急诊，或请一个可信的人现在陪在你身边。把可能伤害自己的物品先移远，然后只回复我两个字也可以：安全，或危险。", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-shiguang-safety-boundary": "crisis" } });
   // A signed-in user gets worker-built context. Client-provided memory remains a
   // guest-only fallback so the browser cannot silently promote a fact.
   const memory = user ? await buildPersonalChatMemory(env, user.id, question) : (input.memory && typeof input.memory === "object" ? input.memory : { facts: [], evidence: [] });
@@ -1279,7 +1374,7 @@ async function shiguang(request, env) {
   const openLoops = Array.isArray(memory.openLoops) && memory.openLoops.length ? memory.openLoops.map((item) => "- " + (item.personName ? "和 " + String(item.personName) + " 有关：" : "") + String(item.question || "")).join("\n") : "本轮没有用户标记的未结束现实事项。";
   const people = Array.isArray(memory.people) && memory.people.length ? memory.people.map((item) => "- " + String(item.displayName || "") + (item.relationshipType ? "（" + String(item.relationshipType) + "）" : "") + (item.userDescription ? "：用户自己的观察：" + String(item.userDescription) : "")).join("\n") : "本轮没有相关人物资料。";
   const sharedEvents = Array.isArray(memory.sharedEvents) && memory.sharedEvents.length ? memory.sharedEvents.map((item) => "- " + String(item.content || "")).join("\n") : "本轮没有双方明确共享的关系互动。";
-  const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n用户明确选择的表达方式：" + expressionInstruction(expression) + "\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
+  const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n用户明确选择的表达方式：" + expressionInstruction(expression) + (highRiskInstruction(boundary) ? "\n\n<high_risk_boundary>\n" + highRiskInstruction(boundary) + "\n</high_risk_boundary>" : "") + "\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
   try {
     const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : chatSystem }, ...messages] }, { userId: user?.id || null, operation: input.mode === "mirror_result" ? "mirror_result" : input.mode === "daily_guidance" ? "daily_guidance" : "chat" });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });

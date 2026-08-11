@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateAstrology, calculateAstrologyTransits } from "./core.js";
+import { calculateAstrology, calculateAstrologyTransits, calculateSecondaryProgressions } from "./core.js";
 
 const base = { year: 2000, month: 1, day: 1, hour: 12, minute: 0, utcOffsetMinutes: 0, latitude: 51.5074, longitude: -0.1278 };
 
@@ -53,4 +53,13 @@ test("daily transit contacts are reproducible, relevantly ordered, and only comp
   assert.ok(daily.contacts.every((contact, index) => index === 0 || daily.contacts[index - 1].priority >= contact.priority));
   assert.ok(daily.contacts.every((contact) => contact.priority >= 0 && contact.priority <= 100 && contact.window.length > 0));
   assert.match(daily.method, /当天当地中午/);
+});
+
+test("secondary progressions use a reproducible day-for-a-year layer separate from transits", () => {
+  const natal = calculateAstrology(base);
+  const progressed = calculateSecondaryProgressions(natal, base, { ...base, year: 2026, month: 8, day: 6 });
+  assert.equal(progressed.progressedPlanets.length, 10);
+  assert.match(progressed.method, /day-for-a-year/);
+  assert.ok(Date.parse(progressed.progressedDate) > Date.parse(natal.utcTime));
+  assert.ok(progressed.contacts.every((contact) => contact.window === "长期"));
 });

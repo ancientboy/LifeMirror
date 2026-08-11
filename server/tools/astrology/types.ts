@@ -66,6 +66,14 @@ export type AstrologyTransitResult = {
   method: string;
 };
 
+export type AstrologyProgressionResult = {
+  targetDate: string;
+  progressedDate: string;
+  progressedPlanets: PlanetPosition[];
+  contacts: TransitAspect[];
+  method: string;
+};
+
 export type AstrologyResult = {
   engine: { name: string; version: string; model: string; zodiac: string; houseSystem: string };
   utcTime: string;
@@ -80,4 +88,9 @@ export type AstrologyResult = {
   themes: string[];
   rules: string[];
   warnings: string[];
+  timing?: {
+    calculatedFor: string;
+    transits: AstrologyTransitResult;
+    progressions: AstrologyProgressionResult;
+  };
 };

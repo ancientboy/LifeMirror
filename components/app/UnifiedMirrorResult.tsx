@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
 import { buildJudgmentFactPack } from "@/lib/shiguang-judgment";
-import { saveMirrorHistory } from "@/lib/mirror-history";
+import { saveMirrorHistory, updateMirrorHistoryFeedback, type MirrorHistoryPersistence, type MirrorHistoryRecord } from "@/lib/mirror-history";
 import { recordProductMetric } from "@/lib/product-metrics";
 import { createClientId } from "@/lib/client-id";
 
@@ -117,7 +117,11 @@ function contextualFallback(fallback: MirrorResult, question: string, facts: str
 export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, title, meta, image, onResolved, initialResult, historical = false }: Props) {
   const [result, setResult] = useState(initialResult ?? fallback);
   const [mode, setMode] = useState<"loading" | "ai" | "basic">(historical ? "ai" : "loading");
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | MirrorHistoryPersistence>("idle");
+  const [saveRetryKey, setSaveRetryKey] = useState(0);
+  const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<MirrorHistoryRecord["feedback"]>();
+  const [feedbackState, setFeedbackState] = useState<"idle" | "saving" | MirrorHistoryPersistence>("idle");
   const requestKey = useMemo(() => JSON.stringify({ kind, question, facts }), [facts, kind, question]);
   const resultFallback = useMemo(() => contextualFallback(fallback, question, facts), [fallback, facts, question]);
   const factPack = useMemo(() => buildJudgmentFactPack(kind, facts), [facts, kind]);
@@ -132,7 +136,10 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort("mirror_request_timeout"), MIRROR_REQUEST_TIMEOUT_MS);
-    setSaved(false);
+    setSaveState("idle");
+    setSavedRecordId(null);
+    setFeedback(undefined);
+    setFeedbackState("idle");
     setResult(resultFallback);
     setMode("loading");
     void fetch("/api/shiguang", {
@@ -171,17 +178,27 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
 
   useEffect(() => {
     if (historical || mode === "loading") return;
-    saveMirrorHistory({
+    setSaveState("saving");
+    void saveMirrorHistory({
       source: kind, sourceLabel: labels[kind], question, summary: result.headline,
       factIds: factPack.facts.map((fact) => fact.id), meta,
       reflection: { shareableReflection: result.shareCards.warm, shiguangInterpretation: result.interpretation, practicalGuidance: result.action, reflectionQuestion: result.reflectionQuestion },
       dedupKey: `v1:${kind}:${requestKey}`,
+    }).then(({ record, persistence }) => {
+      setSavedRecordId(record.id);
+      setSaveState(persistence);
+      // A random key gives the metric idempotency without encoding the question
+      // or any rule facts into telemetry.
+      recordProductMetric("mirror_result_ready", "mirror", `mirror:${kind}:${createClientId()}`);
     });
-    // A random key gives the metric idempotency without encoding the question
-    // or any rule facts into telemetry.
-    recordProductMetric("mirror_result_ready", "mirror", `mirror:${kind}:${createClientId()}`);
-    setSaved(true);
-  }, [factPack.facts, historical, kind, meta, mode, question, requestKey, result]);
+  }, [factPack.facts, historical, kind, meta, mode, question, requestKey, result, saveRetryKey]);
+
+  function submitFeedback(next: NonNullable<MirrorHistoryRecord["feedback"]>) {
+    if (!savedRecordId || feedbackState === "saving") return;
+    setFeedback(next);
+    setFeedbackState("saving");
+    void updateMirrorHistoryFeedback(savedRecordId, next).then(setFeedbackState);
+  }
 
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
@@ -191,7 +208,19 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
     </div>
     <aside><small>想接着说的话</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
-    <p className={styles.notice}>{saved ? "✓ 已自动记录到“我的”" : "正在记录这次镜像…"}</p>
+    <p className={styles.notice} role="status">
+      {saveState === "server" && "✓ 已同步到“我的”"}
+      {saveState === "guest" && "✓ 游客记录已保存在这台设备"}
+      {(saveState === "idle" || saveState === "saving") && "正在记录这次镜像…"}
+      {saveState === "pending" && <><WarningCircle /> 暂未同步，已安全暂存在这台设备。<button type="button" onClick={() => setSaveRetryKey((value) => value + 1)}>重新同步</button></>}
+    </p>
+    {savedRecordId && <div className={styles.feedback} aria-label="评价这次解读">
+      <span>这次解读贴近你吗？</span>
+      <button type="button" aria-pressed={feedback === "resonates"} onClick={() => submitFeedback("resonates")}>贴近</button>
+      <button type="button" aria-pressed={feedback === "needs_correction"} onClick={() => submitFeedback("needs_correction")}>不适用</button>
+      {feedbackState === "pending" && <small>反馈暂存在本机，恢复连接后会重试。</small>}
+      {(feedbackState === "server" || feedbackState === "guest") && <small>已记录；它只进入评测，不会改写盘面事实。</small>}
+    </div>}
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
       paper: { kicker: `朋友版 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
       night: { kicker: `清醒版 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
