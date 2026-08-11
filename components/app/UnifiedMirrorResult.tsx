@@ -6,6 +6,8 @@ import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
 import { buildJudgmentFactPack } from "@/lib/shiguang-judgment";
 import { saveMirrorHistory } from "@/lib/mirror-history";
+import { recordProductMetric } from "@/lib/product-metrics";
+import { createClientId } from "@/lib/client-id";
 
 export type MirrorKind = "tarot" | "bazi" | "astrology";
 export type MirrorResult = {
@@ -175,6 +177,9 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       reflection: { shareableReflection: result.shareCards.warm, shiguangInterpretation: result.interpretation, practicalGuidance: result.action, reflectionQuestion: result.reflectionQuestion },
       dedupKey: `v1:${kind}:${requestKey}`,
     });
+    // A random key gives the metric idempotency without encoding the question
+    // or any rule facts into telemetry.
+    recordProductMetric("mirror_result_ready", "mirror", `mirror:${kind}:${createClientId()}`);
     setSaved(true);
   }, [factPack.facts, historical, kind, meta, mode, question, requestKey, result]);
 

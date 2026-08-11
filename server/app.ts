@@ -12,6 +12,7 @@ import { registerMemoryRoutes } from "./routes/memories.js";
 import { registerReviewRoutes } from "./routes/reviews.js";
 import { registerContextRoutes } from "./routes/context.js";
 import { registerPersonMirrorRoutes } from "./routes/person-mirror.js";
+import { registerEffectLoopRoutes } from "./routes/effect-loop.js";
 import { RuntimeMetrics } from "./observability/metrics.js";
 
 export type AppDependencies = {
@@ -69,6 +70,7 @@ export async function buildApp(dependencies: AppDependencies) {
   await registerMemoryRoutes(app, dependencies);
   await registerContextRoutes(app, dependencies);
   await registerPersonMirrorRoutes(app, dependencies);
+  await registerEffectLoopRoutes(app, dependencies);
   await registerReviewRoutes(app, dependencies);
 
   return app;

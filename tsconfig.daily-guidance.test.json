@@ -18,6 +18,8 @@
     "lib/question-routing.test.ts",
     "lib/mirror-result-quality.ts",
     "lib/mirror-result-quality.test.ts",
+    "lib/share-safety.ts",
+    "lib/share-safety.test.ts",
     "server/tools/astrology/**/*.ts",
     "server/tools/bazi/**/*.ts"
   ]

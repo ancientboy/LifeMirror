@@ -27,7 +27,6 @@ import styles from "./TarotExperience.module.css";
 import { ShiguangChat } from "./ShiguangChat";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import { markAccountDataChanged } from "@/lib/account-data";
-import { saveMirrorHistory } from "@/lib/mirror-history";
 
 type Stage = "question" | "shuffle" | "reading";
 const prompts = [
@@ -61,7 +60,6 @@ export function TarotExperience() {
   const [cards, setCards] = useState<DrawnCard[]>([]);
   const [history, setHistory] = useState<SavedReading[]>([]);
   const [saved, setSaved] = useState(false);
-  const [mirrorSummary, setMirrorSummary] = useState("");
   const spread = useMemo(() => getSpread(spreadId), [spreadId]);
   const relations = useMemo(() => analyzeRelations(cards), [cards]);
   const professionalReading = useMemo(() => cards.length === spread.positions.length ? synthesizeTarotReading(question, spread, cards) : null, [cards, question, spread]);
@@ -110,7 +108,6 @@ export function TarotExperience() {
     setQuestion("");
     setCards([]);
     setSaved(false);
-    setMirrorSummary("");
   }
 
   function saveReading() {
@@ -123,18 +120,10 @@ export function TarotExperience() {
     };
     const next = [reading, ...history].slice(0, 12);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-    const summary = mirrorSummary || mirrorFallback.headline;
-    saveMirrorHistory({
-      source: "tarot",
-      sourceLabel: "塔罗镜像",
-      question: reading.question,
-      summary,
-      meta: `${spread.name} · ${cards.map((card) => `${card.name}${orientationLabel[card.orientation]}`).join(" · ")}`,
-      payload: reading,
-      reflection: { shareableReflection: summary, shiguangInterpretation: summary },
-      factIds: [],
-      dedupKey: `v1:tarot:${reading.id}`,
-    });
+    // UnifiedMirrorResult owns the product history event.  Keeping the draw
+    // itself locally is useful for revisiting cards, but writing another
+    // fallback history record here used to create a duplicate entry before
+    // Shiguang's resolved interpretation was available.
     markAccountDataChanged();
     setHistory(next);
     setSaved(true);
@@ -237,7 +226,7 @@ export function TarotExperience() {
           </span>
           <h1>{spread.name} · 拾光先说</h1>
           <blockquote>“{question}”</blockquote>
-          <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} onResolved={(result) => setMirrorSummary(result.headline)} />
+          <UnifiedMirrorResult kind="tarot" theme="west" question={question} facts={mirrorFacts} fallback={mirrorFallback} title="我的塔罗镜像" meta={mirrorMeta} image={assetPath("/characters/shiguang/shiguang-west-chibi-v2.png")} />
           <details className={styles.professionalReading}>
             <summary>展开查看牌阵、牌面与专业解读</summary>
             <p className={styles.readingGuide}>想知道拾光为什么这样判断，可以继续查看牌面与象征依据。</p>

@@ -51,3 +51,13 @@ test("model source labels are constrained to the evidence actually supplied", ()
   }, fallback, context.evidence);
   assert.deepEqual(result.sources, ["本命底图"]);
 });
+
+test("a provisional runtime observation can guide Daily without becoming an explicit fact", () => {
+  const context = buildDailyGuidanceContext(null, [], [], [], {
+    observations: [{ title: "工作与承担", summary: "近期多次谈到工作与承担。", evidenceCount: 2 }],
+  });
+  assert.equal(context.mode, "daily_state_note");
+  assert.match(JSON.stringify(context.modelContext), /activeObservation/);
+  assert.equal(context.evidence[0]?.detail, "最近反复出现：工作与承担");
+  assert.deepEqual((context.modelContext as { authorizedFacts?: unknown[] }).authorizedFacts, []);
+});
