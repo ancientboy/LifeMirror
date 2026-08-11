@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 25884)
-Total output lines: 1320
-
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 
@@ -365,6 +362,68 @@ async function refreshAutomaticObservations(env, userId, event) {
   return created;
 }
 
+// Phase 019 queue contract.  A task contains only an event reference and a
+// versioned operation name; the private event text stays in memory_events.
+// Repeating an enqueue is safe, while a transient failure remains visible and
+// can be replayed without manufacturing a second observation.
+async function enqueueObservationRefresh(env, userId, event) {
+  if (!event?.id) return null;
+  const now = new Date().toISOString();
+  const taskVersion = 1;
+  const idempotencyKey = "refresh_observations:" + event.id + ":v" + taskVersion;
+  await env.DB.prepare("INSERT OR IGNORE INTO background_tasks (id, user_id, task_kind, source_event_id, task_version, idempotency_key, status, attempts, available_at, created_at, updated_at) VALUES (?, ?, 'refresh_observations', ?, ?, ?, 'queued', 0, ?, ?, ?)")
+    .bind(crypto.randomUUID(), userId, event.id, taskVersion, idempotencyKey, now, now, now).run();
+  return idempotencyKey;
+}
+
+function taskRetryAt(attempts) {
+  // 15s, 30s, 60s, 120s, 240s, then cap at 10 minutes.  Tasks never retain
+  // source text, so delayed work cannot reconstruct a deleted source event.
+  return new Date(Date.now() + Math.min(600_000, 15_000 * (2 ** Math.min(6, attempts)))).toISOString();
+}
+
+async function drainBackgroundTasks(env, limit = 3) {
+  const now = new Date().toISOString();
+  // Recover a Worker that ended mid-task.  The source event is checked again
+  // before processing, so recovery cannot revive something the user removed.
+  await env.DB.prepare("UPDATE background_tasks SET status = 'queued', available_at = ?, updated_at = ? WHERE status = 'running' AND updated_at < ?")
+    .bind(now, now, new Date(Date.now() - 5 * 60_000).toISOString()).run();
+  const candidates = await env.DB.prepare("SELECT id, user_id AS userId, task_kind AS taskKind, source_event_id AS sourceEventId, attempts FROM background_tasks WHERE status = 'queued' AND available_at <= ? ORDER BY created_at ASC LIMIT ?").bind(now, Math.max(1, Math.min(Number(limit) || 3, 10))).all();
+  for (const task of candidates.results || []) {
+    const claimed = await env.DB.prepare("UPDATE background_tasks SET status = 'running', attempts = attempts + 1, updated_at = ? WHERE id = ? AND status = 'queued'").bind(new Date().toISOString(), task.id).run();
+    if (!claimed.meta?.changes) continue;
+    try {
+      const event = await env.DB.prepare("SELECT id, content, person_id AS personId, occurred_at AS occurredAt FROM memory_events WHERE id = ? AND user_id = ? AND deleted_at IS NULL").bind(task.sourceEventId, task.userId).first();
+      if (!event) {
+        await env.DB.prepare("UPDATE background_tasks SET status = 'cancelled', completed_at = ?, updated_at = ?, last_error_code = NULL WHERE id = ?").bind(new Date().toISOString(), new Date().toISOString(), task.id).run();
+        continue;
+      }
+      if (task.taskKind === "refresh_observations") await refreshAutomaticObservations(env, task.userId, event);
+      await env.DB.prepare("UPDATE background_tasks SET status = 'completed', completed_at = ?, updated_at = ?, last_error_code = NULL WHERE id = ?").bind(new Date().toISOString(), new Date().toISOString(), task.id).run();
+    } catch (error) {
+      const code = error instanceof Error && /timeout/i.test(error.message) ? "timed_out" : "task_failed";
+      const attempts = Number(task.attempts || 0) + 1;
+      await env.DB.prepare("UPDATE background_tasks SET status = ?, available_at = ?, updated_at = ?, last_error_code = ? WHERE id = ?")
+        .bind(attempts >= 8 ? "failed" : "queued", taskRetryAt(attempts), new Date().toISOString(), code, task.id).run();
+    }
+  }
+}
+
+async function recordLlmAudit(env, input) {
+  // Audit dimensions are operational only.  Never add request text, user
+  // names, prompts, memory IDs, raw token content or share identifiers here.
+  const operation = ["chat", "daily_guidance", "mirror_result", "liuyao_reflection"].includes(input?.operation) ? input.operation : "chat";
+  const outcome = ["succeeded", "failed", "timed_out"].includes(input?.outcome) ? input.outcome : "failed";
+  const provider = String(input?.provider || "unknown").slice(0, 80);
+  const model = String(input?.model || "unknown").slice(0, 160);
+  const latencyMs = Math.max(0, Math.min(Math.round(Number(input?.latencyMs) || 0), 300_000));
+  const inputBytes = Math.max(0, Math.min(Math.round(Number(input?.inputBytes) || 0), 2_000_000));
+  const outputBytes = Math.max(0, Math.min(Math.round(Number(input?.outputBytes) || 0), 2_000_000));
+  const cost = Math.max(0, Math.min(Math.round(Number(input?.estimatedCostMicrousd) || 0), 10_000_000));
+  await env.DB.prepare("INSERT INTO llm_call_audits (id, user_id, operation, provider, model, outcome, latency_ms, input_bytes, output_bytes, estimated_cost_microusd, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), input?.userId || null, operation, provider, model, outcome, latencyMs, inputBytes, outputBytes, cost, new Date().toISOString()).run();
+}
+
 async function reviseMemory(env, userId, targetKind, targetId, revisionKind, reason = "") {
   const now = new Date().toISOString();
   await env.DB.prepare("INSERT INTO memory_revisions (id, user_id, target_kind, target_id, revision_kind, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, targetKind, targetId, revisionKind, String(reason).slice(0, 300), now).run();
@@ -605,7 +664,290 @@ async function authApi(request, env, pathname) {
     await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), user.id, eventType, surface, eventKey, new Date().toISOString()).run();
     return json({ ok: true }, 201);
   }
-  if (pathname === "/api/v1/account/product-metrics/summary" && request.method === "…5884 tokens truncated…e, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
+  if (pathname === "/api/v1/account/product-metrics/summary" && request.method === "GET") {
+    const result = await env.DB.prepare("SELECT event_type AS eventType, count(*) AS total FROM product_metric_events WHERE user_id = ? GROUP BY event_type").bind(user.id).all();
+    const totals = { chat_message_sent: 0, daily_opened: 0, daily_checkin_completed: 0, mirror_result_ready: 0, tool_continued_chat: 0, share_card_shared: 0, share_link_created: 0, share_response_created: 0 };
+    for (const row of result.results || []) if (Object.prototype.hasOwnProperty.call(totals, row.eventType)) totals[row.eventType] = Number(row.total || 0);
+    const activity = await env.DB.prepare("SELECT substr(occurred_at, 1, 10) AS day, count(*) AS total FROM product_metric_events WHERE user_id = ? AND occurred_at >= ? GROUP BY day ORDER BY day DESC").bind(user.id, new Date(Date.now() - 6 * 86400000).toISOString()).all();
+    const activeDays7 = (activity.results || []).length;
+    return json({ summary: { ...totals, activeDays7, dailyCompletionRate: totals.daily_opened ? totals.daily_checkin_completed / totals.daily_opened : 0, toolContinueRate: totals.mirror_result_ready ? totals.tool_continued_chat / totals.mirror_result_ready : 0, shareRate: totals.mirror_result_ready ? totals.share_card_shared / totals.mirror_result_ready : 0 }, privacy: "opaque_aggregate_only" });
+  }
+  if (pathname === "/api/v1/account/product-metrics" && request.method === "DELETE") {
+    // User controls include telemetry: clearing analytics must not require
+    // deleting their conversations, memories or mirror history.
+    await env.DB.prepare("DELETE FROM product_metric_events WHERE user_id = ?").bind(user.id).run();
+    return json({ ok: true, deleted: "product_metrics_only" });
+  }
+  if (pathname === "/api/v1/account/runtime/observability" && request.method === "GET") {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const [calls, tasks] = await Promise.all([
+      env.DB.prepare("SELECT operation, outcome, count(*) AS total, AVG(latency_ms) AS averageLatencyMs, MAX(latency_ms) AS maxLatencyMs, SUM(estimated_cost_microusd) AS estimatedCostMicrousd FROM llm_call_audits WHERE (user_id = ? OR user_id IS NULL) AND occurred_at >= ? GROUP BY operation, outcome").bind(user.id, since).all(),
+      env.DB.prepare("SELECT status, count(*) AS total FROM background_tasks WHERE user_id = ? GROUP BY status").bind(user.id).all(),
+    ]);
+    // Aggregates only: this endpoint intentionally contains no prompt, output,
+    // event content, memory ID, real-person identifier, or provider request ID.
+    return json({ windowDays: 7, llm: (calls.results || []).map((item) => ({ operation: item.operation, outcome: item.outcome, total: Number(item.total || 0), averageLatencyMs: Math.round(Number(item.averageLatencyMs || 0)), maxLatencyMs: Number(item.maxLatencyMs || 0), estimatedCostMicrousd: Number(item.estimatedCostMicrousd || 0) })), tasks: (tasks.results || []).map((item) => ({ status: item.status, total: Number(item.total || 0) })), privacy: "operational_aggregate_only" });
+  }
+  if (pathname === "/api/v1/account/runtime/observability" && request.method === "DELETE") {
+    await env.DB.prepare("DELETE FROM llm_call_audits WHERE user_id = ?").bind(user.id).run();
+    return json({ ok: true, deleted: "llm_audit_records_only" });
+  }
+  if (pathname === "/api/v1/memories" && request.method === "GET") {
+    const includeHidden = new URL(request.url).searchParams.get("includeHidden") === "true";
+    const [events, patterns] = await Promise.all([
+      env.DB.prepare("SELECT id, source_kind AS sourceKind, source_key AS sourceKey, content, occurred_at AS occurredAt, visibility FROM memory_events WHERE user_id = ? AND deleted_at IS NULL " + (includeHidden ? "" : "AND visibility = 'visible' ") + "ORDER BY occurred_at DESC LIMIT 80").bind(user.id).all(),
+      env.DB.prepare("SELECT id, title, summary, evidence_count AS evidenceCount, confidence, visibility FROM memory_observations WHERE user_id = ? AND deleted_at IS NULL " + (includeHidden ? "" : "AND visibility = 'visible' ") + "ORDER BY last_observed_at DESC LIMIT 40").bind(user.id).all(),
+    ]);
+    return json({ events: (events.results || []).map((item) => ({ id: item.id, sourceEventId: item.id, title: ({ conversation: "一次对话", mirror_history: "一次镜像", explicit_fact: "明确记忆", daily_checkin: "每日回访" })[item.sourceKind] || "生活记录", topic: item.sourceKind, triggerText: String(item.content || ""), summary: String(item.content || ""), occurredAt: item.occurredAt, visibility: item.visibility, userCorrected: false })), patterns: (patterns.results || []).map((item) => ({ id: item.id, title: item.title, summary: item.summary, signalCount: item.evidenceCount, confidence: item.confidence, visibility: item.visibility })) });
+  }
+  const memoryEventMatch = pathname.match(/^\/api\/v1\/memories\/event\/([^/]+)$/);
+  if (memoryEventMatch && request.method === "PATCH") {
+    const input = await body(request); const id = decodeURIComponent(memoryEventMatch[1]);
+    const visibility = ["visible", "hidden"].includes(String(input?.visibility || "")) ? String(input.visibility) : null;
+    if (!visibility) return json({ error: "only_visibility_is_supported_for_raw_events" }, 400);
+    const updated = await env.DB.prepare("UPDATE memory_events SET visibility = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL").bind(visibility, new Date().toISOString(), id, user.id).run();
+    if (!updated.meta?.changes) return json({ error: "memory_not_found" }, 404);
+    return json({ ok: true });
+  }
+  const memorySourceMatch = pathname.match(/^\/api\/v1\/memories\/source-events\/([^/]+)$/);
+  if (memorySourceMatch && request.method === "DELETE") { await reviseMemory(env, user.id, "event", decodeURIComponent(memorySourceMatch[1]), "deleted"); return json({ ok: true }); }
+  const memoryPatternMatch = pathname.match(/^\/api\/v1\/memories\/pattern\/([^/]+)$/);
+  if (memoryPatternMatch && request.method === "PATCH") {
+    const input = await body(request); const id = decodeURIComponent(memoryPatternMatch[1]); const visibility = ["visible", "hidden"].includes(String(input?.visibility || "")) ? String(input.visibility) : null;
+    if (!visibility) return json({ error: "invalid_memory_visibility" }, 400);
+    const updated = await env.DB.prepare("UPDATE memory_observations SET visibility = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL").bind(visibility, new Date().toISOString(), id, user.id).run();
+    if (!updated.meta?.changes) return json({ error: "memory_not_found" }, 404); return json({ ok: true });
+  }
+  if (memoryPatternMatch && request.method === "DELETE") { await reviseMemory(env, user.id, "observation", decodeURIComponent(memoryPatternMatch[1]), "deleted"); return json({ ok: true }); }
+  if (pathname === "/api/v1/memories/export" && request.method === "GET") {
+    const [account, events, observations, revisions, productMetrics, llmAudits, tasks] = await Promise.all([readAccountData(env.DB, user.id), env.DB.prepare("SELECT * FROM memory_events WHERE user_id = ? ORDER BY occurred_at DESC").bind(user.id).all(), env.DB.prepare("SELECT * FROM memory_observations WHERE user_id = ? ORDER BY last_observed_at DESC").bind(user.id).all(), env.DB.prepare("SELECT * FROM memory_revisions WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all(), env.DB.prepare("SELECT event_type AS eventType, surface, occurred_at AS occurredAt FROM product_metric_events WHERE user_id = ? ORDER BY occurred_at DESC").bind(user.id).all(), env.DB.prepare("SELECT operation, provider, model, outcome, latency_ms AS latencyMs, input_bytes AS inputBytes, output_bytes AS outputBytes, estimated_cost_microusd AS estimatedCostMicrousd, occurred_at AS occurredAt FROM llm_call_audits WHERE user_id = ? ORDER BY occurred_at DESC").bind(user.id).all(), env.DB.prepare("SELECT task_kind AS taskKind, task_version AS taskVersion, status, attempts, available_at AS availableAt, last_error_code AS lastErrorCode, created_at AS createdAt, completed_at AS completedAt FROM background_tasks WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()]);
+    return json({ ownership: "user", trainingData: false, exportedAt: new Date().toISOString(), account, memoryEvents: events.results || [], memoryObservations: observations.results || [], memoryRevisions: revisions.results || [], productMetrics: productMetrics.results || [], llmAudits: llmAudits.results || [], backgroundTasks: tasks.results || [] });
+  }
+  if (pathname === "/api/v1/reviews" && request.method === "GET") {
+    const cadence = new URL(request.url).searchParams.get("cadence") === "monthly" ? "monthly" : "weekly";
+    const [account, runtime] = await Promise.all([readAccountData(env.DB, user.id), buildD1RuntimeContext(env, user.id, { mode: "review", limit: 12 })]);
+    await auditRuntimeContext(env, user.id, runtime).catch(() => undefined);
+    return json({ review: accountReview(account, cadence, runtime), runtime });
+  }
+  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "GET") {
+    const account = await readAccountData(env.DB, user.id);
+    const defaults = { enabled: true, weeklyEnabled: true, monthlyEnabled: true, cooldownHours: 168 };
+    return json({ preferences: { ...defaults, ...(account.settings?.reviewPreferences || {}) } });
+  }
+  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "PATCH") {
+    const input = await body(request);
+    const account = await readAccountData(env.DB, user.id);
+    const preferences = { enabled: Boolean(input?.enabled), weeklyEnabled: Boolean(input?.weeklyEnabled), monthlyEnabled: Boolean(input?.monthlyEnabled), cooldownHours: [72, 168, 336, 720].includes(Number(input?.cooldownHours)) ? Number(input.cooldownHours) : 168 };
+    await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, reviewPreferences: preferences } });
+    return json({ preferences });
+  }
+  if (pathname === "/api/v1/account/daily-checkins" && request.method === "POST") {
+    const input = await body(request);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.date || "")) ? String(input.date) : "";
+    const status = ["done", "later", "release"].includes(String(input?.status || "")) ? String(input.status) : "";
+    const theme = String(input?.theme || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const action = String(input?.action || "").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!date || !status || !action) return json({ error: "invalid_daily_checkin" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const existing = Array.isArray(account.settings?.dailyLoop) ? account.settings.dailyLoop : [];
+    const record = { date, theme, action, status, checkedInAt: new Date().toISOString() };
+    const dailyLoop = [record, ...existing.filter((item) => item && String(item.date || "") !== date)].slice(0, 30);
+    const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, dailyLoop } });
+    const event = await recordMemoryEvent(env, user.id, { sourceKind: "daily_checkin", sourceKey: date, content: "今日行动：" + action + "；结果：" + (status === "done" ? "做了" : status === "later" ? "还没" : "先放下"), occurredAt: record.checkedInAt });
+    await enqueueObservationRefresh(env, user.id, event);
+    await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, 'daily_checkin_completed', 'daily', ?, ?)").bind(crypto.randomUUID(), user.id, "daily:" + date, record.checkedInAt).run();
+    return json({ record, data }, 201);
+  }
+  if (pathname === "/api/v1/account/history" && request.method === "POST") {
+    const input = await body(request);
+    const candidate = input?.history;
+    if (!candidate || typeof candidate !== "object") return json({ error: "invalid_history" }, 400);
+    const id = String(candidate.id || "").trim().slice(0, 120);
+    const question = String(candidate.question || "").trim().slice(0, 500);
+    if (!id || !question) return json({ error: "invalid_history" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const dedupKey = String(candidate.dedupKey || "");
+    const index = account.history.findIndex((item) => item && (String(item.id || "") === id || (dedupKey && String(item.dedupKey || "") === dedupKey)));
+    const history = { ...candidate, id: index >= 0 ? account.history[index].id : id, updatedAt: new Date().toISOString() };
+    if (index >= 0) account.history[index] = { ...account.history[index], ...history, important: Boolean(account.history[index].important || history.important) };
+    else account.history = [history, ...account.history].slice(0, 50);
+    const data = await writeAccountData(env.DB, user.id, account);
+    const event = await recordMemoryEvent(env, user.id, { sourceKind: "mirror_history", sourceKey: history.id, content: question + " " + historySummary(history), personId: history.personId, occurredAt: history.savedAt || history.updatedAt });
+    await enqueueObservationRefresh(env, user.id, event);
+    return json({ history, data }, index >= 0 ? 200 : 201);
+  }
+  const historyMatch = pathname.match(/^\/api\/v1\/account\/history\/([^/]+)$/);
+  if (historyMatch && request.method === "PATCH") {
+    const input = await body(request);
+    const account = await readAccountData(env.DB, user.id);
+    const id = decodeURIComponent(historyMatch[1]);
+    const allowed = input && typeof input === "object" ? input : {};
+    const index = account.history.findIndex((item) => item && String(item.id || "") === id);
+    if (index < 0) return json({ error: "history_not_found" }, 404);
+    const current = account.history[index];
+    const next = { ...current, updatedAt: new Date().toISOString() };
+    if (typeof allowed.important === "boolean") next.important = allowed.important;
+    if (["open", "resolved", "unknown"].includes(String(allowed.openLoopStatus || ""))) next.openLoopStatus = allowed.openLoopStatus;
+    if (Object.prototype.hasOwnProperty.call(allowed, "personId")) next.personId = typeof allowed.personId === "string" && allowed.personId.trim() ? allowed.personId.trim().slice(0, 120) : undefined;
+    if (Object.prototype.hasOwnProperty.call(allowed, "personName")) next.personName = typeof allowed.personName === "string" && allowed.personName.trim() ? allowed.personName.trim().slice(0, 80) : undefined;
+    account.history[index] = next;
+    const data = await writeAccountData(env.DB, user.id, account);
+    await recordMemoryEvent(env, user.id, { sourceKind: "mirror_history", sourceKey: next.id, content: String(next.question || "") + " " + historySummary(next), personId: next.personId, occurredAt: next.updatedAt });
+    return json({ history: next, data });
+  }
+  if (historyMatch && request.method === "DELETE") {
+    const account = await readAccountData(env.DB, user.id);
+    const id = decodeURIComponent(historyMatch[1]);
+    const next = account.history.filter((item) => item && String(item.id || "") !== id);
+    if (next.length === account.history.length) return json({ error: "history_not_found" }, 404);
+    const data = await writeAccountData(env.DB, user.id, { ...account, history: next });
+    await reviseMemory(env, user.id, "history", id, "deleted");
+    return json({ data });
+  }
+  if (pathname === "/api/v1/account/facts" && request.method === "POST") {
+    const input = await body(request);
+    const text = cleanFactText(input?.text);
+    if (!text) return json({ error: "invalid_fact" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const now = new Date().toISOString();
+    const existing = account.facts.find((item) => item && String(item.text || "") === text);
+    const fact = existing ? { ...existing, updatedAt: now } : { id: crypto.randomUUID(), text, createdAt: now, updatedAt: now };
+    const data = await writeAccountData(env.DB, user.id, { ...account, facts: [fact, ...account.facts.filter((item) => item && String(item.id || "") !== String(fact.id))] });
+    const event = await recordMemoryEvent(env, user.id, { sourceKind: "explicit_fact", sourceKey: fact.id, content: text, occurredAt: fact.updatedAt });
+    await enqueueObservationRefresh(env, user.id, event);
+    return json({ fact, data }, existing ? 200 : 201);
+  }
+  const factMatch = pathname.match(/^\/api\/v1\/account\/facts\/([^/]+)$/);
+  if (factMatch && request.method === "PATCH") {
+    const input = await body(request);
+    const text = cleanFactText(input?.text);
+    if (!text) return json({ error: "invalid_fact" }, 400);
+    const account = await readAccountData(env.DB, user.id);
+    const id = factId(decodeURIComponent(factMatch[1]));
+    const index = account.facts.findIndex((item) => item && String(item.id || "") === id);
+    if (index < 0) return json({ error: "fact_not_found" }, 404);
+    const fact = { ...account.facts[index], text, updatedAt: new Date().toISOString() };
+    account.facts[index] = fact;
+    const data = await writeAccountData(env.DB, user.id, account);
+    await recordMemoryEvent(env, user.id, { sourceKind: "explicit_fact", sourceKey: fact.id, content: text, occurredAt: fact.updatedAt });
+    return json({ fact, data });
+  }
+  if (factMatch && request.method === "DELETE") {
+    const account = await readAccountData(env.DB, user.id);
+    const id = factId(decodeURIComponent(factMatch[1]));
+    const facts = account.facts.filter((item) => item && String(item.id || "") !== id);
+    if (facts.length === account.facts.length) return json({ error: "fact_not_found" }, 404);
+    const data = await writeAccountData(env.DB, user.id, { ...account, facts });
+    await reviseMemory(env, user.id, "fact", id, "deleted");
+    return json({ data });
+  }
+  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "POST") {
+    const input = await body(request);
+    const loopId = String(input?.loopId || "").trim().slice(0, 120);
+    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
+    const eventType = String(input?.eventType || "");
+    if (!loopId || !["rehearsal_started", "followup_seen", "action_taken", "feedback_reported"].includes(eventType)) return json({ error: "invalid_effect_loop_event" }, 400);
+    await env.DB.prepare("INSERT OR IGNORE INTO relationship_effect_events (id, user_id, loop_id, relationship_key, event_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), user.id, loopId, relationshipKey, eventType, new Date().toISOString()).run();
+    return json({ ok: true }, 201);
+  }
+  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "DELETE") {
+    const input = await body(request);
+    const loopId = String(input?.loopId || "").trim().slice(0, 120);
+    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
+    if (loopId) {
+      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND loop_id = ?").bind(user.id, loopId).run();
+      return json({ ok: true });
+    }
+    if (relationshipKey) {
+      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND relationship_key = ?").bind(user.id, relationshipKey).run();
+      return json({ ok: true });
+    }
+    return json({ error: "invalid_effect_loop_deletion" }, 400);
+  }
+  if (pathname === "/api/v1/account/effect-loop/summary" && request.method === "GET") {
+    const counts = await env.DB.prepare("SELECT SUM(CASE WHEN event_type = 'rehearsal_started' THEN 1 ELSE 0 END) AS rehearsalsStarted, SUM(CASE WHEN event_type = 'followup_seen' THEN 1 ELSE 0 END) AS followupsSeen, SUM(CASE WHEN event_type = 'action_taken' THEN 1 ELSE 0 END) AS actionsTaken, SUM(CASE WHEN event_type = 'feedback_reported' THEN 1 ELSE 0 END) AS feedbackReported FROM relationship_effect_events WHERE user_id = ?").bind(user.id).first();
+    const repeats = await env.DB.prepare("SELECT count(*) AS total FROM (SELECT relationship_key FROM relationship_effect_events WHERE user_id = ? AND event_type = 'rehearsal_started' AND relationship_key <> '' GROUP BY relationship_key HAVING count(*) >= 2)").bind(user.id).first();
+    const rehearsalsStarted = Number(counts?.rehearsalsStarted || 0);
+    const feedbackReported = Number(counts?.feedbackReported || 0);
+    const actionsTaken = Number(counts?.actionsTaken || 0);
+    return json({ summary: { rehearsalsStarted, followupsSeen: Number(counts?.followupsSeen || 0), actionsTaken, feedbackReported, repeatPracticePeople: Number(repeats?.total || 0), actionRate: rehearsalsStarted ? actionsTaken / rehearsalsStarted : 0, feedbackCompletionRate: rehearsalsStarted ? feedbackReported / rehearsalsStarted : 0 } });
+  }
+  return json({ error: "not_found" }, 404);
+}
+
+async function ensureSocialProfile(env, userId) {
+  let profile = await env.DB.prepare("SELECT invite_code AS inviteCode, public_id AS publicId, discoverable, share_birth_for_relationships AS shareBirth FROM social_profiles WHERE user_id = ?").bind(userId).first();
+  if (profile?.publicId) return profile;
+  const now = new Date().toISOString();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const publicId = "LM-" + randomHex(4).toUpperCase();
+    if (profile) {
+      try {
+        await env.DB.prepare("UPDATE social_profiles SET public_id = ?, updated_at = ? WHERE user_id = ?").bind(publicId, now, userId).run();
+        return { ...profile, publicId };
+      } catch { continue; }
+    }
+    const inviteCode = randomHex(5).toUpperCase();
+    try {
+      await env.DB.prepare("INSERT INTO social_profiles (user_id, invite_code, public_id, discoverable, share_birth_for_relationships, created_at, updated_at) VALUES (?, ?, ?, 1, 0, ?, ?)").bind(userId, inviteCode, publicId, now, now).run();
+      return { inviteCode, publicId, discoverable: 1, shareBirth: 0 };
+    } catch {}
+  }
+  throw new Error("social_profile_failed");
+}
+
+async function socialUser(env, userId) {
+  const identity = await env.DB.prepare("SELECT id, email, display_name AS displayName FROM identity_users WHERE id = ?").bind(userId).first();
+  if (!identity) return null;
+  const data = await readAccountData(env.DB, userId);
+  const profile = data.settings?.userProfile || {};
+  return {
+    id: identity.id,
+    name: String(profile.nickname || identity.displayName || String(identity.email || "镜像朋友").split("@")[0]).slice(0, 24),
+    avatar: typeof profile.avatar === "string" && profile.avatar.length < 800000 ? profile.avatar : "",
+  };
+}
+
+async function listRelationships(env, userId) {
+  const result = await env.DB.prepare("SELECT id, requester_id AS requesterId, recipient_id AS recipientId, status, created_at AS createdAt, updated_at AS updatedAt FROM relationships WHERE requester_id = ? OR recipient_id = ? ORDER BY updated_at DESC").bind(userId, userId).all();
+  return Promise.all((result.results || []).map(async (row) => ({
+    id: row.id,
+    status: row.status,
+    direction: row.requesterId === userId ? "outgoing" : "incoming",
+    person: await socialUser(env, row.requesterId === userId ? row.recipientId : row.requesterId),
+    createdAt: row.createdAt,
+  })));
+}
+
+function zodiacSign(month, day) {
+  const edges = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22];
+  const names = ["摩羯座", "水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座"];
+  return names[month - 1 + (day >= edges[month - 1] ? 1 : 0)] || "未知";
+}
+
+function relationInsight(first, second) {
+  const groups = { "白羊座":"火", "狮子座":"火", "射手座":"火", "金牛座":"土", "处女座":"土", "摩羯座":"土", "双子座":"风", "天秤座":"风", "水瓶座":"风", "巨蟹座":"水", "天蝎座":"水", "双鱼座":"水" };
+  const a = groups[first] || "";
+  const b = groups[second] || "";
+  if (a === b) return { rhythm: "你们容易快速进入同一种节奏，也更容易把彼此的默认方式当成理所当然。", tension: "一致感很强时，反而要给不同意见留一点位置。" };
+  if ((a === "火" && b === "风") || (a === "风" && b === "火") || (a === "土" && b === "水") || (a === "水" && b === "土")) return { rhythm: "你们的表达方式不同，却常能给对方正在做的事补上一块。", tension: "别把互补变成代替对方决定，先确认对方真正需要什么。" };
+  return { rhythm: "你们看事情的入口不太一样，这会带来新视角，也需要更多翻译。", tension: "压力来时，一个人想推进、另一个人可能先消化；把节奏说出来比猜更有效。" };
+}
+
+async function relationshipMirror(env, userId, relationId) {
+  const relation = await env.DB.prepare("SELECT requester_id AS requesterId, recipient_id AS recipientId, status FROM relationships WHERE id = ? AND (requester_id = ? OR recipient_id = ?)").bind(relationId, userId, userId).first();
+  if (!relation || relation.status !== "accepted") return null;
+  const otherId = relation.requesterId === userId ? relation.recipientId : relation.requesterId;
+  const [mine, theirs, mySocial, theirSocial, me, other] = await Promise.all([
+    readAccountData(env.DB, userId), readAccountData(env.DB, otherId), ensureSocialProfile(env, userId), ensureSocialProfile(env, otherId), socialUser(env, userId), socialUser(env, otherId),
+  ]);
+  const myBirth = mine.settings?.birthProfile;
+  const theirBirth = theirs.settings?.birthProfile;
+  if (!mySocial.shareBirth || !theirSocial.shareBirth || !myBirth || !theirBirth) return { ready: false, me, other };
+  const mySign = zodiacSign(Number(myBirth.month), Number(myBirth.day));
+  const theirSign = zodiacSign(Number(theirBirth.month), Number(theirBirth.day));
+  return { ready: true, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
 }
 
 async function acceptedRelationship(env, userId, relationId) {
@@ -806,10 +1148,12 @@ function shouldRetryProvider(status) {
   return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
 
-async function completeWithFallback(env, payload, { timeoutMs = 20_000 } = {}) {
+async function completeWithFallback(env, payload, { timeoutMs = 20_000, audit = null } = {}) {
   const providers = modelProviders(env);
   if (!providers[0].apiKey || !providers[0].model) throw new Error("llm_not_configured");
   let lastError = new Error("llm_unavailable");
+  const startedAt = Date.now();
+  const inputBytes = new TextEncoder().encode(JSON.stringify(payload)).byteLength;
   for (const [index, provider] of providers.entries()) {
     try {
       const upstream = await fetch(provider.baseUrl + "/chat/completions", {
@@ -824,7 +1168,10 @@ async function completeWithFallback(env, payload, { timeoutMs = 20_000 } = {}) {
         throw failure;
       }
       const text = decodeModelResponse(await upstream.text());
-      if (text.trim()) return { text, provider: provider.name };
+      if (text.trim()) {
+        await recordLlmAudit(env, { ...audit, provider: provider.name, model: provider.model, outcome: "succeeded", latencyMs: Date.now() - startedAt, inputBytes, outputBytes: new TextEncoder().encode(text).byteLength }).catch(() => undefined);
+        return { text, provider: provider.name, model: provider.model };
+      }
       lastError = new Error("llm_empty_response");
       if (index < providers.length - 1) continue;
       throw lastError;
@@ -833,6 +1180,7 @@ async function completeWithFallback(env, payload, { timeoutMs = 20_000 } = {}) {
       if (index < providers.length - 1 && lastError.retryable !== false) continue;
     }
   }
+  await recordLlmAudit(env, { ...audit, provider: providers.at(-1)?.name || "unknown", model: providers.at(-1)?.model || "unknown", outcome: /timeout/i.test(lastError.message) ? "timed_out" : "failed", latencyMs: Date.now() - startedAt, inputBytes }).catch(() => undefined);
   throw lastError;
 }
 
@@ -859,11 +1207,11 @@ async function shiguang(request, env) {
     // two identical messages on different days as the same experience.
     const sourceKey = typeof input.messageId === "string" && input.messageId.trim() ? input.messageId.trim().slice(0, 160) : crypto.randomUUID();
     const event = await recordMemoryEvent(env, user.id, { sourceKind: "conversation", sourceKey, content: question, occurredAt: new Date().toISOString() });
-    await refreshAutomaticObservations(env, user.id, event);
+    await enqueueObservationRefresh(env, user.id, event);
   }
   const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。自动观察只是基于重复互动形成的暂定理解：可以自然地说‘我感觉这个主题最近反复出现’，但不能把它说成诊断、事实或永久标签；若当前说法冲突，以当前说法为准。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<provisional_understanding>\n" + observations + "\n</provisional_understanding>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
   try {
-    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, response_format: input.mode === "daily_guidance" ? { type: "json_object" } : undefined, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : input.mode === "daily_guidance" ? dailyGuidanceSystem(input) : chatSystem }, ...messages] });
+    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, response_format: input.mode === "daily_guidance" ? { type: "json_object" } : undefined, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : input.mode === "daily_guidance" ? dailyGuidanceSystem(input) : chatSystem }, ...messages] }, { audit: { userId: user?.id || null, operation: input.mode === "daily_guidance" ? "daily_guidance" : input.mode === "mirror_result" ? "mirror_result" : "chat" } });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });
   } catch {
     return json({ error: "llm_upstream_failed" }, 502);
@@ -1022,7 +1370,7 @@ async function liuyaoReflection(request, env) {
           { role: "system", content: prompt },
           { role: "user", content: "<traditional_context>\n" + encodedContext + "\n</traditional_context>" },
         ],
-      }, { timeoutMs: 45_000 });
+      }, { timeoutMs: 45_000, audit: { operation: "liuyao_reflection" } });
     const reflection = sanitizeReflection(extractJson(generated.text), context);
     if (!reflection) return json({ error: "invalid_liuyao_reflection" }, 502);
     return json({ reflection, generationMode: "ai", modelSource: generated.provider });
@@ -1032,11 +1380,16 @@ async function liuyaoReflection(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const requestUrl = new URL(request.url);
+    // Best-effort draining keeps user-facing writes quick.  The durable task
+    // ledger is still the source of truth: a scheduled pass or later request
+    // can safely replay work after an isolate is interrupted.
+    ctx?.waitUntil?.(drainBackgroundTasks(env).catch(() => undefined));
     if (requestUrl.pathname === "/health/live") return json({
       status: "ok",
       service: "life-mirror-sites-worker",
+      phase: "PHASE-017-019",
       sourceCommit: BUILD_COMMIT,
     });
     if (requestUrl.pathname === "/api/shiguang") return shiguang(request, env);
@@ -1047,6 +1400,9 @@ export default {
     if (response.status !== 404) return response;
     requestUrl.pathname = indexPath(requestUrl.pathname);
     return env.ASSETS.fetch(new Request(requestUrl, request));
+  },
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(drainBackgroundTasks(env, 10));
   },
 };
 `;
