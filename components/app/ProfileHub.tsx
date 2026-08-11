@@ -12,6 +12,8 @@ import { getUserProfile, saveUserProfile, USER_PROFILE_CHANGED_EVENT, type Gende
 import { writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 
 const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
+type ExpressionPreferences = { tone: "balanced" | "direct" | "gentle" | "clear"; length: "short" | "standard" | "detailed"; followUp: "natural" | "ask" | "avoid"; updatedAt?: string | null };
+const defaultExpressionPreferences: ExpressionPreferences = { tone: "balanced", length: "standard", followUp: "natural" };
 
 export function ProfileHub() {
   const [guest, setGuest] = useState(true);
@@ -26,6 +28,9 @@ export function ProfileHub() {
   const [profile, setProfile] = useState<UserProfile>(() => ({ version: 1, nickname: "", avatar: "", gender: "hidden", updatedAt: "" }));
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [expressionPreferences, setExpressionPreferences] = useState<ExpressionPreferences>(defaultExpressionPreferences);
+  const [expressionBusy, setExpressionBusy] = useState(false);
+  const [expressionSaved, setExpressionSaved] = useState(false);
 
   useEffect(() => {
     const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); setProfile(getUserProfile()); };
@@ -40,6 +45,9 @@ export function ProfileHub() {
         if (Array.isArray(accountFacts)) setFacts(accountFacts as SavedFact[]);
       }).catch(() => undefined);
       fetch("/api/v1/social/me", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => setPublicId(value?.profile?.publicId ?? "")).catch(() => undefined);
+      fetch("/api/v1/account/expression-preferences", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => {
+        if (value?.preferences) setExpressionPreferences({ ...defaultExpressionPreferences, ...value.preferences });
+      }).catch(() => undefined);
     }).catch(() => { setAccountEmail(""); setGuest(true); });
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
@@ -50,6 +58,18 @@ export function ProfileHub() {
 
   function toggle(next: Partial<MemorySettings>) {
     setSettings(updateMemorySettings(next));
+  }
+
+  async function saveExpressionPreferences(next: ExpressionPreferences) {
+    if (guest) return;
+    setExpressionBusy(true);
+    try {
+      const response = await fetch("/api/v1/account/expression-preferences", { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ tone: next.tone, length: next.length, followUp: next.followUp }) });
+      const value = await response.json().catch(() => null) as { preferences?: ExpressionPreferences } | null;
+      if (!response.ok || !value?.preferences) throw new Error("expression_preferences_save_failed");
+      setExpressionPreferences({ ...defaultExpressionPreferences, ...value.preferences });
+      setExpressionSaved(true); window.setTimeout(() => setExpressionSaved(false), 1800);
+    } finally { setExpressionBusy(false); }
   }
 
   async function saveFact() {
@@ -160,6 +180,13 @@ export function ProfileHub() {
         <div><input id="saved-fact" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveFact(); }} maxLength={180} placeholder="例如：我不喜欢被催着做决定" /><button type="button" onClick={() => void saveFact()} disabled={!draft.trim() || factsBusy}><FloppyDisk /> {editingFactId ? "更新" : "保存"}</button>{editingFactId && <button type="button" onClick={() => { setEditingFactId(null); setDraft(""); }}>取消</button>}</div>
         {facts.length ? <ul>{facts.map((fact) => <li key={fact.id}><span>{fact.text}<small>{new Date(fact.updatedAt).toLocaleDateString("zh-CN")}</small></span><button type="button" onClick={() => { setEditingFactId(fact.id); setDraft(fact.text); }} disabled={factsBusy} aria-label={`纠正记忆：${fact.text}`}><PencilSimple /></button><button type="button" onClick={() => void removeFact(fact.id)} disabled={factsBusy} aria-label={`删除记忆：${fact.text}`}><Trash /></button></li>)}</ul> : <p>还没有明确记忆。你可以在这里添加，或在聊天中说“请记住……”。</p>}
       </div>
+      {!guest && <section className={styles.expressionPreferences} aria-labelledby="expression-preferences-title">
+        <div><small>回复方式</small><h3 id="expression-preferences-title">你希望拾光怎么和你说话</h3><p>这是你自己设定的表达偏好，不是系统对你的性格判断；随时可改，且不会改变记忆内容。</p></div>
+        <label><span>语气</span><select value={expressionPreferences.tone} disabled={expressionBusy} onChange={(event) => void saveExpressionPreferences({ ...expressionPreferences, tone: event.target.value as ExpressionPreferences["tone"] })}><option value="balanced">自然平衡</option><option value="direct">直接一点</option><option value="gentle">温柔一点</option><option value="clear">清楚具体</option></select></label>
+        <label><span>篇幅</span><select value={expressionPreferences.length} disabled={expressionBusy} onChange={(event) => void saveExpressionPreferences({ ...expressionPreferences, length: event.target.value as ExpressionPreferences["length"] })}><option value="short">简短</option><option value="standard">适中</option><option value="detailed">多解释一点</option></select></label>
+        <label><span>追问</span><select value={expressionPreferences.followUp} disabled={expressionBusy} onChange={(event) => void saveExpressionPreferences({ ...expressionPreferences, followUp: event.target.value as ExpressionPreferences["followUp"] })}><option value="natural">自然决定</option><option value="ask">可以多问一句</option><option value="avoid">少把问题抛给我</option></select></label>
+        {expressionSaved && <small className={styles.expressionSaved}><Check /> 已更新</small>}
+      </section>}
     </section>
     <p className={styles.privacy}><LockKey /> LifeMirror 不会在未经授权时上传设备内记录。</p>
     <AppBottomNav active="profile" />
