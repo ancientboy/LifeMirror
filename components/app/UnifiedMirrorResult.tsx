@@ -193,9 +193,9 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     <aside><small>想接着说的话</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
     <p className={styles.notice}>{saved ? "✓ 已自动记录到“我的”" : "正在记录这次镜像…"}</p>
     <ShareQuoteCard theme={theme} title={title} quote={result.shareCards.warm} meta={meta} image={image} contentByVariant={{
-      paper: { kicker: `我的此刻 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
-      night: { kicker: `关系回应 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
-      character: { kicker: `邀请对照 · ${labels[kind]}`, quote: result.shareCards.witty, meta: "生成你的镜像，和我对照看看" },
+      paper: { kicker: `朋友版 · ${labels[kind]}`, quote: result.shareCards.warm, meta },
+      night: { kicker: `清醒版 · ${labels[kind]}`, quote: result.shareCards.roast, meta: "这像我们吗？" },
+      character: { kicker: `神秘版 · ${labels[kind]}`, quote: result.shareCards.witty, meta: "生成你的镜像，和我对照看看" },
     }} />
   </section>;
 }

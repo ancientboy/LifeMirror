@@ -27,7 +27,7 @@ function readSettings(): Record<string, unknown> {
 }
 
 function profileKey(profile: SavedBirthProfile) {
-  return [profile.year, profile.month, profile.day, profile.hour, profile.minute, profile.unknownTime, profile.place.trim(), profile.utcOffsetMinutes, profile.longitude, profile.latitude, profile.dayBoundary, profile.luckGender ?? "", profile.useTrueSolarTime].join("|");
+  return [profile.year, profile.month, profile.day, profile.hour, profile.minute, profile.unknownTime, profile.place.trim(), profile.utcOffsetMinutes, profile.timeZone ?? "", profile.longitude, profile.latitude, profile.dayBoundary, profile.luckGender ?? "", profile.useTrueSolarTime].join("|");
 }
 
 function read(): SavedNatalMirror[] {

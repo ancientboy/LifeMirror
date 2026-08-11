@@ -1,9 +1,10 @@
 import { calculateAstrology, calculateAstrologyTransits } from "../server/tools/astrology/core.js";
 import { calculateBazi, relateBaziDay } from "../server/tools/bazi/engine.js";
+import { localDateInZone } from "./civil-time.js";
 
 export type DailyBirthProfile = {
   year: number; month: number; day: number; hour: number; minute: number; unknownTime: boolean;
-  place: string; utcOffsetMinutes: number; longitude: string; latitude: string;
+  place: string; utcOffsetMinutes: number; timeZone?: string | null; longitude: string; latitude: string;
   dayBoundary: "midnight" | "late-zi"; luckGender: "male" | "female" | null; useTrueSolarTime: boolean;
 };
 
@@ -45,11 +46,6 @@ export function sanitizeDailyGuidance(value: unknown, fallback: DailyGuidance, e
     ? item.sources.filter((source): source is DailyEvidence["label"] => typeof source === "string" && EVIDENCE_LABELS.has(source as DailyEvidence["label"]) && allowed.has(source as DailyEvidence["label"])).slice(0, 3)
     : [];
   return { theme: text("theme", 52), reason: text("reason", 120), action: text("action", 80), sources: sources.length ? sources : fallback.sources };
-}
-
-function localDate(offsetMinutes: number) {
-  const shifted = new Date(Date.now() + offsetMinutes * 60_000);
-  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
 }
 
 function toNumber(value: string) {
@@ -97,27 +93,27 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
   }
 
   try {
-    const today = localDate(profile.utcOffsetMinutes);
+    const today = localDateInZone(new Date(), profile.timeZone, profile.utcOffsetMinutes);
     const birthHour = profile.unknownTime ? null : profile.hour;
     const natalAstrology = calculateAstrology({
       year: profile.year, month: profile.month, day: profile.day, hour: birthHour, minute: profile.minute,
-      utcOffsetMinutes: profile.utcOffsetMinutes, latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
+      utcOffsetMinutes: profile.utcOffsetMinutes, timeZone: profile.timeZone, latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
     });
     const natalBazi = calculateBazi({
       year: profile.year, month: profile.month, day: profile.day, hour: birthHour, minute: profile.minute,
-      utcOffsetMinutes: profile.utcOffsetMinutes, longitude: profile.longitude ? toNumber(profile.longitude) : null,
+      utcOffsetMinutes: profile.utcOffsetMinutes, timeZone: profile.timeZone, longitude: profile.longitude ? toNumber(profile.longitude) : null,
       useTrueSolarTime: profile.useTrueSolarTime, dayBoundary: profile.dayBoundary, luckGender: profile.luckGender,
     });
     const dailyAstrology = calculateAstrology({
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes,
+      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes, timeZone: profile.timeZone,
       latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
     });
     const dailyBazi = calculateBazi({
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes, longitude: null,
+      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes, timeZone: profile.timeZone, longitude: null,
       useTrueSolarTime: false, dayBoundary: "midnight", luckGender: null,
     });
     const transit = calculateAstrologyTransits(natalAstrology, {
-      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes,
+      ...today, hour: 12, minute: 0, utcOffsetMinutes: profile.utcOffsetMinutes, timeZone: profile.timeZone,
       latitude: toNumber(profile.latitude), longitude: toNumber(profile.longitude),
     });
     const baziDayRelation = relateBaziDay(natalBazi, dailyBazi);

@@ -5,6 +5,7 @@ export type AstrologyInput = {
   hour: number | null;
   minute: number;
   utcOffsetMinutes: number;
+  timeZone?: string | null;
   latitude: number;
   longitude: number;
 };

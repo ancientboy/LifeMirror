@@ -9,6 +9,7 @@ export type PersonContext = {
   person: Pick<PrivatePerson, "id" | "displayName" | "relationshipType" | "birthProfile" | "isMinor">;
   ownerObservations: RelationshipObservation[];
   simulationCorrections: RelationshipObservation[];
+  simulationAssessments: RelationshipObservation[];
   realInteractions: RelationshipLoop[];
   openLoops: RelationshipLoop[];
   provenance: { excluded: string[]; ranking: string[] };
@@ -21,6 +22,7 @@ export function buildPersonContext(person: PrivatePerson, loops: RelationshipLoo
     person: { id: person.id, displayName: person.displayName, relationshipType: person.relationshipType, birthProfile: person.birthProfile, isMinor: person.isMinor },
     ownerObservations: observations.filter((item) => item.source === "owner_observation"),
     simulationCorrections: observations.filter((item) => item.source === "owner_correction"),
+    simulationAssessments: observations.filter((item) => item.source === "simulation_assessment"),
     realInteractions: related.filter((item) => item.status === "reported" && item.actionTaken),
     openLoops: related.filter((item) => item.status === "awaiting_action"),
     provenance: {

@@ -10,6 +10,8 @@ export type SavedBirthProfile = {
   unknownTime: boolean;
   place: string;
   utcOffsetMinutes: number;
+  /** IANA zone preserves historical DST rules; numeric offset is retained for old profiles. */
+  timeZone?: string | null;
   longitude: string;
   latitude: string;
   dayBoundary: "midnight" | "late-zi";

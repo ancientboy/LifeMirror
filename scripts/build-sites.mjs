@@ -1,4 +1,17 @@
+Warning: truncated output (original token count: 25884)
+Total output lines: 1320
+
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+
+// Keep the deployed Worker traceable to a source revision.  ChatGPT Sites can
+// pass GITHUB_SHA during a GitHub build; SOURCE_COMMIT also supports manual
+// release jobs.  Never use a runtime environment value here: the value must be
+// baked into the asset that was actually deployed.
+function checkedOutCommit() {
+  try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { return ""; }
+}
+const sourceCommit = (process.env.GITHUB_SHA || process.env.SOURCE_COMMIT || checkedOutCommit() || "unknown").trim().slice(0, 64);
 
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/server", { recursive: true });
@@ -12,6 +25,7 @@ const worker = String.raw`
 const SESSION_COOKIE = "life_mirror_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const CODE_TTL_MS = 10 * 60 * 1000;
+const BUILD_COMMIT = ${JSON.stringify(sourceCommit)};
 
 function indexPath(pathname) {
   if (pathname.endsWith("/")) return pathname + "index.html";
@@ -406,11 +420,30 @@ async function buildPersonalChatMemory(env, userId, question) {
 }
 
 async function writeAccountData(db, userId, data) {
-  const clean = snapshot(data);
+  const clean = await applyAccountTombstones(db, userId, snapshot(data));
   const now = new Date().toISOString();
   await db.prepare("INSERT INTO account_data (user_id, settings_json, facts_json, history_json, tarot_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET settings_json = excluded.settings_json, facts_json = excluded.facts_json, history_json = excluded.history_json, tarot_json = excluded.tarot_json, updated_at = excluded.updated_at")
     .bind(userId, JSON.stringify({ ...clean.settings, chatThreads: clean.chats }), JSON.stringify(clean.facts), JSON.stringify(clean.history), JSON.stringify(clean.tarot), now).run();
   return { ...clean, updatedAt: now };
+}
+
+// A browser may have been offline while another device removed a fact or a
+// history item.  Revisions are therefore applied at the authority boundary,
+// not trusted to the browser's cached snapshot.  This makes an old sync unable
+// to recreate a deliberately deleted item.
+async function applyAccountTombstones(db, userId, account) {
+  const revisions = await db.prepare("SELECT target_kind AS targetKind, target_id AS targetId FROM memory_revisions WHERE user_id = ? AND revision_kind = 'deleted' AND target_kind IN ('fact', 'history')").bind(userId).all();
+  const deletedFacts = new Set();
+  const deletedHistory = new Set();
+  for (const revision of revisions.results || []) {
+    if (revision.targetKind === "fact") deletedFacts.add(String(revision.targetId));
+    if (revision.targetKind === "history") deletedHistory.add(String(revision.targetId));
+  }
+  return {
+    ...account,
+    facts: account.facts.filter((item) => item && !deletedFacts.has(String(item.id || ""))),
+    history: account.history.filter((item) => item && !deletedHistory.has(String(item.id || ""))),
+  };
 }
 
 async function sessionUser(request, env) {
@@ -536,7 +569,16 @@ async function authApi(request, env, pathname) {
   if (pathname === "/api/v1/account/data" && request.method === "GET") return json({ data: await readAccountData(env.DB, user.id) });
   if (pathname === "/api/v1/account/data" && request.method === "PUT") {
     const input = await body(request);
-    return json({ data: await writeAccountData(env.DB, user.id, input?.data) });
+    const incoming = snapshot(input?.data);
+    const current = await readAccountData(env.DB, user.id);
+    const baseUpdatedAt = String(input?.data?.updatedAt || "");
+    // When the browser is stale, retain all server-side records and only merge
+    // its independently-created items.  The response becomes the new local
+    // baseline, so both devices converge instead of taking turns overwriting.
+    const next = baseUpdatedAt && current.updatedAt && baseUpdatedAt !== current.updatedAt
+      ? mergeSnapshot(current, incoming)
+      : incoming;
+    return json({ data: await writeAccountData(env.DB, user.id, next), sync: baseUpdatedAt === current.updatedAt ? "applied" : "merged_stale_snapshot" });
   }
   if (pathname === "/api/v1/account/context" && request.method === "GET") {
     const url = new URL(request.url);
@@ -563,276 +605,7 @@ async function authApi(request, env, pathname) {
     await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), user.id, eventType, surface, eventKey, new Date().toISOString()).run();
     return json({ ok: true }, 201);
   }
-  if (pathname === "/api/v1/account/product-metrics/summary" && request.method === "GET") {
-    const result = await env.DB.prepare("SELECT event_type AS eventType, count(*) AS total FROM product_metric_events WHERE user_id = ? GROUP BY event_type").bind(user.id).all();
-    const totals = { chat_message_sent: 0, daily_opened: 0, daily_checkin_completed: 0, mirror_result_ready: 0, tool_continued_chat: 0, share_card_shared: 0, share_link_created: 0, share_response_created: 0 };
-    for (const row of result.results || []) if (Object.prototype.hasOwnProperty.call(totals, row.eventType)) totals[row.eventType] = Number(row.total || 0);
-    const activity = await env.DB.prepare("SELECT substr(occurred_at, 1, 10) AS day, count(*) AS total FROM product_metric_events WHERE user_id = ? AND occurred_at >= ? GROUP BY day ORDER BY day DESC").bind(user.id, new Date(Date.now() - 6 * 86400000).toISOString()).all();
-    const activeDays7 = (activity.results || []).length;
-    return json({ summary: { ...totals, activeDays7, dailyCompletionRate: totals.daily_opened ? totals.daily_checkin_completed / totals.daily_opened : 0, toolContinueRate: totals.mirror_result_ready ? totals.tool_continued_chat / totals.mirror_result_ready : 0, shareRate: totals.mirror_result_ready ? totals.share_card_shared / totals.mirror_result_ready : 0 }, privacy: "opaque_aggregate_only" });
-  }
-  if (pathname === "/api/v1/account/product-metrics" && request.method === "DELETE") {
-    // User controls include telemetry: clearing analytics must not require
-    // deleting their conversations, memories or mirror history.
-    await env.DB.prepare("DELETE FROM product_metric_events WHERE user_id = ?").bind(user.id).run();
-    return json({ ok: true, deleted: "product_metrics_only" });
-  }
-  if (pathname === "/api/v1/memories" && request.method === "GET") {
-    const includeHidden = new URL(request.url).searchParams.get("includeHidden") === "true";
-    const [events, patterns] = await Promise.all([
-      env.DB.prepare("SELECT id, source_kind AS sourceKind, source_key AS sourceKey, content, occurred_at AS occurredAt, visibility FROM memory_events WHERE user_id = ? AND deleted_at IS NULL " + (includeHidden ? "" : "AND visibility = 'visible' ") + "ORDER BY occurred_at DESC LIMIT 80").bind(user.id).all(),
-      env.DB.prepare("SELECT id, title, summary, evidence_count AS evidenceCount, confidence, visibility FROM memory_observations WHERE user_id = ? AND deleted_at IS NULL " + (includeHidden ? "" : "AND visibility = 'visible' ") + "ORDER BY last_observed_at DESC LIMIT 40").bind(user.id).all(),
-    ]);
-    return json({ events: (events.results || []).map((item) => ({ id: item.id, sourceEventId: item.id, title: ({ conversation: "一次对话", mirror_history: "一次镜像", explicit_fact: "明确记忆", daily_checkin: "每日回访" })[item.sourceKind] || "生活记录", topic: item.sourceKind, triggerText: String(item.content || ""), summary: String(item.content || ""), occurredAt: item.occurredAt, visibility: item.visibility, userCorrected: false })), patterns: (patterns.results || []).map((item) => ({ id: item.id, title: item.title, summary: item.summary, signalCount: item.evidenceCount, confidence: item.confidence, visibility: item.visibility })) });
-  }
-  const memoryEventMatch = pathname.match(/^\/api\/v1\/memories\/event\/([^/]+)$/);
-  if (memoryEventMatch && request.method === "PATCH") {
-    const input = await body(request); const id = decodeURIComponent(memoryEventMatch[1]);
-    const visibility = ["visible", "hidden"].includes(String(input?.visibility || "")) ? String(input.visibility) : null;
-    if (!visibility) return json({ error: "only_visibility_is_supported_for_raw_events" }, 400);
-    const updated = await env.DB.prepare("UPDATE memory_events SET visibility = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL").bind(visibility, new Date().toISOString(), id, user.id).run();
-    if (!updated.meta?.changes) return json({ error: "memory_not_found" }, 404);
-    return json({ ok: true });
-  }
-  const memorySourceMatch = pathname.match(/^\/api\/v1\/memories\/source-events\/([^/]+)$/);
-  if (memorySourceMatch && request.method === "DELETE") { await reviseMemory(env, user.id, "event", decodeURIComponent(memorySourceMatch[1]), "deleted"); return json({ ok: true }); }
-  const memoryPatternMatch = pathname.match(/^\/api\/v1\/memories\/pattern\/([^/]+)$/);
-  if (memoryPatternMatch && request.method === "PATCH") {
-    const input = await body(request); const id = decodeURIComponent(memoryPatternMatch[1]); const visibility = ["visible", "hidden"].includes(String(input?.visibility || "")) ? String(input.visibility) : null;
-    if (!visibility) return json({ error: "invalid_memory_visibility" }, 400);
-    const updated = await env.DB.prepare("UPDATE memory_observations SET visibility = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL").bind(visibility, new Date().toISOString(), id, user.id).run();
-    if (!updated.meta?.changes) return json({ error: "memory_not_found" }, 404); return json({ ok: true });
-  }
-  if (memoryPatternMatch && request.method === "DELETE") { await reviseMemory(env, user.id, "observation", decodeURIComponent(memoryPatternMatch[1]), "deleted"); return json({ ok: true }); }
-  if (pathname === "/api/v1/memories/export" && request.method === "GET") {
-    const [account, events, observations, revisions, productMetrics] = await Promise.all([readAccountData(env.DB, user.id), env.DB.prepare("SELECT * FROM memory_events WHERE user_id = ? ORDER BY occurred_at DESC").bind(user.id).all(), env.DB.prepare("SELECT * FROM memory_observations WHERE user_id = ? ORDER BY last_observed_at DESC").bind(user.id).all(), env.DB.prepare("SELECT * FROM memory_revisions WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all(), env.DB.prepare("SELECT event_type AS eventType, surface, occurred_at AS occurredAt FROM product_metric_events WHERE user_id = ? ORDER BY occurred_at DESC").bind(user.id).all()]);
-    return json({ ownership: "user", trainingData: false, exportedAt: new Date().toISOString(), account, memoryEvents: events.results || [], memoryObservations: observations.results || [], memoryRevisions: revisions.results || [], productMetrics: productMetrics.results || [] });
-  }
-  if (pathname === "/api/v1/reviews" && request.method === "GET") {
-    const cadence = new URL(request.url).searchParams.get("cadence") === "monthly" ? "monthly" : "weekly";
-    const [account, runtime] = await Promise.all([readAccountData(env.DB, user.id), buildD1RuntimeContext(env, user.id, { mode: "review", limit: 12 })]);
-    await auditRuntimeContext(env, user.id, runtime).catch(() => undefined);
-    return json({ review: accountReview(account, cadence, runtime), runtime });
-  }
-  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "GET") {
-    const account = await readAccountData(env.DB, user.id);
-    const defaults = { enabled: true, weeklyEnabled: true, monthlyEnabled: true, cooldownHours: 168 };
-    return json({ preferences: { ...defaults, ...(account.settings?.reviewPreferences || {}) } });
-  }
-  if (pathname === "/api/v1/proactive-reflections/preferences" && request.method === "PATCH") {
-    const input = await body(request);
-    const account = await readAccountData(env.DB, user.id);
-    const preferences = { enabled: Boolean(input?.enabled), weeklyEnabled: Boolean(input?.weeklyEnabled), monthlyEnabled: Boolean(input?.monthlyEnabled), cooldownHours: [72, 168, 336, 720].includes(Number(input?.cooldownHours)) ? Number(input.cooldownHours) : 168 };
-    await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, reviewPreferences: preferences } });
-    return json({ preferences });
-  }
-  if (pathname === "/api/v1/account/daily-checkins" && request.method === "POST") {
-    const input = await body(request);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.date || "")) ? String(input.date) : "";
-    const status = ["done", "later", "release"].includes(String(input?.status || "")) ? String(input.status) : "";
-    const theme = String(input?.theme || "").replace(/\s+/g, " ").trim().slice(0, 120);
-    const action = String(input?.action || "").replace(/\s+/g, " ").trim().slice(0, 200);
-    if (!date || !status || !action) return json({ error: "invalid_daily_checkin" }, 400);
-    const account = await readAccountData(env.DB, user.id);
-    const existing = Array.isArray(account.settings?.dailyLoop) ? account.settings.dailyLoop : [];
-    const record = { date, theme, action, status, checkedInAt: new Date().toISOString() };
-    const dailyLoop = [record, ...existing.filter((item) => item && String(item.date || "") !== date)].slice(0, 30);
-    const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, dailyLoop } });
-    const event = await recordMemoryEvent(env, user.id, { sourceKind: "daily_checkin", sourceKey: date, content: "今日行动：" + action + "；结果：" + (status === "done" ? "做了" : status === "later" ? "还没" : "先放下"), occurredAt: record.checkedInAt });
-    await refreshAutomaticObservations(env, user.id, event);
-    await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, 'daily_checkin_completed', 'daily', ?, ?)").bind(crypto.randomUUID(), user.id, "daily:" + date, record.checkedInAt).run();
-    return json({ record, data }, 201);
-  }
-  if (pathname === "/api/v1/account/history" && request.method === "POST") {
-    const input = await body(request);
-    const candidate = input?.history;
-    if (!candidate || typeof candidate !== "object") return json({ error: "invalid_history" }, 400);
-    const id = String(candidate.id || "").trim().slice(0, 120);
-    const question = String(candidate.question || "").trim().slice(0, 500);
-    if (!id || !question) return json({ error: "invalid_history" }, 400);
-    const account = await readAccountData(env.DB, user.id);
-    const dedupKey = String(candidate.dedupKey || "");
-    const index = account.history.findIndex((item) => item && (String(item.id || "") === id || (dedupKey && String(item.dedupKey || "") === dedupKey)));
-    const history = { ...candidate, id: index >= 0 ? account.history[index].id : id, updatedAt: new Date().toISOString() };
-    if (index >= 0) account.history[index] = { ...account.history[index], ...history, important: Boolean(account.history[index].important || history.important) };
-    else account.history = [history, ...account.history].slice(0, 50);
-    const data = await writeAccountData(env.DB, user.id, account);
-    const event = await recordMemoryEvent(env, user.id, { sourceKind: "mirror_history", sourceKey: history.id, content: question + " " + historySummary(history), personId: history.personId, occurredAt: history.savedAt || history.updatedAt });
-    await refreshAutomaticObservations(env, user.id, event);
-    return json({ history, data }, index >= 0 ? 200 : 201);
-  }
-  const historyMatch = pathname.match(/^\/api\/v1\/account\/history\/([^/]+)$/);
-  if (historyMatch && request.method === "PATCH") {
-    const input = await body(request);
-    const account = await readAccountData(env.DB, user.id);
-    const id = decodeURIComponent(historyMatch[1]);
-    const allowed = input && typeof input === "object" ? input : {};
-    const index = account.history.findIndex((item) => item && String(item.id || "") === id);
-    if (index < 0) return json({ error: "history_not_found" }, 404);
-    const current = account.history[index];
-    const next = { ...current, updatedAt: new Date().toISOString() };
-    if (typeof allowed.important === "boolean") next.important = allowed.important;
-    if (["open", "resolved", "unknown"].includes(String(allowed.openLoopStatus || ""))) next.openLoopStatus = allowed.openLoopStatus;
-    if (Object.prototype.hasOwnProperty.call(allowed, "personId")) next.personId = typeof allowed.personId === "string" && allowed.personId.trim() ? allowed.personId.trim().slice(0, 120) : undefined;
-    if (Object.prototype.hasOwnProperty.call(allowed, "personName")) next.personName = typeof allowed.personName === "string" && allowed.personName.trim() ? allowed.personName.trim().slice(0, 80) : undefined;
-    account.history[index] = next;
-    const data = await writeAccountData(env.DB, user.id, account);
-    await recordMemoryEvent(env, user.id, { sourceKind: "mirror_history", sourceKey: next.id, content: String(next.question || "") + " " + historySummary(next), personId: next.personId, occurredAt: next.updatedAt });
-    return json({ history: next, data });
-  }
-  if (historyMatch && request.method === "DELETE") {
-    const account = await readAccountData(env.DB, user.id);
-    const id = decodeURIComponent(historyMatch[1]);
-    const next = account.history.filter((item) => item && String(item.id || "") !== id);
-    if (next.length === account.history.length) return json({ error: "history_not_found" }, 404);
-    const data = await writeAccountData(env.DB, user.id, { ...account, history: next });
-    await reviseMemory(env, user.id, "history", id, "deleted");
-    return json({ data });
-  }
-  if (pathname === "/api/v1/account/facts" && request.method === "POST") {
-    const input = await body(request);
-    const text = cleanFactText(input?.text);
-    if (!text) return json({ error: "invalid_fact" }, 400);
-    const account = await readAccountData(env.DB, user.id);
-    const now = new Date().toISOString();
-    const existing = account.facts.find((item) => item && String(item.text || "") === text);
-    const fact = existing ? { ...existing, updatedAt: now } : { id: crypto.randomUUID(), text, createdAt: now, updatedAt: now };
-    const data = await writeAccountData(env.DB, user.id, { ...account, facts: [fact, ...account.facts.filter((item) => item && String(item.id || "") !== String(fact.id))] });
-    const event = await recordMemoryEvent(env, user.id, { sourceKind: "explicit_fact", sourceKey: fact.id, content: text, occurredAt: fact.updatedAt });
-    await refreshAutomaticObservations(env, user.id, event);
-    return json({ fact, data }, existing ? 200 : 201);
-  }
-  const factMatch = pathname.match(/^\/api\/v1\/account\/facts\/([^/]+)$/);
-  if (factMatch && request.method === "PATCH") {
-    const input = await body(request);
-    const text = cleanFactText(input?.text);
-    if (!text) return json({ error: "invalid_fact" }, 400);
-    const account = await readAccountData(env.DB, user.id);
-    const id = factId(decodeURIComponent(factMatch[1]));
-    const index = account.facts.findIndex((item) => item && String(item.id || "") === id);
-    if (index < 0) return json({ error: "fact_not_found" }, 404);
-    const fact = { ...account.facts[index], text, updatedAt: new Date().toISOString() };
-    account.facts[index] = fact;
-    const data = await writeAccountData(env.DB, user.id, account);
-    await recordMemoryEvent(env, user.id, { sourceKind: "explicit_fact", sourceKey: fact.id, content: text, occurredAt: fact.updatedAt });
-    return json({ fact, data });
-  }
-  if (factMatch && request.method === "DELETE") {
-    const account = await readAccountData(env.DB, user.id);
-    const id = factId(decodeURIComponent(factMatch[1]));
-    const facts = account.facts.filter((item) => item && String(item.id || "") !== id);
-    if (facts.length === account.facts.length) return json({ error: "fact_not_found" }, 404);
-    const data = await writeAccountData(env.DB, user.id, { ...account, facts });
-    await reviseMemory(env, user.id, "fact", id, "deleted");
-    return json({ data });
-  }
-  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "POST") {
-    const input = await body(request);
-    const loopId = String(input?.loopId || "").trim().slice(0, 120);
-    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
-    const eventType = String(input?.eventType || "");
-    if (!loopId || !["rehearsal_started", "followup_seen", "action_taken", "feedback_reported"].includes(eventType)) return json({ error: "invalid_effect_loop_event" }, 400);
-    await env.DB.prepare("INSERT OR IGNORE INTO relationship_effect_events (id, user_id, loop_id, relationship_key, event_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), user.id, loopId, relationshipKey, eventType, new Date().toISOString()).run();
-    return json({ ok: true }, 201);
-  }
-  if (pathname === "/api/v1/account/effect-loop/events" && request.method === "DELETE") {
-    const input = await body(request);
-    const loopId = String(input?.loopId || "").trim().slice(0, 120);
-    const relationshipKey = String(input?.relationshipKey || "").trim().slice(0, 120);
-    if (loopId) {
-      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND loop_id = ?").bind(user.id, loopId).run();
-      return json({ ok: true });
-    }
-    if (relationshipKey) {
-      await env.DB.prepare("DELETE FROM relationship_effect_events WHERE user_id = ? AND relationship_key = ?").bind(user.id, relationshipKey).run();
-      return json({ ok: true });
-    }
-    return json({ error: "invalid_effect_loop_deletion" }, 400);
-  }
-  if (pathname === "/api/v1/account/effect-loop/summary" && request.method === "GET") {
-    const counts = await env.DB.prepare("SELECT SUM(CASE WHEN event_type = 'rehearsal_started' THEN 1 ELSE 0 END) AS rehearsalsStarted, SUM(CASE WHEN event_type = 'followup_seen' THEN 1 ELSE 0 END) AS followupsSeen, SUM(CASE WHEN event_type = 'action_taken' THEN 1 ELSE 0 END) AS actionsTaken, SUM(CASE WHEN event_type = 'feedback_reported' THEN 1 ELSE 0 END) AS feedbackReported FROM relationship_effect_events WHERE user_id = ?").bind(user.id).first();
-    const repeats = await env.DB.prepare("SELECT count(*) AS total FROM (SELECT relationship_key FROM relationship_effect_events WHERE user_id = ? AND event_type = 'rehearsal_started' AND relationship_key <> '' GROUP BY relationship_key HAVING count(*) >= 2)").bind(user.id).first();
-    const rehearsalsStarted = Number(counts?.rehearsalsStarted || 0);
-    const feedbackReported = Number(counts?.feedbackReported || 0);
-    const actionsTaken = Number(counts?.actionsTaken || 0);
-    return json({ summary: { rehearsalsStarted, followupsSeen: Number(counts?.followupsSeen || 0), actionsTaken, feedbackReported, repeatPracticePeople: Number(repeats?.total || 0), actionRate: rehearsalsStarted ? actionsTaken / rehearsalsStarted : 0, feedbackCompletionRate: rehearsalsStarted ? feedbackReported / rehearsalsStarted : 0 } });
-  }
-  return json({ error: "not_found" }, 404);
-}
-
-async function ensureSocialProfile(env, userId) {
-  let profile = await env.DB.prepare("SELECT invite_code AS inviteCode, public_id AS publicId, discoverable, share_birth_for_relationships AS shareBirth FROM social_profiles WHERE user_id = ?").bind(userId).first();
-  if (profile?.publicId) return profile;
-  const now = new Date().toISOString();
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const publicId = "LM-" + randomHex(4).toUpperCase();
-    if (profile) {
-      try {
-        await env.DB.prepare("UPDATE social_profiles SET public_id = ?, updated_at = ? WHERE user_id = ?").bind(publicId, now, userId).run();
-        return { ...profile, publicId };
-      } catch { continue; }
-    }
-    const inviteCode = randomHex(5).toUpperCase();
-    try {
-      await env.DB.prepare("INSERT INTO social_profiles (user_id, invite_code, public_id, discoverable, share_birth_for_relationships, created_at, updated_at) VALUES (?, ?, ?, 1, 0, ?, ?)").bind(userId, inviteCode, publicId, now, now).run();
-      return { inviteCode, publicId, discoverable: 1, shareBirth: 0 };
-    } catch {}
-  }
-  throw new Error("social_profile_failed");
-}
-
-async function socialUser(env, userId) {
-  const identity = await env.DB.prepare("SELECT id, email, display_name AS displayName FROM identity_users WHERE id = ?").bind(userId).first();
-  if (!identity) return null;
-  const data = await readAccountData(env.DB, userId);
-  const profile = data.settings?.userProfile || {};
-  return {
-    id: identity.id,
-    name: String(profile.nickname || identity.displayName || String(identity.email || "镜像朋友").split("@")[0]).slice(0, 24),
-    avatar: typeof profile.avatar === "string" && profile.avatar.length < 800000 ? profile.avatar : "",
-  };
-}
-
-async function listRelationships(env, userId) {
-  const result = await env.DB.prepare("SELECT id, requester_id AS requesterId, recipient_id AS recipientId, status, created_at AS createdAt, updated_at AS updatedAt FROM relationships WHERE requester_id = ? OR recipient_id = ? ORDER BY updated_at DESC").bind(userId, userId).all();
-  return Promise.all((result.results || []).map(async (row) => ({
-    id: row.id,
-    status: row.status,
-    direction: row.requesterId === userId ? "outgoing" : "incoming",
-    person: await socialUser(env, row.requesterId === userId ? row.recipientId : row.requesterId),
-    createdAt: row.createdAt,
-  })));
-}
-
-function zodiacSign(month, day) {
-  const edges = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22];
-  const names = ["摩羯座", "水瓶座", "双鱼座", "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座", "天秤座", "天蝎座", "射手座", "摩羯座"];
-  return names[month - 1 + (day >= edges[month - 1] ? 1 : 0)] || "未知";
-}
-
-function relationInsight(first, second) {
-  const groups = { "白羊座":"火", "狮子座":"火", "射手座":"火", "金牛座":"土", "处女座":"土", "摩羯座":"土", "双子座":"风", "天秤座":"风", "水瓶座":"风", "巨蟹座":"水", "天蝎座":"水", "双鱼座":"水" };
-  const a = groups[first] || "";
-  const b = groups[second] || "";
-  if (a === b) return { rhythm: "你们容易快速进入同一种节奏，也更容易把彼此的默认方式当成理所当然。", tension: "一致感很强时，反而要给不同意见留一点位置。" };
-  if ((a === "火" && b === "风") || (a === "风" && b === "火") || (a === "土" && b === "水") || (a === "水" && b === "土")) return { rhythm: "你们的表达方式不同，却常能给对方正在做的事补上一块。", tension: "别把互补变成代替对方决定，先确认对方真正需要什么。" };
-  return { rhythm: "你们看事情的入口不太一样，这会带来新视角，也需要更多翻译。", tension: "压力来时，一个人想推进、另一个人可能先消化；把节奏说出来比猜更有效。" };
-}
-
-async function relationshipMirror(env, userId, relationId) {
-  const relation = await env.DB.prepare("SELECT requester_id AS requesterId, recipient_id AS recipientId, status FROM relationships WHERE id = ? AND (requester_id = ? OR recipient_id = ?)").bind(relationId, userId, userId).first();
-  if (!relation || relation.status !== "accepted") return null;
-  const otherId = relation.requesterId === userId ? relation.recipientId : relation.requesterId;
-  const [mine, theirs, mySocial, theirSocial, me, other] = await Promise.all([
-    readAccountData(env.DB, userId), readAccountData(env.DB, otherId), ensureSocialProfile(env, userId), ensureSocialProfile(env, otherId), socialUser(env, userId), socialUser(env, otherId),
-  ]);
-  const myBirth = mine.settings?.birthProfile;
-  const theirBirth = theirs.settings?.birthProfile;
-  if (!mySocial.shareBirth || !theirSocial.shareBirth || !myBirth || !theirBirth) return { ready: false, me, other };
-  const mySign = zodiacSign(Number(myBirth.month), Number(myBirth.day));
-  const theirSign = zodiacSign(Number(theirBirth.month), Number(theirBirth.day));
-  return { ready: true, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
+  if (pathname === "/api/v1/account/product-metrics/summary" && request.method === "…5884 tokens truncated…e, me, other, mySign, theirSign, ...relationInsight(mySign, theirSign), question: "今天如果只说一件希望对方真正理解的事，你会选什么？" };
 }
 
 async function acceptedRelationship(env, userId, relationId) {
@@ -1261,6 +1034,11 @@ async function liuyaoReflection(request, env) {
 export default {
   async fetch(request, env) {
     const requestUrl = new URL(request.url);
+    if (requestUrl.pathname === "/health/live") return json({
+      status: "ok",
+      service: "life-mirror-sites-worker",
+      sourceCommit: BUILD_COMMIT,
+    });
     if (requestUrl.pathname === "/api/shiguang") return shiguang(request, env);
     if (requestUrl.pathname === "/api/v1/liuyao/reflection") return liuyaoReflection(request, env);
     if (requestUrl.pathname.startsWith("/api/v1/auth/") || requestUrl.pathname.startsWith("/api/v1/account/")) return authApi(request, env, requestUrl.pathname);

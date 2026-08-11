@@ -868,9 +868,9 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
           </div>
           {reflectionResult.reflection.closing && <article className={styles.closingCard}><div><Sparkle /><span>留给你的下一步</span></div><p>{reflectionResult.reflection.closing.text}</p><small>不用马上得出答案，先让现实给你一个回应。</small></article>}
           <ShareQuoteCard theme="east" title="我的六爻镜像" quote={reflectionResult.reflection.shareableReflection} meta={`${reflectionResult.hexagram.originalHexagram.symbol} ${reflectionResult.hexagram.originalHexagram.name} → ${reflectionResult.hexagram.changedHexagram.symbol} ${reflectionResult.hexagram.changedHexagram.name}`} image={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} contentByVariant={reflectionResult.reflection.shareCards ? {
-            paper: { kicker: "我的此刻 · FOR ME", ...reflectionResult.reflection.shareCards.warm },
-            night: { kicker: "关系回应 · FOR US", ...reflectionResult.reflection.shareCards.roast },
-            character: { kicker: "邀请对照 · COMPARE", ...reflectionResult.reflection.shareCards.witty },
+            paper: { kicker: "朋友版 · 我的此刻", ...reflectionResult.reflection.shareCards.warm },
+            night: { kicker: "清醒版 · 关系回应", ...reflectionResult.reflection.shareCards.roast },
+            character: { kicker: "神秘版 · 邀请对照", ...reflectionResult.reflection.shareCards.witty },
           } : undefined} />
           <ShiguangChat theme="east" context={`本次卦象为${reflectionResult.hexagram.originalHexagram.name}变${reflectionResult.hexagram.changedHexagram.name}；页面中的传统依据与规则证据可供复核。`} />
           <details className={styles.explanationTrace}>

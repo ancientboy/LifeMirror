@@ -15,6 +15,7 @@ import { ShiguangChat } from "./ShiguangChat";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
 import { formatSavedBirthProfile, getSavedBirthProfile, saveBirthProfile } from "../../lib/birth-profile";
+import { resolveCivilOffsetMinutes } from "../../lib/civil-time";
 import { getSavedNatalMirror, saveNatalMirror, saveNatalMirrorReflection, type SavedNatalMirror } from "../../lib/natal-mirror-history";
 
 type Props = { tradition: "east" | "west"; profileOnly?: boolean };
@@ -33,6 +34,7 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   const [unknownTime, setUnknownTime] = useState(false);
   const [place, setPlace] = useState("");
   const [utcOffsetMinutes, setUtcOffsetMinutes] = useState(480);
+  const [timeZone, setTimeZone] = useState<string | null>(null);
   const [dayBoundary, setDayBoundary] = useState<"midnight" | "late-zi">("midnight");
   const [luckGender, setLuckGender] = useState<LuckGender | null>(null);
   const [useTrueSolarTime, setUseTrueSolarTime] = useState(false);
@@ -50,6 +52,15 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   const maxDay = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
   const validDay = Math.min(day, maxDay);
 
+  // Keep the displayed offset truthful when a user changes the birth year or
+  // date after selecting a city with an IANA zone (for example, a pre/post DST
+  // date in New York). The calculators independently resolve it as well.
+  useEffect(() => {
+    if (!timeZone) return;
+    const offset = resolveCivilOffsetMinutes({ year, month, day: validDay, hour, minute }, timeZone);
+    if (offset !== null) setUtcOffsetMinutes(offset);
+  }, [year, month, validDay, hour, minute, timeZone]);
+
   useEffect(() => {
     const profile = getSavedBirthProfile();
     if (!profile) return;
@@ -61,6 +72,7 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
     setUnknownTime(profile.unknownTime);
     setPlace(profile.place);
     setUtcOffsetMinutes(profile.utcOffsetMinutes);
+    setTimeZone(profile.timeZone ?? null);
     setLongitude(profile.longitude);
     setLatitude(profile.latitude);
     setDayBoundary(profile.dayBoundary);
@@ -90,7 +102,10 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
       const nextLatitude = formatCoordinate(city.latitude);
       setLongitude(nextLongitude);
       setLatitude(nextLatitude);
-      setCoordinateStatus(`已匹配 ${city.name}：${nextLatitude}, ${nextLongitude}`);
+      setTimeZone(city.timeZone);
+      const offset = resolveCivilOffsetMinutes({ year, month, day: validDay, hour, minute }, city.timeZone);
+      if (offset !== null) setUtcOffsetMinutes(offset);
+      setCoordinateStatus(`已匹配 ${city.name}：${nextLatitude}, ${nextLongitude} · ${city.timeZone}（按出生当日自动处理夏令时）`);
     } else if (value.trim()) {
       setCoordinateStatus("请选择候选城市、中国省市区县，或手动填写坐标");
     }
@@ -103,6 +118,7 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
     setLongitude(nextLongitude);
     setLatitude(nextLatitude);
     setUtcOffsetMinutes(480);
+    setTimeZone("Asia/Shanghai");
     const precision = selection.level === "district" ? "区县中心" : selection.level === "city" ? "城市中心" : "省级中心";
     setCoordinateStatus(`已匹配${precision}：${nextLatitude}, ${nextLongitude}。如出生地靠近时辰边界，可手动微调。`);
   }
@@ -122,13 +138,13 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
       if (profileOnly) {
         // The profile editor owns one canonical birth record. Calculations happen only inside a mirror tool.
       } else if (tradition === "west") {
-        nextResult = calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) });
+        nextResult = calculateAstrology({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, timeZone, latitude: Number(formatCoordinate(Number(latitude))), longitude: Number(formatCoordinate(Number(longitude))) });
         setAstrology(nextResult);
       } else {
-        nextResult = calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender });
+        nextResult = calculateBazi({ year, month, day: validDay, hour: unknownTime ? null : hour, minute: unknownTime ? 0 : minute, utcOffsetMinutes, timeZone, dayBoundary, useTrueSolarTime, longitude: useTrueSolarTime ? Number(formatCoordinate(Number(longitude))) : null, luckGender });
         setBazi(nextResult);
       }
-      const profile = saveBirthProfile({ year, month, day: validDay, hour, minute, unknownTime, place: place.trim(), utcOffsetMinutes, longitude, latitude, dayBoundary, luckGender, useTrueSolarTime });
+      const profile = saveBirthProfile({ year, month, day: validDay, hour, minute, unknownTime, place: place.trim(), utcOffsetMinutes, timeZone, longitude, latitude, dayBoundary, luckGender, useTrueSolarTime });
       setSavedProfile(profile);
       if (nextResult) saveNatalMirror(tradition === "east" ? "bazi" : "astrology", profile, nextResult);
       setSavedMirror(null);
@@ -155,7 +171,7 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
         <div className={styles.locationDivider}><span>或输入海外 / 常用城市</span></div>
         <label className={styles.place}><MapPin /><input list="birth-cities" value={place} onChange={(event) => applyPlace(event.target.value)} placeholder="输入并选择城市，例如：杭州 / New York" /><datalist id="birth-cities">{CITY_COORDINATES.map((city) => <option value={city.name} key={city.name} />)}</datalist><span>中国地区请选择上方省市区县；其他地点可手动输入经纬度。</span></label>
         {(tradition === "west" || useTrueSolarTime) && <div className={styles.fullLabel}><div className={styles.ruleGrid}><label><span>纬度（北纬为正）</span><input required type="number" step="0.0001" min="-90" max="90" value={latitude} onChange={(event) => setLatitude(event.target.value)} onBlur={() => latitude && setLatitude(formatCoordinate(Number(latitude)))} /></label><label><span>经度（东经为正）</span><input required type="number" step="0.0001" min="-180" max="180" value={longitude} onChange={(event) => setLongitude(event.target.value)} onBlur={() => longitude && setLongitude(formatCoordinate(Number(longitude)))} /></label></div><small>{coordinateStatus || "选择地区后自动填写坐标，也可以手动修正。"}</small></div>}
-        <label className={styles.fullLabel}><span>出生地当日时区</span><select value={utcOffsetMinutes} onChange={(event) => setUtcOffsetMinutes(Number(event.target.value))}>{offsets.map((value) => <option value={value} key={value}>{formatOffset(value)}</option>)}</select><small>中国大陆通常选择 UTC+08:00；若出生地当年实行夏令时，请按当年的当地时间选择。</small></label>
+        <label className={styles.fullLabel}><span>出生地当日时区</span><select value={utcOffsetMinutes} onChange={(event) => { setUtcOffsetMinutes(Number(event.target.value)); setTimeZone(null); }}>{offsets.map((value) => <option value={value} key={value}>{formatOffset(value)}</option>)}</select><small>{timeZone ? `已使用 ${timeZone} 自动解析这一天的历史时区与夏令时；手动改动会切换回固定偏移。` : "选择城市后会自动识别历史时区；手动输入地点时可选择出生当日的 UTC 偏移。"}</small></label>
       </fieldset>
       {!profileOnly && tradition === "east" && <fieldset><legend>排盘口径 <em>可展开复核</em></legend><div className={styles.ruleGrid}><label><span>换日规则</span><select value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value as "midnight" | "late-zi")}><option value="midnight">午夜 00:00 换日</option><option value="late-zi">子初 23:00 换日</option></select></label><label><span>传统排运参数</span><select value={luckGender ?? ""} onChange={(event) => setLuckGender((event.target.value || null) as LuckGender | null)}><option value="">暂不计算大运</option><option value="male">男命排运</option><option value="female">女命排运</option></select></label><label className={styles.toggle}><input type="checkbox" checked={useTrueSolarTime} onChange={(event) => toggleSolar(event.target.checked)} /><Compass />启用真太阳时校正</label></div><small>排运性别仅作为传统顺逆算法参数，不用于身份判断。用神、格局和具体断语仍需流派与专家复核。</small></fieldset>}
       {!profileOnly && <label className={styles.consent}><input required type="checkbox" />我理解这是一种象征性自我探索工具，不替代医疗、法律或财务建议。</label>}

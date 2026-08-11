@@ -38,6 +38,13 @@ test("aspects are sorted by tightest orb", () => {
   assert.ok(result.aspects.every((aspect, index) => index === 0 || result.aspects[index - 1].orb <= aspect.orb));
 });
 
+test("uses an IANA zone's historical offset instead of a stale fixed offset", () => {
+  const eastern = calculateAstrology({ ...base, year: 2000, month: 7, day: 1, hour: 12, utcOffsetMinutes: -300, timeZone: "America/New_York", latitude: 40.7128, longitude: -74.006 });
+  const fixedDst = calculateAstrology({ ...base, year: 2000, month: 7, day: 1, hour: 12, utcOffsetMinutes: -240, latitude: 40.7128, longitude: -74.006 });
+  assert.equal(eastern.utcTime, fixedDst.utcTime);
+  assert.match(eastern.warnings.join(" "), /历史民用时间/);
+});
+
 test("daily transit contacts are reproducible, relevantly ordered, and only compare real natal points", () => {
   const natal = calculateAstrology(base);
   const daily = calculateAstrologyTransits(natal, { ...base, year: 2026, month: 8, day: 6, hour: 12 });

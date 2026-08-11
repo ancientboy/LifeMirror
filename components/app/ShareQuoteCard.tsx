@@ -10,9 +10,9 @@ type Variant = "paper" | "night" | "character";
 type CardContent = { kicker?: string; title?: string; quote: string; meta: string };
 type Props = { title: string; quote: string; meta: string; theme: "east" | "west"; image: string; contentByVariant?: Partial<Record<Variant, CardContent>> };
 const variants: Array<{ id: Variant; label: string; note: string }> = [
-  { id: "paper", label: "留给自己", note: "一张此刻的镜像信" },
-  { id: "night", label: "发给 TA", note: "邀请对方回应" },
-  { id: "character", label: "邀请对照", note: "生成彼此镜像" },
+  { id: "paper", label: "朋友版", note: "一句能发给懂你的人" },
+  { id: "night", label: "清醒版", note: "把悬着的话说清楚" },
+  { id: "character", label: "神秘版", note: "留一点想继续聊的余白" },
 ];
 
 function loadImage(src: string) { return new Promise<HTMLImageElement | null>((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = src; }); }
@@ -63,7 +63,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       context.fillStyle = dark ? colors.accent : colors.ink; context.font = "600 25px sans-serif"; context.fillText(current.kicker ?? "LIFE MIRROR · 拾光", 92, 120);
       context.fillStyle = dark ? "#fbf6ea" : colors.ink; context.font = "52px serif"; const lines = wrapText(context, `“${current.quote}”`, 650); let y = 268; lines.forEach((line) => { context.fillText(line, 92, y); y += 82; });
       context.fillStyle = dark ? "#f7f0dfb8" : "#283d37b8"; context.font = "25px sans-serif"; context.fillText(current.meta.slice(0, 42), 92, 1055);
-      context.fillStyle = dark ? colors.accent : "#806d43"; context.font = "600 22px sans-serif"; context.fillText(variant === "paper" ? "拾光 · 此刻的镜像信" : "打开 LifeMirror，回应这张镜像", 92, 1220);
+      context.fillStyle = dark ? colors.accent : "#806d43"; context.font = "600 22px sans-serif"; context.fillText(variant === "paper" ? "拾光 · 一句朋友话" : variant === "night" ? "拾光 · 清醒但不刺人" : "拾光 · 留一点未说完", 92, 1220);
       const portrait = await loadImage(visualImage); if (portrait) { const ratio = portrait.width / portrait.height; const height = variant === "character" ? 680 : 640; context.drawImage(portrait, variant === "character" ? 650 : 640, 570, height * ratio, height); }
       const blob = await exportCanvas(canvas); const name = `lifemirror-${theme}-${variant}.png`;
       if (action === "share") recordProductMetric("share_card_shared", "share", `share-card:${Date.now()}:${variant}`);

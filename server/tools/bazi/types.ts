@@ -8,6 +8,7 @@ export interface BaziInput {
   hour: number | null;
   minute: number;
   utcOffsetMinutes: number;
+  timeZone?: string | null;
   dayBoundary: DayBoundary;
   longitude?: number | null;
   useTrueSolarTime?: boolean;

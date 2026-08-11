@@ -15,6 +15,7 @@ const KEYS = {
   history: "life-mirror:guest-history:v1",
   tarot: "lifemirror.tarot.readings.v1",
   chats: "life-mirror:chat-threads:v1",
+  updatedAt: "life-mirror:account-updated-at:v1",
 } as const;
 const MIGRATION_KEY = "life-mirror:guest-migration-id:v1";
 export const ACCOUNT_DATA_CHANGED_EVENT = "life-mirror:account-data-changed";
@@ -35,6 +36,7 @@ export function readLocalAccountData(): AccountSnapshot {
     history: readJson<unknown[]>(KEYS.history, []),
     tarot: readJson<unknown[]>(KEYS.tarot, []),
     chats: readJson<unknown[]>(KEYS.chats, []),
+    updatedAt: window.localStorage.getItem(KEYS.updatedAt),
   };
 }
 
@@ -44,6 +46,8 @@ export function writeLocalAccountData(data: AccountSnapshot) {
   window.localStorage.setItem(KEYS.history, JSON.stringify(data.history ?? []));
   window.localStorage.setItem(KEYS.tarot, JSON.stringify(data.tarot ?? []));
   window.localStorage.setItem(KEYS.chats, JSON.stringify(data.chats ?? []));
+  if (data.updatedAt) window.localStorage.setItem(KEYS.updatedAt, data.updatedAt);
+  else window.localStorage.removeItem(KEYS.updatedAt);
   window.dispatchEvent(new CustomEvent("life-mirror:memory-changed"));
   window.dispatchEvent(new CustomEvent(ACCOUNT_DATA_CHANGED_EVENT));
 }

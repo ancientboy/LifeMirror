@@ -1,5 +1,6 @@
 import { Solar, type EightCharValue } from "lunar-javascript";
 import type { BaziDailyRelation, BaziInput, BaziPillar, BaziResult } from "./types.js";
+import { resolveCivilOffsetMinutes } from "../../civil-time.js";
 
 const ENGINE_VERSION = "bazi-core/0.2.0+lunar-javascript-1.7.7";
 const PILLAR_KEYS = ["year", "month", "day", "time"] as const;
@@ -56,16 +57,18 @@ function equationOfTimeMinutes(year: number, month: number, day: number, hour: n
 
 function normalizeEffectiveTime(input: BaziInput) {
   const hour = input.hour ?? 12;
+  const resolvedOffset = resolveCivilOffsetMinutes({ year: input.year, month: input.month, day: input.day, hour, minute: input.minute }, input.timeZone);
+  const utcOffsetMinutes = resolvedOffset ?? input.utcOffsetMinutes;
   let adjustment = 0;
   if (input.useTrueSolarTime && input.longitude !== null && input.longitude !== undefined) {
-    const zoneMeridian = (input.utcOffsetMinutes / 60) * 15;
+    const zoneMeridian = (utcOffsetMinutes / 60) * 15;
     adjustment = 4 * (input.longitude - zoneMeridian) + equationOfTimeMinutes(input.year, input.month, input.day, hour);
   }
   const utc = Date.UTC(input.year, input.month - 1, input.day, hour, input.minute + Math.round(adjustment));
   const date = new Date(utc);
   return {
     year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate(),
-    hour: date.getUTCHours(), minute: date.getUTCMinutes(), adjustment: Math.round(adjustment),
+    hour: date.getUTCHours(), minute: date.getUTCMinutes(), adjustment: Math.round(adjustment), utcOffsetMinutes,
   };
 }
 
@@ -225,6 +228,7 @@ export function calculateBazi(input: BaziInput): BaziResult {
   const warnings = [
     "命盘是传统历法规则的确定性映射，不是科学预测。解释层不得改写这里的盘面事实。",
     ...(timeKnown ? [] : ["出生时间未知：时柱、时柱藏干与时柱十神均未生成。"]),
+    ...(input.timeZone ? [`出生地时区采用 ${input.timeZone} 的历史民用时间规则；已按出生当日自动解析 UTC 偏移。`] : ["未提供 IANA 时区：按用户选择的固定 UTC 偏移排盘。"]),
     ...(input.useTrueSolarTime ? ["真太阳时采用经度修正与均时差近似；节气或时辰边界附近应由专业历书复核。"] : ["未启用真太阳时：按出生地当时的民用钟表时间排盘。"]),
   ];
 

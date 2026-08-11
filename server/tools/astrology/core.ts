@@ -1,5 +1,6 @@
 import { AstroTime, Body, Ecliptic, GeoVector, MakeTime, SiderealTime, e_tilt } from "astronomy-engine";
 import type { AstrologyInput, AstrologyResult, AstrologyTransitResult, ChartAngle, NatalAspect, PlanetPosition, TransitAspect, ZodiacSign } from "./types.js";
+import { resolveCivilOffsetMinutes } from "../../civil-time.js";
 
 export const ZODIAC: ZodiacSign[] = [
   ["白羊座", "♈", "火", "基本"], ["金牛座", "♉", "土", "固定"], ["双子座", "♊", "风", "变动"],
@@ -116,7 +117,9 @@ export function calculateAstrology(input: AstrologyInput): AstrologyResult {
   validate(input);
   const timeKnown = input.hour !== null;
   const localHour = input.hour ?? 12;
-  const utcMillis = Date.UTC(input.year, input.month - 1, input.day, localHour, input.minute) - input.utcOffsetMinutes * 60_000;
+  const resolvedOffset = resolveCivilOffsetMinutes({ year: input.year, month: input.month, day: input.day, hour: localHour, minute: input.minute }, input.timeZone);
+  const utcOffsetMinutes = resolvedOffset ?? input.utcOffsetMinutes;
+  const utcMillis = Date.UTC(input.year, input.month - 1, input.day, localHour, input.minute) - utcOffsetMinutes * 60_000;
   const date = new Date(utcMillis);
   const astroTime = MakeTime(date);
   const angles = timeKnown ? calculateAngles(astroTime, input.latitude, input.longitude) : [];
@@ -156,7 +159,7 @@ export function calculateAstrology(input: AstrologyInput): AstrologyResult {
   ];
   const warnings = [
     "占星属于象征性自我探索，不是科学预测，也不替代医疗、法律、财务或心理专业意见。",
-    "当前 UTC 偏移由用户按出生当日民用时间选择；尚未自动解析 IANA 历史时区与夏令时。",
+    input.timeZone ? `出生地时区采用 ${input.timeZone} 的历史民用时间规则，已按出生当日自动处理夏令时。` : "未提供 IANA 时区：当前按用户选择的固定 UTC 偏移计算；历史夏令时需手动复核。",
   ];
   if (!timeKnown) warnings.push("出生时间未知：以当地中午估算行星位置，不生成上升点、天顶、宫位；月亮当天可能跨星座。", "未知时间模式下不要使用月亮精确度数作边界性判断。");
   return {

@@ -32,7 +32,7 @@ export type PersonBirthProfile = {
   profileKey: string;
 };
 
-export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" };
+export type RelationshipObservation = { id: string; text: string; important?: boolean; createdAt: string; updatedAt: string; source: "owner_observation" | "owner_correction" | "simulation_assessment" };
 
 export type RelationshipLoop = { id: string; personId: string; situation: string; need?: string; status: "awaiting_action" | "reported"; actionTaken?: boolean; outcome?: "smooth" | "mixed" | "rough"; reflection?: string; createdAt: string; reportedAt?: string };
 type RelationshipEffectEvent = "rehearsal_started" | "followup_seen" | "action_taken" | "feedback_reported";
@@ -130,6 +130,15 @@ export function savePersonObservation(personId: string, text: string, source: Re
   const observation: RelationshipObservation = { id: createClientId(), text: clean, source, createdAt: now, updatedAt: now };
   write(people.map((item) => item.id === personId ? { ...item, observations: [observation, ...(item.observations ?? [])].slice(0, 30), updatedAt: now } : item));
   return observation;
+}
+
+/**
+ * A one-tap assessment records only the owner's confidence in this simulated
+ * turn.  It deliberately excludes the simulated wording, so a model-created
+ * guess can never become a fact about the other person.
+ */
+export function saveSimulationAssessment(personId: string, assessment: "close" | "partial") {
+  return savePersonObservation(personId, assessment === "close" ? "本次模拟：更像 TA 的现实回应。" : "本次模拟：只像一部分，仍需以真实互动为准。", "simulation_assessment");
 }
 
 export function deletePersonObservation(personId: string, observationId: string) {
