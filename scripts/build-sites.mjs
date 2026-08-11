@@ -424,6 +424,24 @@ async function recordLlmAudit(env, input) {
     .bind(crypto.randomUUID(), input?.userId || null, operation, provider, model, outcome, latencyMs, inputBytes, outputBytes, cost, new Date().toISOString()).run();
 }
 
+// A user-owned, query-time graph.  It is intentionally derived from the
+// immutable ledger rather than becoming another write authority.  Event nodes
+// expose provenance but not event body text; observations retain their own
+// user-visible wording and every edge is traceable to an evidence or revision.
+async function buildLifeContextGraph(env, userId) {
+  const [events, observations, evidence, revisions] = await Promise.all([
+    env.DB.prepare("SELECT id, source_kind AS sourceKind, person_id AS personId, visibility, occurred_at AS occurredAt, deleted_at AS deletedAt FROM memory_events WHERE user_id = ? ORDER BY occurred_at DESC LIMIT 120").bind(userId).all(),
+    env.DB.prepare("SELECT id, scope_key AS scopeKey, title, summary, state, confidence, evidence_count AS evidenceCount, last_observed_at AS lastObservedAt, deleted_at AS deletedAt FROM memory_observations WHERE user_id = ? ORDER BY last_observed_at DESC LIMIT 80").bind(userId).all(),
+    env.DB.prepare("SELECT links.observation_id AS observationId, links.event_id AS eventId, links.created_at AS createdAt FROM memory_evidence_links AS links JOIN memory_observations AS observations ON observations.id = links.observation_id WHERE observations.user_id = ? LIMIT 240").bind(userId).all(),
+    env.DB.prepare("SELECT target_kind AS targetKind, target_id AS targetId, revision_kind AS revisionKind, created_at AS createdAt FROM memory_revisions WHERE user_id = ? ORDER BY created_at DESC LIMIT 120").bind(userId).all(),
+  ]);
+  const eventNodes = (events.results || []).map((item) => ({ id: "event:" + item.id, kind: "event", sourceKind: item.sourceKind, personScoped: Boolean(item.personId), visibility: item.visibility, occurredAt: item.occurredAt, state: item.deletedAt ? "deleted" : "active" }));
+  const observationNodes = (observations.results || []).map((item) => ({ id: "observation:" + item.id, kind: "observation", title: item.title, summary: item.summary, scope: item.scopeKey, state: item.deletedAt ? "deleted" : item.state, confidence: Number(item.confidence || 0), evidenceCount: Number(item.evidenceCount || 0), lastObservedAt: item.lastObservedAt }));
+  const evidenceEdges = (evidence.results || []).map((item) => ({ kind: "evidence", from: "event:" + item.eventId, to: "observation:" + item.observationId, createdAt: item.createdAt }));
+  const revisionEdges = (revisions.results || []).map((item) => ({ kind: "revision", from: "revision:" + item.targetKind + ":" + item.targetId + ":" + item.createdAt, to: item.targetKind === "observation" ? "observation:" + item.targetId : "event:" + item.targetId, revisionKind: item.revisionKind, createdAt: item.createdAt }));
+  return { contractVersion: 1, authority: "d1_memory_runtime", nodes: [...eventNodes, ...observationNodes], edges: [...evidenceEdges, ...revisionEdges], privacy: { userOwned: true, trainingData: false, eventBodiesIncluded: false, personScopesIsolated: true } };
+}
+
 async function reviseMemory(env, userId, targetKind, targetId, revisionKind, reason = "") {
   const now = new Date().toISOString();
   await env.DB.prepare("INSERT INTO memory_revisions (id, user_id, target_kind, target_id, revision_kind, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), userId, targetKind, targetId, revisionKind, String(reason).slice(0, 300), now).run();
@@ -691,6 +709,9 @@ async function authApi(request, env, pathname) {
   if (pathname === "/api/v1/account/runtime/observability" && request.method === "DELETE") {
     await env.DB.prepare("DELETE FROM llm_call_audits WHERE user_id = ?").bind(user.id).run();
     return json({ ok: true, deleted: "llm_audit_records_only" });
+  }
+  if (pathname === "/api/v1/memories/graph" && request.method === "GET") {
+    return json({ graph: await buildLifeContextGraph(env, user.id) });
   }
   if (pathname === "/api/v1/memories" && request.method === "GET") {
     const includeHidden = new URL(request.url).searchParams.get("includeHidden") === "true";
