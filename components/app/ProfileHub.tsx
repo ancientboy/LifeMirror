@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, Camera, ChartLineUp, Check, Copy, DeviceMobile, DownloadSimple, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, ChartLineUp, Check, Copy, DeviceMobile, DownloadSimple, EnvelopeSimple, FloppyDisk, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -18,6 +18,7 @@ const defaultExpressionPreferences: ExpressionPreferences = { tone: "balanced", 
 export function ProfileHub() {
   const [guest, setGuest] = useState(true);
   const [accountEmail, setAccountEmail] = useState("");
+  const [accountProvider, setAccountProvider] = useState("");
   const [publicId, setPublicId] = useState("");
   const [settings, setSettings] = useState<MemorySettings>({ enabled: false, explicitFacts: true, mirrorEvidence: true });
   const [facts, setFacts] = useState<SavedFact[]>([]);
@@ -37,8 +38,9 @@ export function ProfileHub() {
     const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); setProfile(getUserProfile()); };
     fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
       if (!response.ok) throw new Error("signed_out");
-      const session = await response.json() as { user?: { email?: string } };
+      const session = await response.json() as { user?: { email?: string | null; provider?: string } };
       setAccountEmail(session.user?.email ?? "");
+      setAccountProvider(session.user?.provider ?? "");
       setGuest(false);
       window.localStorage.removeItem("life-mirror:guest-session:v1");
       fetch("/api/v1/account/context", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => {
@@ -50,7 +52,7 @@ export function ProfileHub() {
         if (value?.preferences) setExpressionPreferences({ ...defaultExpressionPreferences, ...value.preferences });
       }).catch(() => undefined);
       fetch("/api/v1/ops/access", { credentials: "include" }).then((value) => setOperationsAccess(value.ok)).catch(() => undefined);
-    }).catch(() => { setAccountEmail(""); setGuest(true); });
+    }).catch(() => { setAccountEmail(""); setAccountProvider(""); setGuest(true); });
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
     window.addEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync);
@@ -168,15 +170,15 @@ export function ProfileHub() {
     </section>
 
     <section className={styles.accountSection}>
-      <article><DeviceMobile /><div><small>当前身份</small><h2>{guest ? "游客 · 本机模式" : accountEmail || "正在确认账户"}</h2><p>{guest ? "记录仅保存在这台设备；登录后会自动合并到你的账户。" : "个人镜像、明确记忆与设置已启用跨设备同步。"}</p></div></article>
+      <article><DeviceMobile /><div><small>当前身份</small><h2>{guest ? "游客 · 本机模式" : accountProvider === "invite" ? "邀请测试账户" : accountEmail || "正在确认账户"}</h2><p>{guest ? "记录仅保存在这台设备；登录后会自动合并到你的账户。" : accountProvider === "invite" ? "记录已经安全保存在服务器；绑定邮箱后可以换设备继续。" : "个人镜像、明确记忆与设置已启用跨设备同步。"}</p></div></article>
       <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
       <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>邀请朋友、处理申请与查看双方关系镜像</small></span><ArrowRight /></Link>
-      {guest ? <Link href="/app/?login=1"><LockKey /><span><b>登录并同步</b><small>进入邮箱登录，不再跳回聊天首页</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
+      {guest ? <Link href="/app/"><LockKey /><span><b>使用邀请码进入</b><small>测试账户会保存进展，不要求先绑定邮箱</small></span><ArrowRight /></Link> : accountProvider === "invite" ? <Link href="/app/?bind=1&return=/app/profile/"><EnvelopeSimple /><span><b>绑定邮箱</b><small>换设备继续，当前记录不会丢失</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
       {publicId && <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicId); setProfileSaved(true); window.setTimeout(() => setProfileSaved(false), 1800); } catch { /* ID remains visible for manual copy */ } }}><IdentificationCard /><span><b>LifeMirror ID</b><small>{publicId} · 点击复制，好友可用它搜索你</small></span><Copy /></button>}
-      {accountEmail && <button type="button" onClick={() => void exportAccount()}><DownloadSimple /><span><b>导出我的数据</b><small>下载账户、镜像、表达偏好与可追溯理解记录</small></span><ArrowRight /></button>}
+      {!guest && <button type="button" onClick={() => void exportAccount()}><DownloadSimple /><span><b>导出我的数据</b><small>下载账户、镜像、表达偏好与可追溯理解记录</small></span><ArrowRight /></button>}
       {operationsAccess && <Link href="/app/operations/"><ChartLineUp /><span><b>运行与安全</b><small>查看无正文指标、告警和关系举报处置</small></span><ArrowRight /></Link>}
-      {accountEmail && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>退出后不会删除云端记录</small></span><ArrowRight /></button>}
-      {accountEmail && <button type="button" onClick={() => void deleteAccount()}><Trash /><span><b>永久删除账户</b><small>删除后，后台任务也不能重建这些记录</small></span><ArrowRight /></button>}
+      {!guest && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>{accountProvider === "invite" ? "未绑定邮箱前，请保留邀请链接以便重新进入" : "退出后不会删除云端记录"}</small></span><ArrowRight /></button>}
+      {!guest && <button type="button" onClick={() => void deleteAccount()}><Trash /><span><b>永久删除账户</b><small>删除后，后台任务也不能重建这些记录</small></span><ArrowRight /></button>}
     </section>
 
     <section className={styles.birthPanel} aria-labelledby="birth-profile-title">

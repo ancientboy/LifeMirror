@@ -148,6 +148,44 @@ async function complete(baseUrl: string, apiKey: string, body: Record<string, un
   return text;
 }
 
+async function streamComplete(baseUrl: string, apiKey: string, body: Record<string, unknown>) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify({ ...body, stream: true }), signal: AbortSignal.timeout(45_000),
+  });
+  if (!response.ok || !response.body) throw new Error("model_unavailable");
+  const encoder = new TextEncoder();
+  const frame = (type: "delta" | "done" | "interrupted", text = "") => encoder.encode(`data: ${JSON.stringify({ type, text })}\n\n`);
+  if (!response.headers.get("content-type")?.includes("text/event-stream")) {
+    const text = decodeModelResponse(await response.text());
+    if (!text.trim()) throw new Error("model_empty_response");
+    return new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(frame("delta", text)); controller.enqueue(frame("done")); controller.close(); } });
+  }
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        while (true) {
+          const newline = buffer.indexOf("\n");
+          if (newline >= 0) {
+            const line = buffer.slice(0, newline).trim(); buffer = buffer.slice(newline + 1);
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (!data) continue;
+            if (data === "[DONE]") { controller.enqueue(frame("done")); controller.close(); return; }
+            try { const text = modelText(JSON.parse(data)); if (text) { controller.enqueue(frame("delta", text)); return; } } catch {}
+            continue;
+          }
+          const chunk = await reader.read();
+          if (chunk.done) { controller.enqueue(frame("done")); controller.close(); return; }
+          buffer += decoder.decode(chunk.value, { stream: true });
+        }
+      } catch { controller.enqueue(frame("interrupted")); controller.close(); }
+    },
+    cancel() { void reader.cancel(); },
+  });
+}
+
 async function planChat(baseUrl: string, apiKey: string, model: string, messages: z.infer<typeof requestSchema>["messages"]) {
   try {
     const text = await complete(baseUrl, apiKey, { model, temperature: 0, max_tokens: 180, response_format: { type: "json_object" }, messages: buildPlannerMessages(messages) });
@@ -197,9 +235,15 @@ export async function POST(request: Request) {
         : plan.intent === "research"
           ? `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}\n\n用户要核实实时外部事实，但本服务当前没有可用检索来源。坦诚说明你此刻无法可靠查证；不要凭记忆或猜测作答。你仍可帮用户明确接下来应从哪类官方来源核实。`
           : `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}${safetyPrompt(safetyBoundary) ? `\n\n<high_risk_boundary>\n${safetyPrompt(safetyBoundary)}\n</high_risk_boundary>` : ""}`;
+  if (parsed.data.mode === "chat") {
+    try {
+      const stream = await streamComplete(baseUrl, apiKey, { model, temperature: .72, max_tokens: 900, messages: [{ role: "system", content: prompt }, ...parsed.data.messages] });
+      return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no", ...(research?.sources.length ? { "x-shiguang-sources": encodeURIComponent(JSON.stringify(research.sources)) } : {}) } });
+    } catch { return Response.json({ error: "shiguang_model_unavailable" }, { status: 502 }); }
+  }
   let text: string;
   try {
-    text = await complete(baseUrl, apiKey, { model, stream: true, temperature: .72, max_tokens: 900, messages: [{ role: "system", content: prompt }, ...parsed.data.messages] });
+    text = await complete(baseUrl, apiKey, { model, stream: false, temperature: .72, max_tokens: 900, messages: [{ role: "system", content: prompt }, ...parsed.data.messages] });
   } catch {
     return Response.json({ error: "shiguang_model_unavailable" }, { status: 502 });
   }

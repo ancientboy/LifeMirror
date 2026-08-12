@@ -16,13 +16,21 @@ export const PRODUCT_METRIC_EVENTS = [
   "memory_recall_positive",
   "memory_recall_negative",
   "share_intent",
+  "invite_accepted",
+  "onboarding_started",
+  "onboarding_prompt_used",
+  "generation_stopped",
+  "generation_retried",
+  "chat_feedback_helpful",
+  "chat_feedback_missed",
+  "account_bound",
 ] as const;
 
 export type ProductMetricEvent = typeof PRODUCT_METRIC_EVENTS[number];
-export type ProductMetricSurface = "chat" | "daily" | "mirror" | "share" | "relationship";
+export type ProductMetricSurface = "chat" | "daily" | "mirror" | "share" | "relationship" | "onboarding" | "account";
 
 const eventSet = new Set<string>(PRODUCT_METRIC_EVENTS);
-const surfaceSet = new Set<string>(["chat", "daily", "mirror", "share", "relationship"]);
+const surfaceSet = new Set<string>(["chat", "daily", "mirror", "share", "relationship", "onboarding", "account"]);
 
 /**
  * Sends only an allow-listed behavioral counter.  Callers must never pass

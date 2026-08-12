@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const productMetricEventTypes = ["chat_message_sent", "daily_opened", "daily_checkin_completed", "mirror_result_ready", "tool_continued_chat", "share_card_shared", "share_link_created", "share_response_created", "first_reply_received", "conversation_continued", "life_loop_created", "life_loop_feedback", "memory_recall_positive", "memory_recall_negative", "share_intent"] as const;
-const surfaces = ["chat", "daily", "mirror", "share", "relationship"] as const;
+export const productMetricEventTypes = ["chat_message_sent", "daily_opened", "daily_checkin_completed", "mirror_result_ready", "tool_continued_chat", "share_card_shared", "share_link_created", "share_response_created", "first_reply_received", "conversation_continued", "life_loop_created", "life_loop_feedback", "memory_recall_positive", "memory_recall_negative", "share_intent", "invite_accepted", "onboarding_started", "onboarding_prompt_used", "generation_stopped", "generation_retried", "chat_feedback_helpful", "chat_feedback_missed", "account_bound"] as const;
+const surfaces = ["chat", "daily", "mirror", "share", "relationship", "onboarding", "account"] as const;
 
 /** Product metrics are opaque counters. This schema intentionally has no text, name, content or token fields. */
 export const productMetricEventSchema = z.object({

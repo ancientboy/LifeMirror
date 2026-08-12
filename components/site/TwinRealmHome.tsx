@@ -24,7 +24,7 @@ export function TwinRealmHome() {
         <span className={styles.companionKicker}><Sparkle /> SHIGUANG · 你的长期陪伴者</span>
         <h1>先和拾光聊聊，<br />再决定从哪里<br />看见自己。</h1>
         <p>不必先懂六爻、塔罗或星盘。告诉拾光你此刻在意什么，她会陪你厘清问题，再由你选择适合的镜像方式。</p>
-        <div className={styles.companionActions}><button type="button" onClick={() => { window.localStorage.setItem("life-mirror:guest-session:v1", "active"); router.push("/app/home/"); }}>以游客身份开始 <ArrowRight /></button><Link className={styles.loginLink} href="/app/">登录个人镜像</Link><small><ShieldCheck /> 游客记录留在本机；登录后才可跨设备同步</small></div>
+        <div className={styles.companionActions}><button type="button" onClick={() => router.push("/app/")}>输入邀请码开始 <ArrowRight /></button><Link className={styles.loginLink} href="/app/?login=1">已有账户登录</Link><small><ShieldCheck /> 测试账户会保存进展；体验后可再绑定邮箱</small></div>
         <div className={styles.companionSteps}><article><b>01</b><span><strong>先说此刻</strong><small>自由聊天或描述困惑</small></span></article><article><b>02</b><span><strong>选择镜像</strong><small>六爻、命盘、塔罗、占星</small></span></article><article><b>03</b><span><strong>继续追问</strong><small>让一次体验变成持续理解</small></span></article></div>
       </div>
 

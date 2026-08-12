@@ -45,3 +45,28 @@ CREATE TABLE IF NOT EXISTS guest_migration_receipts (
   created_at TEXT NOT NULL,
   PRIMARY KEY (user_id, migration_id)
 )`;
+
+export const betaInvites = `
+CREATE TABLE IF NOT EXISTS beta_invites (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  batch TEXT NOT NULL,
+  max_uses INTEGER NOT NULL,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)`;
+
+export const betaParticipants = `
+CREATE TABLE IF NOT EXISTS beta_participants (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES identity_users(id) ON DELETE CASCADE,
+  invite_id TEXT NOT NULL REFERENCES beta_invites(id) ON DELETE RESTRICT,
+  batch TEXT NOT NULL,
+  bound_email_at TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id)
+)`;
