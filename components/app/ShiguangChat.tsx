@@ -13,7 +13,7 @@ import styles from "./ShiguangChat.module.css";
 type ResearchSource = { title: string; url: string; publishedAt?: string };
 type StreamState = "ready" | "thinking" | "streaming" | "stopped" | "interrupted" | "error";
 type StreamEvent = { type?: "delta" | "done" | "interrupted"; text?: string };
-type Props = { theme: "east" | "west"; context: string; opening?: string; mode?: "home" | "result" };
+type Props = { theme: "east" | "west"; context: string; opening?: string; mode?: "home" | "result"; onboarding?: boolean };
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
 async function readAssistantStream(response: Response, onDelta: (text: string) => void) {
@@ -51,7 +51,7 @@ async function readAssistantStream(response: Response, onDelta: (text: string) =
   return { text, interrupted };
 }
 
-export function ShiguangChat({ theme, context, opening = "如果你对这次结果还有疑问，可以继续问我。我们一起把象征放回真实生活里。", mode = "result" }: Props) {
+export function ShiguangChat({ theme, context, opening = "如果你对这次结果还有疑问，可以继续问我。我们一起把象征放回真实生活里。", mode = "result", onboarding = mode === "home" }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -71,7 +71,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const stickToBottom = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi-v2.png" : "/characters/shiguang/shiguang-west-chibi-v2.png";
-  const quickPrompts = mode === "home" ? ["有件事我不知道该跟谁说", "我在等一个结果", "我想理清一段关系"] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
+  const quickPrompts = mode === "home" ? onboarding ? ["有件事我不知道该跟谁说", "我在等一个结果", "我想理清一段关系"] : [] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
   const generating = streamState === "thinking" || streamState === "streaming";
 
   useEffect(() => {
@@ -110,8 +110,8 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   }, [messages]);
   useEffect(() => () => abortRef.current?.abort(), []);
   useEffect(() => {
-    if (mode === "home" && authenticated && messages.filter((item) => item.role === "user").length === 0 && thread) recordProductMetric("onboarding_started", "onboarding", `onboarding:${thread.id}`);
-  }, [authenticated, mode, thread]);
+    if (mode === "home" && onboarding && authenticated && messages.filter((item) => item.role === "user").length === 0 && thread) recordProductMetric("onboarding_started", "onboarding", `onboarding:${thread.id}`);
+  }, [authenticated, mode, onboarding, thread]);
 
   function startNew() { abortRef.current?.abort(); const next = createChatThread({ theme, mode, context }, opening); setThread(next); setMessages(next.messages); setHistoryOpen(false); setStreamState("ready"); }
   function openThread(next: ChatThread) { abortRef.current?.abort(); setThread(next); setMessages(next.messages); setHistoryOpen(false); setStreamState("ready"); }
@@ -209,7 +209,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const latestAssistantId = [...messages].reverse().find((item) => item.role === "assistant" && item.text.trim())?.id;
   const latestLoopSaved = Boolean(latestAssistantId && loopSavedFor === latestAssistantId);
   const userTurnCount = messages.filter((item) => item.role === "user").length;
-  const showIntro = mode === "home" && userTurnCount === 0 && !onboardingDismissed;
+  const showIntro = mode === "home" && onboarding && userTurnCount === 0 && !onboardingDismissed;
   const showRetry = streamState === "error" || streamState === "interrupted" || streamState === "stopped";
 
   return <section className={`${styles.chat} ${styles[theme]} ${styles[mode]}`} aria-label="继续和拾光聊聊">
@@ -222,7 +222,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     {!generating && latestAssistantId && userTurnCount >= 2 && <div className={styles.feedback}><span>{feedbackFor === latestAssistantId ? <><Check /> 已收到，谢谢你告诉我</> : "这次有帮到你吗？"}</span>{feedbackFor !== latestAssistantId && <><button type="button" onClick={() => giveFeedback(latestAssistantId, true)}><ThumbsUp /> 有帮助</button><button type="button" onClick={() => giveFeedback(latestAssistantId, false)}><ThumbsDown /> 没说中</button></>}</div>}
     {!generating && messages.some((item) => item.role === "user") && <div className={styles.loopAction}><button type="button" onClick={() => void saveAsOpenLoop()} disabled={latestLoopSaved}>{latestLoopSaved ? "✓ 拾光会从这里接着问后来" : "等有结果时提醒我"}</button>{latestLoopSaved && <small>以后有进展，不用重新讲背景。</small>}</div>}
     {identityProvider === "invite" && userTurnCount >= 2 && <aside className={styles.bindPrompt}><span><b>想换设备继续？</b><small>现在再绑定邮箱，当前记录不会丢。</small></span><a href="/app/?bind=1&return=/app/home/">绑定邮箱</a></aside>}
-    <div className={styles.quickPrompts}>{quickPrompts.map((prompt) => <button type="button" key={prompt} disabled={generating} onClick={() => { setInput(prompt); if (mode === "home" && userTurnCount === 0) recordProductMetric("onboarding_prompt_used", "onboarding", `prompt:${quickPrompts.indexOf(prompt)}:${Date.now()}`); }}>{prompt}</button>)}</div>
+    {quickPrompts.length > 0 && (mode !== "home" || userTurnCount === 0) && <div className={styles.quickPrompts}>{quickPrompts.map((prompt) => <button type="button" key={prompt} disabled={generating} onClick={() => { setInput(prompt); if (mode === "home" && userTurnCount === 0) recordProductMetric("onboarding_prompt_used", "onboarding", `prompt:${quickPrompts.indexOf(prompt)}:${Date.now()}`); }}>{prompt}</button>)}</div>}
     <div className={styles.composer}><textarea value={input} onChange={(event) => setInput(event.target.value)} onFocus={() => { stickToBottom.current = true; }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={mode === "home" ? "说说今天发生了什么，或哪件事一直在心里转……" : "追问、说说困惑，或问下一步怎么做……"} maxLength={300} /><button type="button" disabled={!generating && !input.trim()} onClick={() => generating ? stopGeneration() : void send()} aria-label={generating ? "停止生成" : "发送给拾光"}>{generating ? <Stop weight="fill" /> : <ArrowUp />}</button></div>
     <footer>{savedNotice ? "已记下这件事；你可以随时在“我的”中删除。" : temporary ? "这次对话不会留在记录里。" : memorySettings.enabled ? "这段对话已保存；拾光只会在相关时想起你授权保留的线索。" : "这段对话已保存。"}</footer>
   </section>;
