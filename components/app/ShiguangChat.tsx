@@ -94,7 +94,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const stickToBottom = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const avatar = theme === "east" ? "/characters/shiguang/shiguang-east-chibi-v2.png" : "/characters/shiguang/shiguang-west-chibi-v2.png";
-  const quickPrompts = relationship ? ["TA 这句话是什么意思", "我现在应该怎么回", "我要不要主动"] : mode === "home" ? onboarding ? ["有件事我不知道该跟谁说", "我在等一个结果", "我想理清一段关系"] : [] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
+  const quickPrompts = relationship ? ["TA 这句话是什么意思", "我现在应该怎么回", "我要不要主动"] : mode === "home" ? onboarding ? ["有件事我不知道该跟谁说", "我在等一个结果", "最近有点累，想聊聊"] : [] : theme === "east" ? ["这次最该留意什么？", "这层关系接下来该怎么看？", "直接告诉我你的判断"] : ["哪张牌最关键？", "为什么会这样解释？", "直接告诉我你的判断"];
   const generating = streamState === "thinking" || streamState === "streaming";
 
   useEffect(() => {
