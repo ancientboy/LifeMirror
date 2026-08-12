@@ -1,0 +1,1171 @@
+---
+title: PHASE-020 Relationship AI Entry & Extensible Relationship Engine
+status: planned
+version: 0.11.0
+baseline: main@7d7c1b7860d9e58a796649ee8a76de07d7405b36
+updated: August 2026
+---
+
+# PHASE-020 — 恋爱互动入口与可扩展关系引擎开发计划
+
+> 本文档以 GitHub `main@7d7c1b7` 的现有实现为基线。目标不是推翻 LifeMirror 已完成的首页、每日指引、人物镜像、记忆与现实回访，而是增加一个更短的新用户入口，并把当前“通用关系模板”升级为可逐步扩展到恋爱、朋友、同事、领导和家庭的关系引擎。
+
+## 1. 产品结论
+
+### 1.1 市场入口
+
+第一阶段对外只打一个高频、立即有结果的场景：
+
+> **看不懂 TA，也不知道怎么回？把聊天告诉拾光。**
+
+首批只覆盖：
+
+1. TA 这句话是什么意思；
+2. 我现在怎么回；
+3. 我要不要主动。
+
+“恋爱”是获客入口，不是底层边界。底层继续建设统一的现实关系系统。
+
+### 1.2 长期产品结构
+
+```text
+前台：恋爱互动的一个具体问题
+  ↓
+拾光：判断信号 + 可直接发送的回复
+  ↓
+用户：带回 TA 的真实回应
+  ↓
+系统：校准同一人物、同一关系和下一次建议
+  ↓
+扩展：朋友 / 同事 / 领导 / 家庭
+```
+
+### 1.3 不采用的方案
+
+- 不创建五个互相独立的 Agent。
+- 不要求新用户进入前先创建人物档案。
+- 不要求首次使用前填写关系阶段、目标和长表单。
+- 不把所有旧用户首页直接替换成恋爱首页。
+- 不把模型生成内容写成 TA 的人格事实。
+- 不把原始聊天截图长期写入 D1。
+- 不因加入图片输入而替换现有 DeepSeek / Groq 文本主备链路。
+
+---
+
+## 2. 当前代码基线
+
+| 能力 | 当前实现 | PHASE-020 处理 |
+| --- | --- | --- |
+| 首页 | `components/app/ShiguangHome.tsx` 同时承载每日体验、事件回访和聊天入口 | 保留老用户体验；仅给真正的新用户增加短入口 |
+| 聊天 | `components/app/ShiguangChat.tsx`，仅文本，输入上限 300 字，已支持流式输出、历史、重试和停止 | 扩展到长文本与附件；不重写流式链路 |
+| 拾光 API | `app/api/shiguang/route.ts`，OpenAI-compatible 文本请求，主备切换 | 增加关系规划和结构化输出；视觉使用独立 provider |
+| 人物 | `lib/relationship-context.ts`，`relationshipType` 为自由文本 | 保留自由标签，新增标准 `domain/role/stage/powerPosition` |
+| 关系演练 | `lib/relationship-rehearsal.ts`，各关系共用固定分支 | 固定分支降级为 fallback，增加策略路由 |
+| 现实反馈 | `lib/relationship-learning.ts`、`lib/life-event-loops.ts` | 统一关联 `personId/caseId`，让结果改变下次建议 |
+| 跨设备数据 | D1 `account_data.settings_json` 与本地快照同步 | 新增规范化关系表，旧 JSON 双读迁移 |
+| D1 迁移 | `.openai/drizzle/0001–0015` | 新增 `0016_relationship_engine.sql` |
+| 人物社交桥 | 已有 `relationship_person_links`、`relationship_questions`、`relationship_shared_events` | 保持独立，不把私密观察同步给 TA |
+
+### 2.1 必须保护的现有体验
+
+以下能力在本阶段不得被删除或降级：
+
+- 老用户的“今日”首页和今日指引；
+- 流式回答、停止生成、失败重试；
+- 聊天历史；
+- 人物镜像和现实回访；
+- 账户绑定、游客数据迁移；
+- 塔罗、六爻、命盘、星盘的探索入口；
+- 私密人物视角与真实好友关系的数据隔离。
+
+---
+
+## 3. 用户流程
+
+## 3.1 新用户首次进入
+
+真正无个人资料、无历史、无用户聊天的新用户显示简化入口：
+
+```text
+看不懂 TA，也不知道怎么回？
+[粘贴聊天或描述发生了什么]
+[上传聊天截图]
+
+TA 这句话什么意思
+我现在怎么回
+我要不要主动
+```
+
+首次提交后直接给出结果，不要求先选人物或关系。
+
+## 3.2 拾光首次结果
+
+默认结果包含四项，但不使用生硬标题堆砌：
+
+1. 当前互动更可能发生了什么；
+2. 哪些信息仍不能确定，最容易误判什么；
+3. 一句可以直接发送的回复；
+4. 接下来应该观察的现实信号。
+
+结果底部提供：
+
+- 复制回复；
+- 换一种语气；
+- TA 后来回复了；
+- 以后继续聊这个人。
+
+## 3.3 人物与关系确认
+
+人物关系不在开始前强制选择。
+
+```text
+有明确表达：
+“我男朋友最近……” → 自动识别 partner，不询问
+
+信息不足但不影响建议：
+“TA 不回我了” → 先给低假设建议，结果后轻量确认
+
+信息不足且会明显改变建议：
+“这句话怎么回” → 只问一次：
+[暧昧中] [伴侣] [前任] [朋友/其他]
+```
+
+用户获得第一次价值后才出现：
+
+> 以后还想继续聊这个人吗？给 TA 一个只有你看得见的称呼。
+
+用户可以：
+
+- 关联已有 TA；
+- 新建私密人物；
+- 本次不保存。
+
+## 3.4 老用户进入
+
+老用户继续进入现有“今日”首页。
+
+在当前事件回访与聊天区域增加轻入口：
+
+- 继续聊某个 TA；
+- 粘贴一段聊天；
+- TA 后来回复了。
+
+不得把今日运势、昨日进展或已有待回访事件隐藏。
+
+---
+
+## 4. 前端开发
+
+## 4.1 组件结构
+
+新增：
+
+```text
+components/app/relationship-intake/
+├── RelationshipEntry.tsx
+├── RelationshipComposer.tsx
+├── AttachmentPicker.tsx
+├── AttachmentPreview.tsx
+├── RelationshipClarifier.tsx
+├── RelationshipAnswer.tsx
+├── ReplyCard.tsx
+├── SavePersonPrompt.tsx
+└── SpeakerConfirm.tsx
+```
+
+现有文件调整：
+
+| 文件 | 调整 |
+| --- | --- |
+| `components/app/ShiguangHome.tsx` | 根据 `isNewHomeExperience` 切换首次入口；老用户结构保持 |
+| `components/app/ShiguangChat.tsx` | 复用 composer、流式读取、停止和重试；支持附件与长文本 |
+| `components/app/ShiguangChat.module.css` | 移动端附件预览、回复卡和轻确认 chips |
+| `components/app/RelationshipFollowupNudge.tsx` | 支持关联 `caseId/personId` |
+| `components/app/PersonMirror.tsx` | 展示来自聊天入口的事件和现实反馈 |
+| `components/app/ProfileHub.tsx` / `RelationshipsHub.tsx` | 保留人物管理入口，不前置到首次链路 |
+
+## 4.2 Composer 规则
+
+- 文本上限从 300 提升到 2,000 字；
+- 支持粘贴多轮对话；
+- Enter 发送、Shift+Enter 换行保持不变；
+- 附件按钮位于输入框左侧；
+- 图片和文字可同时提交；
+- 图片上传过程中不阻塞文字编辑；
+- 发送前可删除、重新排序和补充“右边是我”等说明；
+- 生成过程中继续支持停止；
+- 失败后保留图片缩略图与输入，不要求重新选择。
+
+## 4.3 截图规格
+
+首版约束：
+
+- JPG、PNG、WebP；
+- 最多 3 张；
+- 单张压缩后不超过 1.2 MB；
+- 总体积不超过 3 MB；
+- 长边压缩至不超过 1,600 px；
+- 浏览器端移除 EXIF；
+- 图片顺序即聊天顺序；
+- GIF、HEIC、PDF 暂不支持，前端给出明确提示。
+
+如果后续真实数据证明大量用户需要长对话，再增加 4–8 张分批识别，不在首版扩大请求风险。
+
+## 4.4 新旧首页切换
+
+只使用现有 `isNewHomeExperience` 的“真正新用户”判断，禁止仅依赖当天是否有记录。
+
+建议增加 feature flag：
+
+```text
+NEXT_PUBLIC_RELATIONSHIP_ENTRY_ENABLED=true
+```
+
+切换逻辑：
+
+```ts
+if (flag && isNewHomeExperience(snapshot)) {
+  return <RelationshipEntry />;
+}
+
+return <ExistingShiguangHome />;
+```
+
+灰度失败时关闭 flag 即可回到当前首页，无需回滚数据库。
+
+---
+
+## 5. 关系类型与人物选择
+
+## 5.1 标准类型
+
+```ts
+export type RelationshipDomain =
+  | "romance"
+  | "friendship"
+  | "work"
+  | "family"
+  | "other";
+
+export type RelationshipRole =
+  | "dating"
+  | "partner"
+  | "ex"
+  | "friend"
+  | "colleague"
+  | "manager"
+  | "report"
+  | "client"
+  | "parent"
+  | "child"
+  | "sibling"
+  | "relative"
+  | "other";
+
+export type RelationshipStage =
+  | "unknown"
+  | "new"
+  | "developing"
+  | "stable"
+  | "conflict"
+  | "cooling"
+  | "separated"
+  | "repairing";
+
+export type PowerPosition =
+  | "roughly_equal"
+  | "user_lower_power"
+  | "user_higher_power"
+  | "dependent"
+  | "unknown";
+```
+
+继续保留：
+
+```ts
+relationshipLabel: string; // 用户自己的说法，例如“学姐”“孩子爸爸”
+```
+
+标准字段用于内部路由，自由标签用于自然展示。
+
+## 5.2 分类结果
+
+```ts
+type RelationshipClassification = {
+  domain: RelationshipDomain;
+  role: RelationshipRole;
+  stage: RelationshipStage;
+  powerPosition: PowerPosition;
+  personCandidates: Array<{ personId: string; score: number }>;
+  goal:
+    | "interpret_signal"
+    | "draft_reply"
+    | "decide_initiation"
+    | "repair"
+    | "set_boundary"
+    | "refuse"
+    | "prepare_conversation"
+    | "other";
+  confidence: number;
+  missingCriticalField?: "role" | "speaker" | "goal";
+  reasonCodes: string[];
+};
+```
+
+`confidence` 仅用于系统决策，不向用户展示“置信度 73%”。
+
+## 5.3 何时询问
+
+只有同时满足以下条件才询问：
+
+1. 缺失字段会导致明显不同的建议；
+2. 无法从当前文字、图片和已有人物中稳定判断；
+3. 只需一个短问题即可解决。
+
+安全相关场景不受“一问上限”限制，例如未成年人、暴力、胁迫、自伤或职业高风险。
+
+---
+
+## 6. 后端关系引擎
+
+## 6.1 目录结构
+
+```text
+lib/relationships/
+├── types.ts
+├── taxonomy.ts
+├── classifier.ts
+├── person-resolver.ts
+├── context-builder.ts
+├── policy.ts
+├── response-schema.ts
+├── repository.ts
+├── legacy-adapter.ts
+└── strategies/
+    ├── romance.ts
+    ├── partner.ts
+    ├── friendship.ts
+    ├── colleague.ts
+    ├── manager.ts
+    ├── family.ts
+    └── fallback.ts
+```
+
+视觉单独放置：
+
+```text
+server/vision/
+├── types.ts
+├── provider.ts
+├── openai-provider.ts
+├── extract-chat.ts
+├── redact-log.ts
+└── validate.ts
+```
+
+Next/Sites 路由：
+
+```text
+app/api/shiguang/relationship/route.ts
+app/api/shiguang/vision/extract/route.ts
+app/api/shiguang/relationship/feedback/route.ts
+```
+
+Sites Worker 中必须实现等价路由与校验，不允许只在 Next 本地环境可用。
+
+## 6.2 统一执行链
+
+```text
+文字 / 图片
+  ↓
+视觉提取（仅图片）
+  ↓
+说话人识别与必要确认
+  ↓
+人物匹配 + 关系分类 + 当前目标
+  ↓
+加载用户上下文、人物上下文、已确认现实结果
+  ↓
+加载对应关系策略
+  ↓
+拾光生成结构化判断
+  ↓
+统一表达层生成自然中文
+  ↓
+用户带回现实结果
+  ↓
+校准人物与下一次建议
+```
+
+## 6.3 一个拾光，多套策略
+
+保持一个 Shiguang Runtime。策略包只改变：
+
+- 需要优先检查的信号；
+- 对行动建议的风险权重；
+- 允许和禁止的建议；
+- 建议回复的语气与结构；
+- 现实反馈要观察的指标。
+
+| 策略 | 优先判断 | 必须避免 |
+| --- | --- | --- |
+| dating / romance | 投入是否对等、信号是否一致、是否适合主动 | 读心、操控、反复试探 |
+| partner | 冲突核心、修复意愿、长期重复模式 | 只给话术，不处理重复伤害 |
+| friendship | 互惠、误会或疏远、边界失衡 | 把普通疏远判成背叛 |
+| colleague | 责任、协作、信息留痕、边界 | 把工作问题完全情绪化 |
+| manager | 权力差、证据、时机、替代方案 | 鼓励情绪化对抗或冲动越级 |
+| family | 长期角色、现实依赖、边界可执行性 | 用一句话术假装解决多年模式 |
+
+首个 release 只把 `dating`、`partner`、`ex` 做到 production-ready；其他策略先使用安全 fallback，不宣传完整支持。
+
+## 6.4 结构化响应
+
+模型先返回可校验 JSON，再由前端自然展示：
+
+```ts
+type RelationshipAnswer = {
+  classification: RelationshipClassification;
+  judgment: {
+    summary: string;
+    facts: string[];
+    hypotheses: string[];
+    uncertainty: string[];
+  };
+  replyOptions: Array<{
+    id: string;
+    tone: "natural" | "warm" | "direct" | "boundary";
+    text: string;
+    why: string;
+  }>;
+  recommendedReplyId?: string;
+  nextSignals: string[];
+  clarification?: {
+    field: "role" | "speaker" | "goal";
+    question: string;
+    options: Array<{ value: string; label: string }>;
+  };
+  safety?: {
+    level: "normal" | "caution" | "urgent";
+    reasonCodes: string[];
+  };
+};
+```
+
+校验失败时走一次修复；仍失败则使用文本 fallback，不向用户暴露 JSON 或模型参数。
+
+---
+
+## 7. 图片理解
+
+## 7.1 Provider 设计
+
+ChatGPT 支持图片理解不等于 LifeMirror 当前生产模型自动支持图片。视觉链路单独配置：
+
+```text
+VISION_PROVIDER=openai
+VISION_BASE_URL=https://api.openai.com/v1
+VISION_API_KEY=...
+VISION_MODEL=<支持图片输入的模型>
+VISION_MAX_TOTAL_BYTES=3145728
+VISION_RETENTION_MODE=ephemeral
+```
+
+现有：
+
+```text
+DeepSeek → 普通文本主模型
+Groq → 文本备用模型
+```
+
+保持不变。视觉模型只做截图解析，解析出的结构化对话再交给关系引擎。
+
+## 7.2 提取结果
+
+```ts
+type ExtractedConversation = {
+  pages: Array<{
+    attachmentId: string;
+    order: number;
+    messages: Array<{
+      speaker: "user" | "other" | "unknown";
+      text: string;
+      visibleTime?: string;
+      signals?: string[];
+      uncertain?: boolean;
+    }>;
+  }>;
+  inferredUserSide: "left" | "right" | "mixed" | "unknown";
+  missingRegions: string[];
+  warnings: string[];
+};
+```
+
+视觉模型只描述画面中可见内容，不推断 TA 的真实动机。关系判断在后续策略层完成。
+
+## 7.3 图片隐私
+
+- 原图仅存在于本次内存请求；
+- 不写入 D1；
+- 不写入日志、错误上报、产品指标或模型 trace；
+- 服务端日志只记录附件数量、字节数、耗时和错误码；
+- D1 只记录不可逆哈希、MIME、尺寸、解析状态和删除时间；
+- 用户删除本次案例时，相关附件元数据一并删除；
+- 前端明确提示“原图不会保存，识别后的事件由你确认后才会进入人物记录”。
+
+---
+
+## 8. API 契约
+
+## 8.1 关系分析
+
+```http
+POST /api/shiguang/relationship
+Content-Type: application/json
+```
+
+```ts
+type RelationshipRequest = {
+  text?: string;
+  extractedConversation?: ExtractedConversation;
+  attachmentIds?: string[];
+  personId?: string;
+  caseId?: string;
+  clarification?: {
+    field: string;
+    value: string;
+  };
+  locale: "zh-CN";
+};
+```
+
+限制：
+
+- `text` 最大 2,000 字；
+- 至少有文字或解析后的对话；
+- 不接受客户端直接指定 `userId`；
+- `personId` 必须验证属于当前用户；
+- 所有写操作带幂等键。
+
+## 8.2 图片解析
+
+```http
+POST /api/shiguang/vision/extract
+Content-Type: multipart/form-data
+```
+
+返回 `ExtractedConversation` 和本次临时 `attachmentIds`。
+
+## 8.3 现实反馈
+
+```http
+POST /api/shiguang/relationship/feedback
+```
+
+```ts
+type RelationshipFeedbackRequest = {
+  caseId: string;
+  personId?: string;
+  acted: boolean;
+  outcome?: "positive" | "mixed" | "negative" | "no_response" | "not_yet";
+  actualReply?: string;
+  note?: string;
+  correction?: string;
+};
+```
+
+反馈必须形成新 event，不覆盖历史 event。
+
+---
+
+## 9. D1 数据模型
+
+新增迁移：
+
+```text
+.openai/drizzle/0016_relationship_engine.sql
+```
+
+## 9.1 relationship_people
+
+规范化用户的私密人物对象。
+
+```sql
+CREATE TABLE relationship_people (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES identity_users(id) ON DELETE CASCADE,
+  display_name TEXT NOT NULL,
+  relationship_label TEXT NOT NULL DEFAULT '',
+  domain TEXT NOT NULL,
+  role TEXT NOT NULL,
+  stage TEXT NOT NULL DEFAULT 'unknown',
+  power_position TEXT NOT NULL DEFAULT 'unknown',
+  classification_source TEXT NOT NULL,
+  confirmed_by_user INTEGER NOT NULL DEFAULT 0,
+  legacy_person_id TEXT,
+  archived_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(owner_user_id, legacy_person_id)
+);
+```
+
+## 9.2 relationship_cases
+
+一次具体困扰或沟通任务。
+
+关键字段：
+
+```text
+id
+owner_user_id
+person_id nullable
+goal
+status: open / awaiting_reply / resolved / archived
+source: text / screenshot / person_mirror / followup
+initial_text_redacted
+strategy_key
+created_at / updated_at / resolved_at
+```
+
+首版不保存完整截图；`initial_text_redacted` 仅在用户允许记忆时保存必要摘要。
+
+## 9.3 relationship_events
+
+不可变时间线：
+
+```text
+user_message
+extracted_message
+classification_confirmed
+analysis_created
+reply_copied
+planned_action
+actual_reply
+reality_feedback
+person_correction
+case_resolved
+```
+
+字段必须含：
+
+```text
+id
+owner_user_id
+person_id nullable
+case_id
+event_kind
+payload_json
+provenance
+created_at
+deleted_at nullable
+```
+
+`payload_json` 有版本号。被删除事件不再进入 Context Builder。
+
+## 9.4 relationship_feedback
+
+用于效果闭环和建议校准：
+
+```text
+id
+owner_user_id
+person_id nullable
+case_id
+acted
+outcome
+actual_reply_summary
+suggestion_helpful nullable
+created_at
+```
+
+## 9.5 attachment_metadata
+
+只存元数据：
+
+```text
+id
+owner_user_id
+case_id nullable
+mime_type
+byte_size
+width
+height
+content_hash
+parse_status
+created_at
+deleted_at
+```
+
+不存对象存储 URL，不存 Base64。
+
+## 9.6 relationship_revisions
+
+记录人物合并、关系类型纠正、事件归属修改：
+
+```text
+id
+owner_user_id
+entity_type
+entity_id
+revision_kind
+before_json
+after_json
+created_at
+```
+
+用于可解释迁移与防止旧快照“复活”。
+
+## 9.7 与现有社交表的边界
+
+现有 `relationships` 与 `relationship_person_links` 表示两个真实账户之间的授权关系。
+
+新 `relationship_people` 表示单个用户私密视角下的 TA。
+
+二者只能通过显式 link 关联：
+
+```text
+relationship_people.id
+  ↓ 用户明确邀请并确认
+relationship_person_links.private_person_id
+  ↓
+relationships.id
+```
+
+私密观察、截图、回复草稿和未分享事件绝不能自动复制给对方账户。
+
+---
+
+## 10. 旧数据兼容与迁移
+
+当前 `privatePeople`、`relationshipLoops`、`lifeEventLoops` 仍可能存在于 `account_data.settings_json` 和本地快照中。
+
+迁移分四步：
+
+### M1：加表，不改旧读写
+
+- 执行 D1 `0016`；
+- 增加 Repository interface；
+- 所有现有页面继续读旧数据；
+- 新关系入口先写新表，同时保留必要旧快照。
+
+### M2：幂等回填
+
+- 每个账户按 `legacy_person_id` 幂等创建 `relationship_people`；
+- 将旧 `relationshipLoops` 转为 case + events；
+- 将可明确关联人物的 `lifeEventLoops` 关联到 person；
+- 无法确认人物归属的事件保留为 `person_id = null`；
+- 不用字符串相似度强行合并人物。
+
+### M3：新表优先、旧表兜底
+
+- Context Builder 优先新表；
+- 旧 JSON 只补缺失信息；
+- 修改与删除写入 `relationship_revisions`；
+- 增加“删除后旧快照不得复活”测试。
+
+### M4：停止旧格式写入
+
+仅在以下验证全部通过后执行：
+
+- 登录用户跨设备一致；
+- 游客绑定账户迁移一致；
+- 人物 A/B 不串线；
+- 删除与人物合并不复活；
+- Sites 生产 D1 smoke test 通过；
+- 可回滚读取旧 JSON。
+
+本阶段不删除 `account_data.settings_json`。
+
+PostgreSQL 服务端若继续维护，增加语义等价的 `server/database/migrations/010_relationship_engine.sql`；Sites/D1 是当前上线验收主路径。
+
+---
+
+## 11. Context Builder 与记忆边界
+
+构建关系回答时只加载与当前问题相关的信息：
+
+```text
+当前用户的明确偏好
++ 当前人物的已确认关系类型
++ 同一人物近期现实互动
++ 同一人物被用户确认的纠正
++ 当前未完成事件
++ 必要的共享关系事实
+```
+
+禁止加载：
+
+- 其他人物的私密事件；
+- 已删除事件；
+- 未确认的 simulation 作为事实；
+- 与当前问题无关的全量聊天历史；
+- 对方账户未明确共享的内容；
+- 原始截图。
+
+证据优先级：
+
+```text
+对方明确共享的自述
+> 真实互动结果
+> 用户重复现实观察
+> 用户单次观察
+> 出生象征参考
+> simulation 假设
+```
+
+---
+
+## 12. 安全与建议边界
+
+关系策略必须复用并扩展 `lib/safety-boundary.ts`。
+
+需要增加：
+
+- 暴力、胁迫、跟踪、威胁；
+- 未成年人和成人恋爱场景；
+- 自伤或他伤；
+- 财务控制；
+- 职场报复与高风险越级；
+- 违法或欺骗性操控；
+- 冒充他人发送信息。
+
+当安全等级为 `urgent`：
+
+- 不继续优化操控性回复；
+- 优先给现实安全行动；
+- 不承诺保密或专业诊断；
+- 必要时建议联系当地紧急服务或可信现实支持。
+
+普通关系问题中不使用“心理疾病”“回避型人格”等诊断标签替代事实分析。
+
+---
+
+## 13. 指标与实验
+
+在现有 `product_metric_events` 枚举中增加：
+
+```text
+relationship_entry_opened
+relationship_text_submitted
+relationship_image_submitted
+relationship_clarification_shown
+relationship_clarification_answered
+relationship_answer_received
+relationship_reply_copied
+relationship_person_saved
+relationship_case_revisited
+relationship_feedback_submitted
+relationship_outcome_positive
+relationship_outcome_negative
+vision_parse_failed
+```
+
+指标不得包含聊天正文、姓名、截图哈希或生成回复。
+
+核心漏斗：
+
+```text
+进入入口
+→ 提交文字/图片
+→ 收到第一次判断
+→ 复制/采用回复
+→ 保存 TA
+→ 带回现实结果
+→ 再次咨询同一个 TA
+```
+
+首版产品验收参考：
+
+| 指标 | 目标 |
+| --- | ---: |
+| 首次提交成功率 | ≥ 95% |
+| 首次回答完成率 | ≥ 95% |
+| 图片可解析率 | ≥ 85% |
+| 必要确认平均次数 | ≤ 1 |
+| 回复复制或明确采用率 | ≥ 20% |
+| 7 天内同一 TA 再次咨询率 | ≥ 15% |
+| 有行动案例的现实反馈率 | ≥ 25% |
+| A/B 人物串线 | 0 |
+| 原图持久化 | 0 |
+
+这些是 beta 目标，不作为模型效果的确定性承诺。
+
+---
+
+## 14. 分阶段实施
+
+## R0 — 契约与兼容层
+
+目标：先让底层可扩展，不改变用户界面。
+
+任务：
+
+- 新增 `lib/relationships/types.ts` 与 taxonomy；
+- 新增 Repository interface；
+- 新增旧 JSON adapter；
+- 新增 D1 `0016`；
+- 增加人物隔离、删除防复活、游客迁移测试；
+- 增加 feature flag。
+
+验收：
+
+- 当前测试全绿；
+- flag 关闭时页面与生产行为不变；
+- 新表迁移可重复执行；
+- 旧账户无需手工处理即可读取。
+
+## R1 — 纯文本恋爱入口
+
+目标：验证“看懂 TA + 怎么回”的即时价值。
+
+任务：
+
+- 新用户 RelationshipEntry；
+- Composer 提升到 2,000 字；
+- 恋爱三目标分类；
+- dating / partner / ex 策略；
+- 结构化回答与回复卡；
+- 必要时一次轻确认；
+- 结果后保存人物；
+- 复制与采用指标。
+
+验收：
+
+- 未选择人物也能完成；
+- 明确提到男友/女友/前任时不重复询问；
+- 回答包含判断、误判边界、建议回复和观察信号；
+- 老用户今日首页不变；
+- 现有流式、停止、重试不回归。
+
+## R2 — 图片理解
+
+目标：支持聊天截图，不让图片能力侵入关系数据层。
+
+任务：
+
+- 附件选择、预览、压缩、排序和删除；
+- 独立 vision provider；
+- 结构化 OCR/视觉提取；
+- 说话人必要确认；
+- 原图不保存；
+- 图片失败后允许转为手动粘贴；
+- 视觉金标样本测试。
+
+验收：
+
+- 3 张以内同一对话顺序正确；
+- 无法判断左右说话人时只问必要问题；
+- 图片正文不进入日志与指标；
+- 视觉 provider 失败不影响文本聊天；
+- 未配置视觉密钥时前端隐藏上传按钮并保持文本可用。
+
+## R3 — 现实反馈闭环
+
+目标：真实结果改变下一次建议，而不是只记录“顺利/翻车”。
+
+任务：
+
+- case / events / feedback 写入；
+- “TA 后来回复了”入口；
+- 关联已有 TA；
+- Person Mirror 时间线接入；
+- Context Builder 读取同一人物反馈；
+- 显示“这次为什么和上次建议不同”的自然说明。
+
+验收：
+
+- 用户不需重述背景；
+- 上次现实结果能改变策略权重；
+- 未确认 simulation 不进入人物事实；
+- 删除反馈后不再影响建议；
+- 人物 A/B 的反馈完全隔离。
+
+## R4 — 朋友与职场策略
+
+目标：扩展而不改数据层。
+
+顺序：
+
+1. friendship；
+2. colleague；
+3. manager / report / client。
+
+领导策略必须增加职业风险、证据和表达时机评测。未达到安全评测门槛前不在首页宣传。
+
+## R5 — 家庭策略
+
+家庭最后开发，增加：
+
+- 现实依赖；
+- 长期角色固化；
+- 未成年人；
+- 控制与伤害；
+- 边界是否可执行；
+- 多年问题不能被一次话术“解决”的限制。
+
+---
+
+## 15. 测试计划
+
+### 15.1 单元测试
+
+- taxonomy 映射；
+- 分类阈值和询问条件；
+- 人物归属；
+- 每个策略的禁止建议；
+- 结构化响应 Zod 校验；
+- 图片尺寸、MIME 和字节限制；
+- 隐私日志清洗；
+- 旧 JSON adapter；
+- 删除防复活。
+
+### 15.2 金标评测
+
+每个 production-ready 策略至少建立：
+
+- 20 个正常案例；
+- 10 个信息不足案例；
+- 10 个反例/误导案例；
+- 10 个安全案例；
+- 10 个连续现实反馈案例。
+
+恋爱首版至少 60 个案例，覆盖暧昧、伴侣、前任、冷淡、吵架、主动、拒绝和边界。
+
+### 15.3 集成测试
+
+- 文本 → 分类 → 策略 → 流式回答；
+- 图片 → 提取 → 说话人确认 → 分析；
+- 游客 → 保存人物 → 绑定账户；
+- 旧 privatePerson → 新 person；
+- case → reality feedback → 下一次 Context；
+- Sites Worker 与 Next route 契约一致。
+
+### 15.4 生产 smoke test
+
+- 文字入口；
+- 图片入口；
+- 主模型失败时文本备用；
+- 视觉模型失败降级；
+- D1 新表读写；
+- 跨设备；
+- 删除；
+- feature flag 回退；
+- 今日首页未回归。
+
+---
+
+## 16. 发布与回滚
+
+发布顺序：
+
+```text
+合并契约和迁移
+→ 部署但关闭入口
+→ 运行 D1 migration 与 smoke test
+→ 内部账户开启
+→ 邀请码 beta 10%
+→ 观察错误率和现实反馈
+→ 逐步扩大
+```
+
+独立开关：
+
+```text
+RELATIONSHIP_ENGINE_ENABLED
+NEXT_PUBLIC_RELATIONSHIP_ENTRY_ENABLED
+VISION_INPUT_ENABLED
+RELATIONSHIP_NORMALIZED_WRITE_ENABLED
+RELATIONSHIP_NORMALIZED_READ_ENABLED
+```
+
+回滚原则：
+
+- 先关前端入口；
+- 再关新表优先读取；
+- 旧 JSON 仍可兜底；
+- 不回滚或删除已经创建的 D1 表；
+- 不删除用户新产生的事件；
+- 修复后重放幂等写入。
+
+---
+
+## 17. 预计代码变更地图
+
+```text
+components/app/
+  ShiguangHome.tsx
+  ShiguangChat.tsx
+  RelationshipFollowupNudge.tsx
+  PersonMirror.tsx
+  relationship-intake/*
+
+lib/
+  relationship-context.ts
+  relationship-learning.ts
+  life-event-loops.ts
+  safety-boundary.ts
+  relationships/*
+
+app/api/shiguang/
+  route.ts
+  relationship/route.ts
+  relationship/feedback/route.ts
+  vision/extract/route.ts
+
+server/
+  vision/*
+  routes/person-mirror.ts
+  database/migrations/010_relationship_engine.sql
+
+.openai/drizzle/
+  0016_relationship_engine.sql
+
+scripts/
+  build-sites.mjs
+  verify-sites-worker.mjs
+
+tests/
+  relationship-classifier
+  relationship-strategies
+  relationship-repository
+  vision-extraction
+  relationship-integration
+```
+
+---
+
+## 18. Definition of Done
+
+PHASE-020 完成必须同时满足：
+
+- 新用户不选人物也能开始；
+- 文字与图片共用同一入口和关系引擎；
+- 关系不确定时只询问真正影响建议的字段；
+- 恋爱回答有明确判断和可发送回复；
+- 用户可在结果后关联或创建 TA；
+- TA 后来的现实回应可直接带回；
+- 同一人物的反馈会改变后续建议；
+- 不同人物之间不串数据；
+- 原始截图不进入 D1、日志和埋点；
+- 老用户今日首页、聊天历史和流式体验无回归；
+- feature flag 可快速关闭新入口；
+- 后续增加朋友、同事、领导和家庭只需新增策略与评测，不重做数据库；
+- GitHub `main`、Sites 部署源码和 D1 migration 版本一致。
+
+---
+
+## 19. 开发执行顺序
+
+实际开发严格按以下顺序：
+
+1. R0 契约、D1 表和兼容层；
+2. R1 纯文本恋爱入口；
+3. R1 现实人物保存与老首页保护测试；
+4. R2 图片理解；
+5. R3 现实反馈闭环；
+6. beta 指标验证；
+7. friendship；
+8. colleague / manager；
+9. family。
+
+在 R1 的使用率与现实反馈闭环没有验证前，不提前铺开所有关系首页入口，也不继续增加重型人物表单。
