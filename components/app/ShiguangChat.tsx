@@ -147,7 +147,8 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     if (!response.ok) {
       setAttachments((current) => current.map((item) => ({ ...item, status: "error" })));
       recordProductMetric("vision_parse_failed", "relationship", `vision-fail:${crypto.randomUUID()}`);
-      throw new Error("vision_extract_failed");
+      const error = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(error?.error === "vision_rate_limited" ? "vision_rate_limited" : "vision_extract_failed");
     }
     const value = await response.json() as { conversation?: ExtractedConversation };
     if (!value.conversation?.pages?.length) throw new Error("vision_extract_failed");
@@ -225,7 +226,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     let extracted: ExtractedConversation | undefined;
     if (attachments.length) {
       try { extracted = await extractAttachments(attachments); }
-      catch { setAttachmentError("截图暂时没有识别成功。图片还在，你可以重试，或先粘贴聊天文字。"); return; }
+      catch (error) { setAttachmentError(error instanceof Error && error.message === "vision_rate_limited" ? "图片识别请求有点多，请稍等一分钟再试。图片还在，不需要重新选择。" : "截图暂时没有识别成功。图片还在，你可以重试，或先粘贴聊天文字。"); return; }
     }
     const extractedText = conversationText(extracted);
     const displayQuestion = question || `请分析这 ${attachments.length} 张聊天截图。`;

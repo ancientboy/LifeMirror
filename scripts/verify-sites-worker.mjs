@@ -51,6 +51,7 @@ assert.ok(source.includes('env.VISION_MODEL || "qwen/qwen3.6-27b"'), "vision mus
 assert.ok(!source.includes("meta-llama/llama-4-scout-17b-16e-instruct"), "deprecated Groq vision model must not remain in the worker");
 assert.ok(source.includes('side === "right" ? "user" : side === "left" ? "other" : "unknown"'), "vision speaker ownership must be derived from bubble position");
 assert.ok(source.includes("不要输出 speaker"), "vision prompt must not ask the model to infer speaker identity");
+assert.ok(source.includes("vision_rate_limited"), "vision rate limits must stay distinguishable from parse failures");
 assert.ok(source.includes("原图") === false, "Worker must not persist screenshot originals");
 
 const worker = await import(pathToFileURL(workerPath.pathname).href + `?verify=${Date.now()}`);

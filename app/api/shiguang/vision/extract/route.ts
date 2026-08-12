@@ -32,7 +32,8 @@ export async function POST(request: Request) {
   const prompt = `按图片顺序提取聊天截图中肉眼可见的对话。先只判断最外层聊天气泡的版面位置，不根据称呼、语气或文字含义猜说话人。位置规则固定：靠左气泡写 side="left"，靠右气泡写 side="right"，居中的时间、系统提示或通知写 side="center"，无法确定写 side="unknown"。每个最外层气泡只生成一条 message；引用、回复预览或转发卡片属于所在外层气泡，不要拆成另一位说话人的新消息。保留可见时间以及“已读、撤回、转账、表情”等画面信号；看不清的文字不要猜。不要输出 speaker 或推断人物动机。只返回 JSON：{pages:[{order,messages:[{side:"left|right|center|unknown",text,visibleTime?,signals?,uncertain?}]}],missingRegions:[],warnings:[]}。`;
   try {
     const upstream = await fetch(`${baseUrl}/chat/completions`, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ model, temperature: 0, max_tokens: 2400, reasoning_effort: "none", response_format: { type: "json_object" }, messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageBlocks] }] }), signal: AbortSignal.timeout(45_000) });
-    if (!upstream.ok) throw new Error("vision_upstream_failed");
+    if (upstream.status === 429) return Response.json({ error: "vision_rate_limited" }, { status: 429, headers: { "cache-control": "no-store" } });
+    if (!upstream.ok) return Response.json({ error: "vision_upstream_failed" }, { status: 502, headers: { "cache-control": "no-store" } });
     const payload = await upstream.json() as { choices?: Array<{ message?: { content?: string } }> };
     const parsed = extractedSchema.parse(extractJson(payload.choices?.[0]?.message?.content ?? ""));
     const ids = images.map(() => crypto.randomUUID());
