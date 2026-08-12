@@ -49,12 +49,13 @@ test("overlapping screenshots become one ordered conversation without deleting l
 });
 
 test("reply generation is optional and unsafe incoming/meta replies are rejected", () => {
-  const messages = [{ speaker: "other" as const, text: "你最近怎么开始玩这个了？" }, { speaker: "user" as const, text: "我玩啥？" }];
+  const messages = [{ speaker: "other" as const, text: "你最近怎么开始玩这个了？" }, { speaker: "user" as const, text: "我玩啥？" }, { speaker: "user" as const, text: "57 在上我的号" }];
   assert.equal(shouldGenerateRelationshipReply({ userNote: "好像没以前热情了", goal: "interpret_signal", messages }), false);
   assert.equal(shouldGenerateRelationshipReply({ userNote: "我应该怎么回", goal: "draft_reply", messages }), true);
   const options = filterRelationshipReplies([
     { id: "copied", tone: "natural", text: "你最近怎么开始玩这个了？", why: "错误" },
     { id: "meta", tone: "natural", text: "这句是你问的吗？我以为是57跟你聊的。", why: "错误" },
+    { id: "third-party", tone: "natural", text: "57 挺厉害的，怎么玩这么好。", why: "错误" },
     { id: "valid", tone: "warm", text: "那你先玩，打完再给我看看你。", why: "自然承接" },
   ], messages);
   assert.deepEqual(options.map((item) => item.id), ["valid"]);

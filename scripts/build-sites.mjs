@@ -1884,7 +1884,7 @@ async function relationshipReply(request, env) {
   const context = redactRelationshipSummary(input?.context, 10000);
   if (!messages.length && !userNote) return json({ error: "invalid_relationship_reply_request" }, 400);
   const transcript = messages.map((message) => (message.speaker === "user" ? "用户" : message.speaker === "other" ? "TA" : "画面提示／待确认") + "：" + message.text).join("\n");
-  const prompt = "你是关系聊天回复生成器。只生成用户接下来可以发给 TA 的新消息，不做关系分析，也不解释截图。\n规则：\n- 用户是右侧气泡，TA 是左侧气泡；不得交换说话人。\n- 不得照抄或改写成 TA 已经发过的句子。\n- 不得出现‘这句是谁说的、你问的吗、我以为、截图、识别、左边、右边’等内部核对话术。\n- 第三人称名字、数字或昵称只按原句语法理解；不要擅自把第三人当成聊天参与者。\n- 回复必须能直接发给 TA，承接最后一轮语境，简短自然，不操控、不逼问。\n- 给 1～3 个确实不同的选择。只返回 JSON：{options:[{id,tone:\"natural|warm|direct|boundary\",text,why}],recommendedReplyId}。\n\n<person_memory>\n" + (context || "无") + "\n</person_memory>\n<current_analysis>\n" + (analysis || "无") + "\n</current_analysis>\n<user_note>\n" + (userNote || "无") + "\n</user_note>\n<visible_transcript>\n" + transcript + "\n</visible_transcript>";
+  const prompt = "你是关系聊天回复生成器。只生成用户接下来可以发给 TA 的新消息，不做关系分析，也不解释截图。\n规则：\n- 用户是右侧气泡，TA 是左侧气泡；不得交换说话人。\n- 不得照抄或改写成 TA 已经发过的句子。\n- 不得出现‘这句是谁说的、你问的吗、我以为、截图、识别、左边、右边’等内部核对话术。\n- 第三人称名字、数字或昵称只按原句语法理解；不要擅自把第三人当成聊天参与者。若用户说‘X 在／帮／替……我的……’，X 是被谈论的第三人，不是 TA；除非用户明确要求，否则候选回复不得称呼、评价或追问 X。例如‘57 在上我的号’只能理解为 57 正在使用用户的账号，绝不能写‘57 挺厉害’或说 57 在跟 TA 聊。\n- 回复必须能直接发给 TA，承接最后一轮语境，简短自然，不操控、不逼问。\n- 给 1～3 个确实不同的选择。只返回 JSON：{options:[{id,tone:\"natural|warm|direct|boundary\",text,why}],recommendedReplyId}。\n\n<person_memory>\n" + (context || "无") + "\n</person_memory>\n<current_analysis>\n" + (analysis || "无") + "\n</current_analysis>\n<user_note>\n" + (userNote || "无") + "\n</user_note>\n<visible_transcript>\n" + transcript + "\n</visible_transcript>";
   try {
     const user = await sessionUser(request, env);
     const generated = await completeWithFallback(env, { temperature: 0.55, max_tokens: 650, response_format: { type: "json_object" }, messages: [{ role: "system", content: prompt }, { role: "user", content: "生成接下来可发送的回复。" }] }, { timeoutMs: 45_000, userId: user?.id || null, operation: "relationship_reply" });
@@ -1892,9 +1892,10 @@ async function relationshipReply(request, env) {
     const seen = new Set();
     const incoming = new Set(messages.filter((item) => item.speaker === "other").map((item) => normalizedReplyText(item.text)));
     const blocked = /截图|识别|气泡|左边|右边|这句是.{0,8}(谁|你).{0,4}(说|问)|你问的吗|我以为|跟你聊/u;
+    const thirdPartyReferences = messages.filter((item) => item.speaker === "user").map((item) => item.text.match(/^\s*([A-Za-z0-9_-]{1,16}|[\p{Script=Han}]{1,8})\s*(?:在|帮|替|让|给)/u)?.[1]?.trim()).filter((item) => item && !/^(我|你|他|她|它|TA)$/iu.test(item));
     const options = (Array.isArray(value?.options) ? value.options : []).slice(0, 4).map((item, index) => ({ id: redactRelationshipSummary(item?.id, 40) || "reply-" + index, tone: ["natural", "warm", "direct", "boundary"].includes(item?.tone) ? item.tone : "natural", text: redactRelationshipSummary(item?.text, 180), why: redactRelationshipSummary(item?.why, 300) })).filter((item) => {
       const key = normalizedReplyText(item.text);
-      if (!key || incoming.has(key) || seen.has(key) || blocked.test(item.text)) return false;
+      if (!key || incoming.has(key) || seen.has(key) || blocked.test(item.text) || thirdPartyReferences.some((reference) => item.text.includes(reference))) return false;
       seen.add(key); return true;
     }).slice(0, 3);
     if (!options.length) return json({ options: [] }, 200, { "cache-control": "no-store" });

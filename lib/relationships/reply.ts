@@ -7,6 +7,17 @@ function comparableText(value: string) {
   return value.replace(/^[“"「]|[”"」]$/gu, "").replace(/\s+/gu, "").replace(/[，。！？,.!?～~“”"']/gu, "").toLowerCase();
 }
 
+function thirdPartyReferences(messages: ExtractedRelationshipMessage[]) {
+  const references = new Set<string>();
+  for (const message of messages) {
+    if (message.speaker !== "user") continue;
+    const match = message.text.match(/^\s*([A-Za-z0-9_-]{1,16}|[\p{Script=Han}]{1,8})\s*(?:在|帮|替|让|给)/u);
+    const value = match?.[1]?.trim();
+    if (value && !/^(我|你|他|她|它|TA)$/iu.test(value)) references.add(value);
+  }
+  return references;
+}
+
 export function shouldGenerateRelationshipReply(input: { userNote: string; goal: RelationshipGoal; messages: ExtractedRelationshipMessage[] }) {
   if (REPLY_GOALS.has(input.goal) || /怎么回|如何回|回什么|回复什么|发什么|说什么|补一句|帮我回|帮我写/u.test(input.userNote)) return true;
   return !input.userNote.trim() && [...input.messages].reverse().find((message) => message.speaker !== "unknown")?.speaker === "other";
@@ -15,6 +26,7 @@ export function shouldGenerateRelationshipReply(input: { userNote: string; goal:
 export function validRelationshipReply(option: RelationshipReplyOption, messages: ExtractedRelationshipMessage[]) {
   const text = option.text.trim();
   if (text.length < 1 || text.length > 180 || META_REPLY.test(text)) return false;
+  if ([...thirdPartyReferences(messages)].some((reference) => text.includes(reference))) return false;
   const comparable = comparableText(text);
   if (!comparable) return false;
   return !messages.some((message) => message.speaker === "other" && comparableText(message.text) === comparable);
