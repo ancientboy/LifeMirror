@@ -3,6 +3,7 @@ import test from "node:test";
 import { relationshipPolicyFor } from "./policy.js";
 import { relationshipAnswerSchema } from "./response-schema.js";
 import { classifyRelationship } from "./taxonomy.js";
+import { inferredUserSideFromBubbles, speakerFromBubbleSide } from "./vision.js";
 
 test("the same relationship taxonomy routes romance, work, friendship and family", () => {
   assert.deepEqual(classifyRelationship("暧昧对象问我周末有没有空，怎么回").role, "dating");
@@ -27,4 +28,12 @@ test("strategy policy respects power and long-term relationship boundaries", () 
 test("relationship answer contract keeps judgment, uncertainty, reply and next signal", () => {
   assert.equal(relationshipAnswerSchema.safeParse({ judgment: { summary: "目前更像是信息没有对齐。", facts: ["对方只回复了时间"], hypotheses: ["可能尚未理解问题"], uncertainty: ["不能确认对方的动机"] }, replyOptions: [{ id: "natural", tone: "natural", text: "我想确认一下你的意思。", why: "先降低误解" }], recommendedReplyId: "natural", nextSignals: ["看对方是否给出具体解释"] }).success, true);
   assert.equal(relationshipAnswerSchema.safeParse({ judgment: "只有判断" }).success, false);
+});
+
+test("vision assigns chat ownership from bubble position instead of message semantics", () => {
+  assert.equal(speakerFromBubbleSide("left"), "other");
+  assert.equal(speakerFromBubbleSide("right"), "user");
+  assert.equal(speakerFromBubbleSide("center"), "unknown");
+  assert.equal(inferredUserSideFromBubbles(["left", "center"]), "right");
+  assert.equal(inferredUserSideFromBubbles(["center", "unknown"]), "unknown");
 });

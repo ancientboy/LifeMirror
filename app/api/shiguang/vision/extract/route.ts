@@ -1,13 +1,13 @@
 import { z } from "zod";
+import { inferredUserSideFromBubbles, speakerFromBubbleSide } from "@/lib/relationships/vision";
 
 export const runtime = "nodejs";
 
 const extractedSchema = z.object({
   pages: z.array(z.object({
     order: z.number().int().min(0),
-    messages: z.array(z.object({ speaker: z.enum(["user", "other", "unknown"]), text: z.string().max(2_000), visibleTime: z.string().max(80).optional(), signals: z.array(z.string().max(80)).max(8).optional(), uncertain: z.boolean().optional() })).max(80),
+    messages: z.array(z.object({ side: z.enum(["left", "right", "center", "unknown"]), text: z.string().max(2_000), visibleTime: z.string().max(80).optional(), signals: z.array(z.string().max(80)).max(8).optional(), uncertain: z.boolean().optional() })).max(80),
   })).max(3),
-  inferredUserSide: z.enum(["left", "right", "mixed", "unknown"]),
   missingRegions: z.array(z.string().max(160)).max(10), warnings: z.array(z.string().max(160)).max(10),
 });
 
@@ -29,13 +29,15 @@ export async function POST(request: Request) {
   const model = process.env.VISION_MODEL || "qwen/qwen3.6-27b";
   if (!apiKey) return Response.json({ error: "vision_not_configured" }, { status: 503 });
   const imageBlocks = await Promise.all(images.map(async (image) => ({ type: "image_url", image_url: { url: `data:${image.type};base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}` } })));
-  const prompt = `按图片顺序提取聊天截图中肉眼可见的对话。只做转录和版面识别，不推断任何人的动机、人格或关系结论。尽量区分用户与 TA；无法判断就写 unknown。保留可见时间以及“已读、撤回、转账、表情”等画面信号；看不清的文字不要猜。只返回 JSON：{pages:[{order,messages:[{speaker,text,visibleTime?,signals?,uncertain?}]}],inferredUserSide:"left|right|mixed|unknown",missingRegions:[],warnings:[]}。`;
+  const prompt = `按图片顺序提取聊天截图中肉眼可见的对话。先只判断最外层聊天气泡的版面位置，不根据称呼、语气或文字含义猜说话人。位置规则固定：靠左气泡写 side="left"，靠右气泡写 side="right"，居中的时间、系统提示或通知写 side="center"，无法确定写 side="unknown"。每个最外层气泡只生成一条 message；引用、回复预览或转发卡片属于所在外层气泡，不要拆成另一位说话人的新消息。保留可见时间以及“已读、撤回、转账、表情”等画面信号；看不清的文字不要猜。不要输出 speaker 或推断人物动机。只返回 JSON：{pages:[{order,messages:[{side:"left|right|center|unknown",text,visibleTime?,signals?,uncertain?}]}],missingRegions:[],warnings:[]}。`;
   try {
     const upstream = await fetch(`${baseUrl}/chat/completions`, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ model, temperature: 0, max_tokens: 2400, reasoning_effort: "none", response_format: { type: "json_object" }, messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageBlocks] }] }), signal: AbortSignal.timeout(45_000) });
     if (!upstream.ok) throw new Error("vision_upstream_failed");
     const payload = await upstream.json() as { choices?: Array<{ message?: { content?: string } }> };
     const parsed = extractedSchema.parse(extractJson(payload.choices?.[0]?.message?.content ?? ""));
     const ids = images.map(() => crypto.randomUUID());
-    return Response.json({ conversation: { ...parsed, pages: parsed.pages.map((page, index) => ({ ...page, attachmentId: ids[index], order: index })) }, attachmentIds: ids }, { headers: { "cache-control": "no-store" } });
+    const sides = parsed.pages.flatMap((page) => page.messages.map((message) => message.side));
+    const pages = parsed.pages.map((page, index) => ({ attachmentId: ids[index], order: index, messages: page.messages.map(({ side, ...message }) => ({ ...message, speaker: speakerFromBubbleSide(side) })) }));
+    return Response.json({ conversation: { pages, inferredUserSide: inferredUserSideFromBubbles(sides), missingRegions: parsed.missingRegions, warnings: parsed.warnings }, attachmentIds: ids }, { headers: { "cache-control": "no-store" } });
   } catch { return Response.json({ error: "vision_parse_failed" }, { status: 502 }); }
 }

@@ -49,6 +49,8 @@ const relationshipMigration = await readFile(new URL("../.openai/drizzle/0016_re
 for (const contract of ["relationship_people", "relationship_cases", "relationship_events", "relationship_feedback", "attachment_metadata", "relationship_outcome_positive", "vision_parse_failed"]) assert.ok(relationshipMigration.includes(contract), `missing relationship engine contract: ${contract}`);
 assert.ok(source.includes('env.VISION_MODEL || "qwen/qwen3.6-27b"'), "vision must default to the active Groq multimodal model");
 assert.ok(!source.includes("meta-llama/llama-4-scout-17b-16e-instruct"), "deprecated Groq vision model must not remain in the worker");
+assert.ok(source.includes('side === "right" ? "user" : side === "left" ? "other" : "unknown"'), "vision speaker ownership must be derived from bubble position");
+assert.ok(source.includes("不要输出 speaker"), "vision prompt must not ask the model to infer speaker identity");
 assert.ok(source.includes("原图") === false, "Worker must not persist screenshot originals");
 
 const worker = await import(pathToFileURL(workerPath.pathname).href + `?verify=${Date.now()}`);
