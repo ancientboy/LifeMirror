@@ -11,7 +11,7 @@
 .companionCopy h1 { max-width:720px; margin:24px 0 24px; font:400 clamp(50px,6vw,88px)/1.08 Georgia,"Songti SC",serif; letter-spacing:.015em; }
 .companionCopy>p { max-width:620px; margin:0; color:#68716c; font:15px/1.95 Georgia,"Songti SC",serif; }
 .companionActions { margin-top:34px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
-.companionActions>button { min-height:54px; padding:0 25px; display:flex; align-items:center; gap:12px; border:0; border-radius:999px; color:#fffaf1; background:#315d52; font:13px Georgia,"Songti SC",serif; box-shadow:0 16px 40px rgba(49,93,82,.2); cursor:pointer; }
+.companionActions .primaryCta { min-height:54px; padding:0 25px; display:flex; align-items:center; gap:12px; border:0; border-radius:999px; color:#fffaf1; background:#315d52; font:13px Georgia,"Songti SC",serif; box-shadow:0 16px 40px rgba(49,93,82,.2); cursor:pointer; }
 .companionActions .loginLink { color:#315d52; font:12px Georgia,"Songti SC",serif; border-bottom:1px solid rgba(49,93,82,.38); }
 .companionActions small { display:flex; align-items:center; gap:7px; color:#7a817d; font-size:9px; }
 .companionActions small svg { width:16px; height:16px; color:var(--accent); }

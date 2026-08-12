@@ -2,14 +2,12 @@
 
 import { Aperture, ArrowRight, DotsThree, ShieldCheck, Sparkle } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./TwinRealmHome.module.css";
 
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 
 export function TwinRealmHome() {
-  const router = useRouter();
   const [skin, setSkin] = useState<"east" | "west">("east");
   const character = skin === "east" ? "/characters/shiguang/shiguang-east.webp" : "/characters/shiguang/shiguang-west.webp";
 
@@ -24,7 +22,7 @@ export function TwinRealmHome() {
         <span className={styles.companionKicker}><Sparkle /> SHIGUANG · 你的长期陪伴者</span>
         <h1>先和拾光聊聊，<br />再决定从哪里<br />看见自己。</h1>
         <p>不必先懂六爻、塔罗或星盘。告诉拾光你此刻在意什么，她会陪你厘清问题，再由你选择适合的镜像方式。</p>
-        <div className={styles.companionActions}><button type="button" onClick={() => router.push("/app/")}>输入邀请码开始 <ArrowRight /></button><Link className={styles.loginLink} href="/app/?login=1">已有账户登录</Link><small><ShieldCheck /> 测试账户会保存进展；体验后可再绑定邮箱</small></div>
+        <div className={styles.companionActions}><Link className={styles.primaryCta} href="/app/home/?guest=1">直接体验拾光 <ArrowRight /></Link><Link className={styles.loginLink} href="/app/?login=1">登录并保存进度</Link><small><ShieldCheck /> 无需注册；游客记录只保存在当前设备，之后可再登录同步</small></div>
         <div className={styles.companionSteps}><article><b>01</b><span><strong>先说此刻</strong><small>自由聊天或描述困惑</small></span></article><article><b>02</b><span><strong>选择镜像</strong><small>六爻、命盘、塔罗、占星</small></span></article><article><b>03</b><span><strong>继续追问</strong><small>让一次体验变成持续理解</small></span></article></div>
       </div>
 

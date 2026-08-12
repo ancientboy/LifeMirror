@@ -51,6 +51,11 @@ export function LifeMirrorGateway() {
   const [returnTo, setReturnTo] = useState("/app/home/");
   const [binding, setBinding] = useState(false);
 
+  function enterAsGuest() {
+    window.localStorage.setItem(GUEST_SESSION_KEY, "active");
+    router.replace(returnTo);
+  }
+
   async function enterWithInvite(rawCode: string, destination = returnTo) {
     const normalized = rawCode.normalize("NFKC").trim().toUpperCase().replace(/\s+/g, "");
     if (!normalized) { setError("请输入邀请码。"); return; }
@@ -121,20 +126,20 @@ export function LifeMirrorGateway() {
   return <main className={styles.shell}>
     <header><Link href="/"><Aperture weight="thin" /><span><b>LifeMirror</b><small>拾光 · PERSONAL MIRROR</small></span></Link><span><LockKey /> 你的内容属于你</span></header>
     <section className={styles.layout}>
-      <div className={styles.intro}><small><Sparkle /> MEET SHIGUANG</small><h1>有事就说，<br />我会记得后来。</h1><p>拾光是一位会记得后来发生了什么的 AI 朋友。测试期间通过邀请进入，不需要先注册邮箱，也不用先理解任何玩法。</p><ol><li><b>先直接聊一件事</b><span>不用选择分析方式</span></li><li><b>保留未完的进展</b><span>下次回来可以从这里接着说</span></li><li><b>再决定是否绑定</b><span>体验后再用邮箱保留跨设备记录</span></li></ol></div>
+      <div className={styles.intro}><small><Sparkle /> MEET SHIGUANG</small><h1>有事就说，<br />我会记得后来。</h1><p>拾光是一位会记得后来发生了什么的 AI 朋友。测试期间可以直接以游客身份体验，不需要先注册，也不用先理解任何玩法。</p><ol><li><b>先直接聊一件事</b><span>不用选择分析方式</span></li><li><b>先在这台设备继续</b><span>游客记录不会上传到其他设备</span></li><li><b>需要时再登录</b><span>登录后可同步、找回并使用好友功能</span></li></ol></div>
       <form className={styles.card} onSubmit={submit}>
         {step === "invite" ? <Key weight="thin" /> : step === "email" ? <EnvelopeSimple weight="thin" /> : <LockKey weight="thin" />}
-        <h2>{step === "invite" ? "加入拾光测试" : step === "email" ? binding ? "绑定邮箱" : "已有账户登录" : "输入验证码"}</h2>
-        <p>{step === "invite" ? "输入邀请人发给你的测试码；邀请链接会自动完成这一步。" : step === "email" ? binding ? "绑定后可以换设备继续，当前测试记录不会丢失。" : "邮箱只用于找回已有账户和跨设备同步。" : `验证码已发送到 ${email}，10 分钟内有效。`}</p>
-        {step === "invite" && <label>邀请码<input required autoCapitalize="characters" spellCheck={false} autoComplete="one-time-code" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="例如 SHIGUANG-01" /></label>}
+        <h2>{step === "invite" ? "直接开始体验" : step === "email" ? binding ? "绑定邮箱" : "登录并保存进度" : "输入验证码"}</h2>
+        <p>{step === "invite" ? "无需注册。游客记录只保存在当前设备，之后可以再登录同步。" : step === "email" ? binding ? "绑定后可以换设备继续，当前测试记录不会丢失。" : "登录用于跨设备同步、找回记录和好友功能。" : `验证码已发送到 ${email}，10 分钟内有效。`}</p>
+        {step === "invite" && <button className={styles.primary} type="button" onClick={enterAsGuest}>直接和拾光聊聊 <ArrowRight /></button>}
         {step === "email" && <label>邮箱<input type="email" required inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} onBlur={() => setEmail((value) => value.normalize("NFKC").trim().toLowerCase())} placeholder="you@example.com" /></label>}
         {step === "code" && <label>6 位验证码<input className={styles.codeInput} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label>}
         {error && <div className={styles.error} role="alert">{error}</div>}
-        <button className={styles.primary} disabled={busy || (step === "code" && code.length !== 6)}>{busy ? <CircleNotch className={styles.spin} /> : step === "invite" ? <>开始和拾光聊聊 <ArrowRight /></> : step === "email" ? "发送验证码" : "验证并继续"}</button>
+        {step !== "invite" && <button className={styles.primary} disabled={busy || (step === "code" && code.length !== 6)}>{busy ? <CircleNotch className={styles.spin} /> : step === "email" ? "发送验证码" : "验证并继续"}</button>}
         {step === "code" && <button className={styles.switcher} type="button" onClick={() => { setStep("email"); setCode(""); setError(""); }}><ArrowLeft /> 更换邮箱</button>}
-        {step === "invite" && <button className={styles.switcher} type="button" onClick={() => { setStep("email"); setError(""); }}>已有账户？登录</button>}
-        {step === "email" && !binding && <><div className={styles.divider}><span>也可以</span></div><a className={styles.chatgpt} href={`/signin-with-chatgpt?return_to=${encodeURIComponent(`/app/?chatgpt=1&return=${encodeURIComponent(returnTo)}`)}`}><ChatCircleDots /> 使用 ChatGPT 登录</a><button className={styles.switcher} type="button" onClick={() => { setStep("invite"); setError(""); }}><ArrowLeft /> 返回邀请码</button></>}
-        <small className={styles.privacyNote}>测试账户保存在服务器；不会公开你的聊天。你可以随时导出或删除账户。</small>
+        {step === "invite" && <><button className={styles.switcher} type="button" onClick={() => { setStep("email"); setError(""); }}>登录并保存进度</button><details className={styles.inviteDetails}><summary>我有内测体验码</summary><label>内测体验码<input required autoCapitalize="characters" spellCheck={false} autoComplete="one-time-code" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="例如 SHIGUANG-01" /></label><button className={styles.inviteButton} disabled={busy}>{busy ? <CircleNotch className={styles.spin} /> : <>使用体验码进入 <ArrowRight /></>}</button><small>体验码用于定向测试和活动，可创建无需邮箱的云端测试账户。</small></details></>}
+        {step === "email" && !binding && <><div className={styles.divider}><span>也可以</span></div><a className={styles.chatgpt} href={`/signin-with-chatgpt?return_to=${encodeURIComponent(`/app/?chatgpt=1&return=${encodeURIComponent(returnTo)}`)}`}><ChatCircleDots /> 使用 ChatGPT 登录</a><button className={styles.switcher} type="button" onClick={() => { setStep("invite"); setError(""); }}><ArrowLeft /> 返回直接体验</button></>}
+        <small className={styles.privacyNote}>{step === "invite" ? "游客内容只保存在当前设备，不会自动公开或同步。" : "账户内容会安全保存在服务器；你可以随时导出或删除。"}</small>
       </form>
     </section>
   </main>;

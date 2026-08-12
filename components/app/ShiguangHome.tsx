@@ -186,6 +186,12 @@ export function ShiguangHome() {
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
 
     async function initialize() {
+      const guestRequested = new URLSearchParams(window.location.search).get("guest") === "1";
+      if (guestRequested) {
+        window.localStorage.setItem("life-mirror:guest-session:v1", "active");
+        setReady(true);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
       let snapshot = readLocalAccountData();
       let authenticated = false;
       try {
@@ -233,7 +239,7 @@ export function ShiguangHome() {
     if (continuation) window.setTimeout(() => seedChat(continuation), 180);
   }, []);
 
-  if (!ready) return <main className={styles.gate}><Aperture weight="thin" /><h1>直接和拾光聊聊。</h1><p>无需注册。游客记录只留在当前设备，之后也可以再登录同步。</p><button type="button" onClick={enterAsGuest}>以游客身份继续 <ArrowRight /></button><Link href="/app/">登录或创建账户</Link></main>;
+  if (!ready) return <main className={styles.gate}><Aperture weight="thin" /><h1>直接和拾光聊聊。</h1><p>无需注册。游客记录只留在当前设备，之后也可以再登录同步。</p><button type="button" onClick={enterAsGuest}>直接开始体验 <ArrowRight /></button><Link href="/app/?login=1">登录并保存进度</Link><Link href="/app/">我有内测体验码</Link></main>;
 
   const priorityCard = priorityLoop ? <aside className={styles.priorityLoop}><ClockCounterClockwise /><div><small>上次那件事，后来怎么样了？</small><h2>{priorityLoop.userFact}</h2><p>我还记得当时的判断。你只要告诉我结果，不必重新解释一遍。</p><span><button type="button" onClick={() => updateLifeLoop(priorityLoop, "better")}>有新进展</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "same")}>还没有</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "worse")}>变糟了</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "closed")}>不想再提</button></span><button className={styles.wrongMemory} type="button" onClick={() => rejectLifeLoop(priorityLoop)}>这不是我说的</button></div></aside> : null;
   const dailyCard = <section className={styles.daily} aria-busy={dailyLoading}>

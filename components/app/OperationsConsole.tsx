@@ -67,7 +67,7 @@ export function OperationsConsole() {
   }
 
   return <main className={styles.shell}>
-    <header><Link href="/app/profile/"><ArrowLeft /> 返回我的</Link><small>PRIVATE OPERATIONS</small><h1>LifeMirror 运行与安全</h1><p>只显示无正文汇总、固定原因代码与运行状态，不展示聊天、分享内容或人物资料。</p></header>
+    <header><Link href="/app/home/"><ArrowLeft /> 返回拾光</Link><small>PRIVATE OPERATIONS</small><h1>LifeMirror 运营后台</h1><p>这是仅供运营人员使用的独立后台，只显示无正文汇总、固定原因代码与运行状态，不展示聊天、分享内容或人物资料。</p></header>
     {state === "loading" && <section className={styles.state}><CircleNotch />正在载入运行状态…</section>}
     {state === "forbidden" && <section className={styles.state}><ShieldCheck /><b>当前账户没有运营权限</b><p>这个页面只对明确列入生产运营名单的账户开放。</p></section>}
     {state === "error" && <section className={styles.state}><WarningCircle /><b>暂时无法读取运行状态</b><button type="button" onClick={() => void load()}>重新加载</button></section>}
