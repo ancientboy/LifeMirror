@@ -332,7 +332,11 @@ function historySummary(event) {
 async function buildPersonalChatMemory(env, userId, question) {
   const account = await readAccountData(env.DB, userId);
   const settings = account.settings?.memorySettings || account.settings || {};
-  if (settings.enabled !== true) return { facts: [], evidence: [], source: "authorized_server_context" };
+  const lifeLoops = Array.isArray(account.settings?.lifeEventLoops) ? account.settings.lifeEventLoops
+    .filter((item) => item && item.status === "open")
+    .map((item) => ({ question: String(item.userFact || "未命名事项").slice(0, 500), savedAt: String(item.updatedAt || item.createdAt || "") }))
+    .sort((left, right) => right.savedAt.localeCompare(left.savedAt)).slice(0, 2) : [];
+  if (settings.enabled !== true) return { facts: [], evidence: [], openLoops: lifeLoops, source: "authorized_server_context" };
   const recallRequested = /你记得|还记得|以前|之前|上次|我的偏好|关于我/.test(String(question || ""));
   const facts = settings.explicitFacts === false ? [] : account.facts
     .filter((item) => item && typeof item.text === "string")
@@ -352,9 +356,9 @@ async function buildPersonalChatMemory(env, userId, question) {
       summary: summary.slice(0, 420),
       savedAt: String(event?.savedAt || ""),
     }));
-  const openLoops = account.history.filter((event) => event && event.openLoopStatus === "open")
+  const openLoops = [...lifeLoops, ...account.history.filter((event) => event && event.openLoopStatus === "open")
     .map((event) => ({ question: String(event.question || "未命名事项").slice(0, 500), personName: String(event.personName || "").slice(0, 80), savedAt: String(event.savedAt || "") }))
-    .sort((left, right) => right.savedAt.localeCompare(left.savedAt)).slice(0, 2);
+    ].sort((left, right) => right.savedAt.localeCompare(left.savedAt)).slice(0, 2);
   // These are deliberately owner-authored observations, not facts about TA.
   const people = Array.isArray(account.settings?.privatePeople) ? account.settings.privatePeople
     .filter((person) => person && typeof person.displayName === "string").slice(0, 4)
@@ -673,6 +677,34 @@ async function authApi(request, env, pathname) {
   if (pathname === "/api/v1/account/expression-preferences" && request.method === "DELETE") {
     await env.DB.prepare("DELETE FROM expression_preferences WHERE user_id = ?").bind(user.id).run();
     return json({ preferences: await readExpressionPreferences(env, user.id) });
+  }
+  if (pathname === "/api/v1/account/life-loops" && request.method === "POST") {
+    const input = await body(request); const candidate = input?.loop;
+    const id = String(candidate?.id || "").trim().slice(0, 120);
+    const userFact = String(candidate?.userFact || "").replace(/\s+/g, " ").trim().slice(0, 500);
+    const shiguangJudgment = String(candidate?.shiguangJudgment || "").replace(/\s+/g, " ").trim().slice(0, 800);
+    if (!id || userFact.length < 2 || shiguangJudgment.length < 4) return json({ error: "invalid_life_loop" }, 400);
+    const account = await readAccountData(env.DB, user.id); const now = new Date().toISOString();
+    const current = Array.isArray(account.settings?.lifeEventLoops) ? account.settings.lifeEventLoops : [];
+    const loop = { id, userFact, shiguangJudgment, actionStatus: "pending", outcomeStatus: "waiting", status: "open", createdAt: String(candidate?.createdAt || now).slice(0, 40), updatedAt: now };
+    const lifeEventLoops = [loop, ...current.filter((item) => item && String(item.id || "") !== id)].slice(0, 20);
+    const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, lifeEventLoops } });
+    await upsertMemoryEvent(env, user.id, { id: "life-loop:" + id, sourceKind: "life_event_loop", sourceKey: id, content: userFact, occurredAt: now });
+    return json({ loop, data }, 201);
+  }
+  const lifeLoopMatch = pathname.match(/^\/api\/v1\/account\/life-loops\/([^/]+)$/);
+  if (lifeLoopMatch && request.method === "PATCH") {
+    const input = await body(request); const account = await readAccountData(env.DB, user.id);
+    const id = decodeURIComponent(lifeLoopMatch[1]); const current = Array.isArray(account.settings?.lifeEventLoops) ? account.settings.lifeEventLoops : [];
+    const index = current.findIndex((item) => item && String(item.id || "") === id);
+    if (index < 0) return json({ error: "life_loop_not_found" }, 404);
+    const next = { ...current[index], updatedAt: new Date().toISOString() };
+    if (["pending", "taken", "skipped"].includes(String(input?.actionStatus || ""))) next.actionStatus = input.actionStatus;
+    if (["waiting", "better", "same", "worse", "closed"].includes(String(input?.outcomeStatus || ""))) next.outcomeStatus = input.outcomeStatus;
+    if (["open", "resolved", "dismissed"].includes(String(input?.status || ""))) next.status = input.status;
+    current[index] = next;
+    const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, lifeEventLoops: current.slice(0, 20) } });
+    return json({ loop: next, data });
   }
   if (pathname === "/api/v1/account/daily-checkins" && request.method === "POST") {
     const input = await body(request);
@@ -1375,8 +1407,9 @@ async function shiguang(request, env) {
   const people = Array.isArray(memory.people) && memory.people.length ? memory.people.map((item) => "- " + String(item.displayName || "") + (item.relationshipType ? "（" + String(item.relationshipType) + "）" : "") + (item.userDescription ? "：用户自己的观察：" + String(item.userDescription) : "")).join("\n") : "本轮没有相关人物资料。";
   const sharedEvents = Array.isArray(memory.sharedEvents) && memory.sharedEvents.length ? memory.sharedEvents.map((item) => "- " + String(item.content || "")).join("\n") : "本轮没有双方明确共享的关系互动。";
   const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n用户明确选择的表达方式：" + expressionInstruction(expression) + (highRiskInstruction(boundary) ? "\n\n<high_risk_boundary>\n" + highRiskInstruction(boundary) + "\n</high_risk_boundary>" : "") + "\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
+  const governedChatSystem = chatSystem + "\n\n拾光的核心定位：会记得后来发生了什么的 AI 朋友。回答前在内部依次完成：识别情绪、找出真正担心、区分已知事实与猜测、检查相关历史、形成可被纠正的暂时判断、选择一个可撤回的下一步、判断是否需要以后回访；不要展示分析过程。默认用自然的两到三小段：先说具体理解，再给有态度但可被纠正的判断，最后只在有帮助时给一个可撤回的小动作。不要用‘我听见你了’‘这件事我接住了’‘你怎么看’‘你想选哪个’‘要不要一起想想’‘决定权在你’等咨询师或客服模板。只有缺少一个会改变判断的事实时，才问一个具体问题。";
   try {
-    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : chatSystem }, ...messages] }, { userId: user?.id || null, operation: input.mode === "mirror_result" ? "mirror_result" : input.mode === "daily_guidance" ? "daily_guidance" : "chat" });
+    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : governedChatSystem }, ...messages] }, { userId: user?.id || null, operation: input.mode === "mirror_result" ? "mirror_result" : input.mode === "daily_guidance" ? "daily_guidance" : "chat" });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });
   } catch {
     return json({ error: "llm_upstream_failed" }, 502);

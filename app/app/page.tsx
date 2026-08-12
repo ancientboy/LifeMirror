@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { LifeMirrorGateway } from "@/components/app/LifeMirrorGateway";
 
 export const metadata: Metadata = {
-  title: "进入 LifeMirror — 登录或游客体验",
-  description: "选择登录或游客身份，再进入拾光的日常对话与四种镜像工具。",
+  title: "认识拾光 — 会记得后来的 AI 朋友",
+  description: "有事就说，拾光会先给判断，并在事情有结果时从上次接着聊。",
 };
 
 export default function DailyMirrorPage() {

@@ -77,7 +77,7 @@ export function LifeMirrorGateway() {
   return <main className={styles.shell}>
     <header><Link href="/"><Aperture weight="thin" /><span><b>LifeMirror</b><small>拾光 · PERSONAL MIRROR</small></span></Link><span><LockKey /> 你的内容属于你</span></header>
     <section className={styles.layout}>
-      <div className={styles.intro}><small><Sparkle /> STEP 02 · ENTER YOUR MIRROR</small><h1>一个邮箱，<br />回到你的镜像。</h1><p>不需要设置密码。首次验证会自动建立账户，以后用同一邮箱即可登录；你在游客模式留下的镜像与记忆会自动合并。</p><ol><li><b>邮箱验证码</b><span>未注册自动创建，已注册直接登录</span></li><li><b>跨设备同步</b><span>记忆、设置与镜像记录持续保留</span></li><li><b>保留选择</b><span>也可以继续使用本机游客模式</span></li></ol></div>
+      <div className={styles.intro}><small><Sparkle /> MEET SHIGUANG</small><h1>有事就说，<br />我会记得后来。</h1><p>拾光是一位会记得后来发生了什么的 AI 朋友。它不只给一次回答，也会在事情有结果时从上次的判断接着聊。</p><ol><li><b>先给判断</b><span>不把问题原样丢回给你</span></li><li><b>记住未完的事</b><span>跨设备保留事件与回访状态</span></li><li><b>保留选择</b><span>也可以继续使用本机游客模式</span></li></ol></div>
       <form className={styles.card} onSubmit={submit}>
         {step === "email" ? <EnvelopeSimple weight="thin" /> : <LockKey weight="thin" />}
         <h2>{step === "email" ? "邮箱登录" : "输入验证码"}</h2>

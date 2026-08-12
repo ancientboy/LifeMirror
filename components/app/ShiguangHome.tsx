@@ -9,8 +9,9 @@ import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { ACCOUNT_DATA_CHANGED_EVENT, readLocalAccountData, writeLocalAccountData } from "@/lib/account-data";
 import { getSavedBirthProfile } from "@/lib/birth-profile";
-import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyEvidence, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
+import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyGuidance, type DailyGuidanceContext } from "@/lib/daily-guidance";
 import { metricDayKey, recordProductMetric } from "@/lib/product-metrics";
+import { patchLocalLifeEventLoop, readLifeEventLoops, type LifeEventLoop } from "@/lib/life-event-loops";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 type DailyLoopStatus = "done" | "later" | "release";
@@ -67,12 +68,11 @@ const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}$
 export function ShiguangHome() {
   const [ready, setReady] = useState(false);
   const [latestQuestion, setLatestQuestion] = useState("");
-  const [followUpDue, setFollowUpDue] = useState(false);
   const [daily, setDaily] = useState<DailyGuidance>(stateFallbacks[0]);
   const [dailyLoading, setDailyLoading] = useState(true);
   const [dailyMode, setDailyMode] = useState<DailyGuidanceContext["mode"]>("daily_state_note");
-  const [dailyEvidence, setDailyEvidence] = useState<DailyEvidence[]>([]);
   const [dailyLoop, setDailyLoop] = useState<DailyLoopRecord[]>([]);
+  const [lifeLoops, setLifeLoops] = useState<LifeEventLoop[]>([]);
 
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
@@ -112,17 +112,26 @@ export function ShiguangHome() {
       .catch(() => undefined);
   }
 
+  function updateLifeLoop(loop: LifeEventLoop, outcomeStatus: "better" | "same" | "worse" | "closed") {
+    const status = outcomeStatus === "closed" ? "dismissed" : "resolved";
+    const data = patchLocalLifeEventLoop(loop.id, { outcomeStatus, status });
+    setLifeLoops(readLifeEventLoops(data));
+    void fetch(`/api/v1/account/life-loops/${encodeURIComponent(loop.id)}`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ outcomeStatus, status }) })
+      .then(async (response) => response.ok ? await response.json() as { data?: Parameters<typeof writeLocalAccountData>[0] } : null)
+      .then((value) => { if (value?.data) { writeLocalAccountData(value.data); setLifeLoops(readLifeEventLoops(value.data)); } })
+      .catch(() => undefined);
+    if (outcomeStatus !== "closed") seedChat(`关于“${loop.userFact}”，后来是${outcomeStatus === "better" ? "有了更好的进展" : outcomeStatus === "same" ? "还没有变化" : "变得更糟了"}。请从上次的判断接着聊，不要重新从头问。`);
+  }
+
   useEffect(() => {
     recordProductMetric("daily_opened", "daily", metricDayKey("daily"));
     try {
       const history = JSON.parse(window.localStorage.getItem("life-mirror:guest-history:v1") ?? "[]") as MirrorHistoryItem[];
       setLatestQuestion(history[0]?.question?.trim() ?? "");
-      const savedAt = history[0]?.savedAt ? Date.parse(history[0].savedAt) : Number.NaN;
-      setFollowUpDue(Number.isFinite(savedAt) && Date.now() - savedAt >= 3 * 86_400_000);
       const applyDaily = (nextHistory: MirrorHistoryItem[], facts: Array<{ text?: string; updatedAt?: string }> = [], loop: DailyLoopRecord[] = [], runtime: DailyRuntime | null = null) => {
         const dailyContext = buildDailyGuidanceContext(getSavedBirthProfile(), nextHistory, facts, loop, runtime);
         const base = fallbackFor(dailyContext, dayIndex);
-        setDaily(base); setDailyMode(dailyContext.mode); setDailyEvidence(dailyContext.evidence); ensureTodayAction(base);
+        setDaily(base); setDailyMode(dailyContext.mode); ensureTodayAction(base);
         const context = JSON.stringify(dailyContext.modelContext);
         void fetch("/api/shiguang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "daily_guidance", theme: "east", context, messages: [{ role: "user", content: "生成我今天的个人导航。" }] }) })
           .then(async (response) => { if (!response.ok) throw new Error("daily_unavailable"); const generated = sanitizeDailyGuidance(extractJson(await response.text()), base, dailyContext.evidence); setDaily(generated); ensureTodayAction(generated); })
@@ -131,11 +140,12 @@ export function ShiguangHome() {
       };
       applyDaily(history);
       // For a signed-in user the D1 account context replaces this device cache.
-      void fetch("/api/v1/account/context?mode=daily_guidance", { credentials: "include" }).then(async (response) => response.ok ? await response.json() as { context?: { history?: MirrorHistoryItem[]; facts?: Array<{ text?: string; updatedAt?: string }>; settings?: { dailyLoop?: DailyLoopRecord[] }; runtime?: DailyRuntime } } : null)
-        .then((value) => { if (value?.context) applyDaily(value.context.history ?? [], value.context.facts ?? [], value.context.settings?.dailyLoop ?? [], value.context.runtime ?? null); })
+      void fetch("/api/v1/account/context?mode=daily_guidance", { credentials: "include" }).then(async (response) => response.ok ? await response.json() as { context?: { history?: MirrorHistoryItem[]; facts?: Array<{ text?: string; updatedAt?: string }>; settings?: { dailyLoop?: DailyLoopRecord[]; lifeEventLoops?: LifeEventLoop[] }; runtime?: DailyRuntime } } : null)
+        .then((value) => { if (value?.context) { applyDaily(value.context.history ?? [], value.context.facts ?? [], value.context.settings?.dailyLoop ?? [], value.context.runtime ?? null); setLifeLoops((value.context.settings?.lifeEventLoops ?? []).filter((item) => item.status === "open")); } })
         .catch(() => undefined);
     } catch { setDaily(stateFallbacks[dayIndex]); setDailyMode("daily_state_note"); setDailyLoading(false); }
     setDailyLoop(readDailyLoop());
+    setLifeLoops(readLifeEventLoops().filter((item) => item.status === "open"));
     const hasGuestSession = window.localStorage.getItem("life-mirror:guest-session:v1") === "active";
     fetch("/api/v1/auth/session", { credentials: "include" })
       .then((response) => { if (!response.ok) throw new Error("signed_out"); window.localStorage.removeItem("life-mirror:guest-session:v1"); setReady(true); })
@@ -146,7 +156,7 @@ export function ShiguangHome() {
     // AccountDataSync hydrates the local cache from the authenticated account
     // after this screen mounts. Re-read it so a signed-in user's daily loop
     // cannot be momentarily replaced by stale device data.
-    const refresh = () => setDailyLoop(readDailyLoop());
+    const refresh = () => { setDailyLoop(readDailyLoop()); setLifeLoops(readLifeEventLoops().filter((item) => item.status === "open")); };
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
   }, []);
@@ -155,6 +165,7 @@ export function ShiguangHome() {
   const weeklyRecords = dailyLoop.filter((item) => item.status && Date.now() - Date.parse(`${item.date}T12:00:00`) < 7 * 86_400_000);
   const weeklyDone = weeklyRecords.filter((item) => item.status === "done").length;
   const weeklyReleased = weeklyRecords.filter((item) => item.status === "release").length;
+  const priorityLoop = lifeLoops.find((item) => item.status === "open");
 
   useEffect(() => {
     const continuation = new URLSearchParams(window.location.search).get("continue");
@@ -170,18 +181,17 @@ export function ShiguangHome() {
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
     <section className={styles.welcome}>
-      <div><small>你和拾光的私人空间</small><h1>慢慢说，我在听。</h1><p>先从你真正想说的事开始。需要时，拾光会自然带上合适的历史和线索。</p></div>
+      {priorityLoop && <aside className={styles.priorityLoop}><ClockCounterClockwise /><div><small>上次那件事，后来怎么样了？</small><h2>{priorityLoop.userFact}</h2><p>我还记得当时的判断。你只要告诉我结果，不必重新解释一遍。</p><span><button type="button" onClick={() => updateLifeLoop(priorityLoop, "better")}>有新进展</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "same")}>还没有</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "worse")}>变糟了</button><button type="button" onClick={() => updateLifeLoop(priorityLoop, "closed")}>不想再提</button></span></div></aside>}
+      <div><small>{dateLabel} · 今天的一句话</small><h1>{priorityLoop ? daily.theme : "有事就说，我会记得后来。"}</h1><p>{priorityLoop ? daily.action : "拾光会先给判断，再陪你把一件真实发生的事走到结果。"}</p></div>
       <section className={styles.homeChat} id="shiguang-chat"><ShiguangChat mode="home" theme="east" context={`这是 LifeMirror 的常规聊天首页。这里首先是用户可以安全开口的私人空间。先自然回应近况、帮用户把感受或关系中的真实卡点说清；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个作为补充视角，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。今天，有什么事在心里吗？"} /></section>
       <Link className={styles.exploreLink} href="/app/explore/">想从命盘、塔罗或六爻开始？去探索 <ArrowRight /></Link>
     </section>
-    {latestQuestion && followUpDue && <aside className={styles.followUp}><ClockCounterClockwise /><span><small>拾光在等一次回访</small><b>{latestQuestion}</b><p>三天前的这件事，后来怎么样了？只要点一个状态，拾光会从这里接着理解你。</p><div>{["更好", "没变", "更糟"].map((state) => <button type="button" key={state} onClick={() => seedChat(`关于“${latestQuestion}”，现在是${state}。`)}>{state}</button>)}</div></span></aside>}
     <section className={styles.daily} aria-busy={dailyLoading}>
       <div className={styles.dailyHeading}><small><Sparkle /> {dateLabel} · {dailyMode === "personal_daily_fortune" ? "今日运势" : "给你的轻提醒"}</small><h2>{daily.theme}</h2><p>{daily.reason}</p></div>
       <div className={styles.dailyAction}><b>如果今天只做一件小事</b><span>{daily.action}</span></div>
       <div className={styles.checkIn}>
         {todayRecord?.status ? <><small><CheckCircle weight="fill" /> 今天已回访：{todayRecord.status === "done" ? "我做了" : todayRecord.status === "later" ? "还没" : "今天先放下"}</small><button type="button" onClick={() => seedChat(`今天的「${todayRecord.action}」我${todayRecord.status === "done" ? "做了" : todayRecord.status === "later" ? "还没做" : "决定先放下"}。`)}>和拾光接着聊</button></> : <><small>今晚回来告诉拾光，今天这一步后来怎样了。</small><span><button type="button" onClick={() => checkIn("done")}>我做了</button><button type="button" onClick={() => checkIn("later")}>还没</button><button type="button" onClick={() => checkIn("release")}>先放下</button></span></>}
       </div>
-      <details><summary>这条提醒从哪里来？</summary><div className={styles.evidenceList}>{dailyEvidence.filter((item) => daily.sources.includes(item.label)).map((item) => <div key={`${item.label}-${item.detail}`}><b>{item.label}</b><span>{item.detail}</span></div>)}</div>{dailyMode === "daily_state_note" && <Link href="/app/profile/birth/">补充出生资料，开启个人运势 <ArrowRight /></Link>}</details>
     </section>
     {weeklyRecords.length >= 2 && <section className={styles.weeklyMirror}><small><Sparkle /> 本周镜像 · 只根据你确认过的回访</small><h2>这周你给了 {weeklyDone} 件事一个落点{weeklyReleased ? `，也允许 ${weeklyReleased} 件事暂时放下` : ""}。</h2><p>不是每天都要完成什么。你愿意回来确认一件事，本身就在让拾光更贴近你的真实节奏。</p><button type="button" onClick={() => seedChat(`我想一起回看这周：我完成了${weeklyDone}件今日行动，暂时放下了${weeklyReleased}件。请从这些真实回访开始聊，不要编造经历。`)}>一起回看 <ArrowRight /></button></section>}
     <AppBottomNav active="home" />

@@ -20,6 +20,8 @@
     "lib/mirror-result-quality.test.ts",
     "lib/share-safety.ts",
     "lib/share-safety.test.ts",
+    "lib/shiguang-response-policy.ts",
+    "lib/shiguang-response-policy.test.ts",
     "lib/safety-boundary.ts",
     "lib/safety-boundary.test.ts",
     "server/tools/astrology/**/*.ts",

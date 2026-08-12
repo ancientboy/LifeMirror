@@ -269,6 +269,6 @@ export function RelationshipsHub() {
       <section className={styles.privacyCard}><ShieldCheck /><div><b>关系隐私</b><p>允许已接受的好友用双方出生资料生成关系洞察。只返回摘要，不展示生日、时间、地点或坐标。</p></div><button role="switch" aria-checked={Boolean(data.profile.shareBirth)} onClick={() => void updatePrivacy(!data.profile.shareBirth)}><i className={data.profile.shareBirth ? styles.on : ""} /></button></section>
     </>}
     {notice && <p className={styles.notice} role="status"><PaperPlaneTilt />{notice}</p>}
-    <AppBottomNav active="relationships" />
+    <AppBottomNav active="profile" />
   </main>;
 }

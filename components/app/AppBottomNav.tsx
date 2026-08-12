@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, House, Sparkle, UserCircle, UsersThree } from "@phosphor-icons/react";
+import { Compass, House, Sparkle, UserCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { RelationshipFollowupNudge } from "./RelationshipFollowupNudge";
 import navStyles from "./ShiguangBottomNav.module.css";
@@ -11,7 +11,6 @@ const items = [
   { key: "home", href: "/app/home/", label: "拾光", icon: House },
   { key: "explore", href: "/app/explore/", label: "探索", icon: Compass },
   { key: "mirror", href: "/mirror/", label: "镜像", icon: Sparkle },
-  { key: "relationships", href: "/app/relationships/", label: "关系", icon: UsersThree },
   { key: "profile", href: "/app/profile/", label: "我的", icon: UserCircle },
 ] as const;
 
