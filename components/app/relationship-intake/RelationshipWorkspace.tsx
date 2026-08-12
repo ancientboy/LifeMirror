@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ShiguangChat } from "../ShiguangChat";
 import { getPrivatePeople, savePrivatePerson, type PrivatePerson } from "@/lib/relationship-context";
 import { classifyRelationship, relationshipLabel } from "@/lib/relationships/taxonomy";
-import { fetchRelationshipSnapshot, linkRelationshipCase, saveRelationshipPerson } from "@/lib/relationships/repository";
-import type { RelationshipCase, RelationshipHomeMode, RelationshipPerson } from "@/lib/relationships/types";
+import { fetchRelationshipPersonContext, fetchRelationshipSnapshot, linkRelationshipCase, saveRelationshipPerson } from "@/lib/relationships/repository";
+import type { RelationshipCase, RelationshipHomeMode, RelationshipMemoryContext, RelationshipPerson } from "@/lib/relationships/types";
 import { recordProductMetric } from "@/lib/product-metrics";
 import styles from "./RelationshipWorkspace.module.css";
 
@@ -26,6 +26,7 @@ export function RelationshipWorkspace({ mode }: Props) {
   const [newName, setNewName] = useState("");
   const [newRelation, setNewRelation] = useState("暧昧中");
   const [hasActivity, setHasActivity] = useState(false);
+  const [personMemory, setPersonMemory] = useState<RelationshipMemoryContext>({ recentCases: [], extractedMessages: [], priorAnalyses: [], realityFeedback: [] });
 
   useEffect(() => {
     recordProductMetric("relationship_entry_opened", "relationship", `rel-open:${new Date().toISOString().slice(0, 10)}`);
@@ -44,6 +45,12 @@ export function RelationshipWorkspace({ mode }: Props) {
 
   const person = people.find((item) => item.id === personId);
   const activeCase = useMemo(() => cases.find((item) => item.personId === personId && (item.status === "awaiting_reply" || item.status === "open")), [cases, personId]);
+  useEffect(() => {
+    if (!personId) { setPersonMemory({ recentCases: [], extractedMessages: [], priorAnalyses: [], realityFeedback: [] }); return; }
+    let active = true;
+    void fetchRelationshipPersonContext(personId).then((value) => { if (active) setPersonMemory(value); });
+    return () => { active = false; };
+  }, [personId, cases]);
   useEffect(() => { if (activeCase) recordProductMetric("relationship_case_revisited", "relationship", `rel-revisit:${activeCase.id}:${new Date().toISOString().slice(0, 10)}`); }, [activeCase]);
   const intro = mode === "first_visit"
     ? { eyebrow: "把聊天交给拾光", title: "看不懂 TA，也不知道怎么回？", body: "粘贴聊天、发截图，或者直接描述发生了什么。拾光会先判断这段互动，再给你一句真正说得出口的话。" }
@@ -86,7 +93,7 @@ export function RelationshipWorkspace({ mode }: Props) {
       </div>}
     </div>}
 
-    <ShiguangChat theme="east" mode="home" onboarding={mode === "first_visit"} context={`这是 LifeMirror 的关系工作区。用户在这里持续咨询同一个或不同的重要人物。当前人物：${person ? `${person.displayName}（${person.relationshipLabel || relationshipLabel(person.role)}，私密编号 ${person.id}）` : "未关联人物"}。`} relationship={{ person, activeCase, onActivity: () => setHasActivity(true), onCaseCreated: (next) => setCases((current) => [next, ...current.filter((item) => item.id !== next.id)]) }} opening={mode === "first_visit" ? "把你们的聊天贴过来，或者直接告诉我发生了什么。我先帮你看懂，再一起定下一句话。" : person ? `我还记得 ${person.displayName}。把最新的变化发来，我们从上次那里接着看。` : "把最近那段聊天或发生的事发来。我会先给判断，也会帮你把下一句话说得自然。"} />
+    <ShiguangChat theme="east" mode="home" onboarding={mode === "first_visit"} context={`这是 LifeMirror 的关系工作区。用户在这里持续咨询同一个或不同的重要人物。当前人物：${person ? `${person.displayName}（${person.relationshipLabel || relationshipLabel(person.role)}，私密编号 ${person.id}）` : "未关联人物"}。`} relationship={{ person, activeCase, memory: personMemory, onActivity: () => setHasActivity(true), onCaseCreated: (next) => setCases((current) => [next, ...current.filter((item) => item.id !== next.id)]) }} opening={mode === "first_visit" ? "把你们的聊天贴过来，或者直接告诉我发生了什么。我先帮你看懂，再一起定下一句话。" : person ? `我还记得 ${person.displayName}。把最新的变化发来，我们从上次那里接着看。` : "把最近那段聊天或发生的事发来。我会先给判断，也会帮你把下一句话说得自然。"} />
 
     {hasActivity && !person && <button className={styles.saveAfter} type="button" onClick={() => setSaveOpen(true)}><Plus /> 以后还想继续聊这个人？给 TA 一个只有你看得见的称呼</button>}
 

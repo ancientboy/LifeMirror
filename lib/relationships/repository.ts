@@ -1,6 +1,6 @@
 import { getPrivatePeople, getRelationshipLoops } from "../relationship-context";
 import { adaptLegacyLoop, adaptLegacyPerson } from "./legacy-adapter";
-import type { RelationshipCase, RelationshipOutcome, RelationshipPerson } from "./types";
+import type { ExtractedRelationshipMessage, RelationshipCase, RelationshipMemoryContext, RelationshipOutcome, RelationshipPerson, RelationshipReplyOption } from "./types";
 
 export type RelationshipSnapshot = { people: RelationshipPerson[]; cases: RelationshipCase[] };
 
@@ -25,7 +25,22 @@ export async function saveRelationshipPerson(input: { displayName: string; relat
   return (await response.json() as { person: RelationshipPerson }).person;
 }
 
-export async function saveRelationshipCase(input: { personId?: string; text: string; source: "text" | "screenshot"; recommendedReply?: string }) {
+export async function fetchRelationshipPersonContext(personId: string): Promise<RelationshipMemoryContext> {
+  const empty: RelationshipMemoryContext = { recentCases: [], extractedMessages: [], priorAnalyses: [], realityFeedback: [] };
+  try {
+    const response = await fetch(`/api/v1/account/relationships/people/${encodeURIComponent(personId)}/context`, { credentials: "include" });
+    if (!response.ok) return empty;
+    const value = await response.json() as { context?: Partial<RelationshipMemoryContext> };
+    return {
+      recentCases: Array.isArray(value.context?.recentCases) ? value.context.recentCases : [],
+      extractedMessages: Array.isArray(value.context?.extractedMessages) ? value.context.extractedMessages : [],
+      priorAnalyses: Array.isArray(value.context?.priorAnalyses) ? value.context.priorAnalyses : [],
+      realityFeedback: Array.isArray(value.context?.realityFeedback) ? value.context.realityFeedback : [],
+    };
+  } catch { return empty; }
+}
+
+export async function saveRelationshipCase(input: { personId?: string; text: string; userNote?: string; source: "text" | "screenshot"; recommendedReply?: string; extractedConversation?: ExtractedRelationshipMessage[]; analysisSummary?: string; replyOptions?: RelationshipReplyOption[] }) {
   const response = await fetch("/api/v1/account/relationships/cases", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(input) });
   if (!response.ok) return null;
   return (await response.json() as { case: RelationshipCase }).case;

@@ -57,6 +57,31 @@ export type ExtractedConversation = {
   warnings: string[];
 };
 
+export type ExtractedRelationshipMessage = {
+  speaker: "user" | "other" | "unknown";
+  text: string;
+  visibleTime?: string;
+  signals?: string[];
+  uncertain?: boolean;
+  attachmentId?: string;
+  pageOrder?: number;
+  messageOrder?: number;
+};
+
+export type RelationshipReplyOption = {
+  id: string;
+  tone: "natural" | "warm" | "direct" | "boundary";
+  text: string;
+  why: string;
+};
+
+export type RelationshipMemoryContext = {
+  recentCases: RelationshipCase[];
+  extractedMessages: Array<ExtractedRelationshipMessage & { createdAt: string; caseId?: string }>;
+  priorAnalyses: Array<{ summary: string; createdAt: string; caseId?: string }>;
+  realityFeedback: Array<{ outcome: RelationshipOutcome; acted: boolean; note?: string; createdAt: string; caseId?: string }>;
+};
+
 export type RelationshipPolicy = {
   key: string;
   label: string;
@@ -65,4 +90,3 @@ export type RelationshipPolicy = {
   replyStyle: string;
   nextSignals: string[];
 };
-

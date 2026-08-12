@@ -5,7 +5,9 @@ import { findUserBySession } from "../auth/session.js";
 import type { AppDependencies } from "../app.js";
 
 const personSchema = z.object({ displayName: z.string().trim().min(1).max(40), relationshipLabel: z.string().trim().max(80).optional(), legacyPersonId: z.string().max(120).optional() }).strict();
-const caseSchema = z.object({ personId: z.string().uuid().optional(), text: z.string().trim().min(1).max(2_000), source: z.enum(["text", "screenshot"]), recommendedReply: z.string().max(500).optional() }).strict();
+const extractedMessageSchema = z.object({ speaker: z.enum(["user", "other", "unknown"]), text: z.string().max(1_000), visibleTime: z.string().max(80).optional(), signals: z.array(z.string().max(80)).max(8).optional(), uncertain: z.boolean().optional(), attachmentId: z.string().max(120).optional(), pageOrder: z.number().int().min(0).max(10).optional(), messageOrder: z.number().int().min(0).max(100).optional() }).strict();
+const replyOptionSchema = z.object({ id: z.string().max(40), tone: z.enum(["natural", "warm", "direct", "boundary"]), text: z.string().max(180), why: z.string().max(300) }).strict();
+const caseSchema = z.object({ personId: z.string().uuid().optional(), text: z.string().trim().min(1).max(2_000), userNote: z.string().max(2_000).optional(), source: z.enum(["text", "screenshot"]), recommendedReply: z.string().max(500).optional(), extractedConversation: z.array(extractedMessageSchema).max(80).optional(), analysisSummary: z.string().max(5_000).optional(), replyOptions: z.array(replyOptionSchema).max(4).optional() }).strict();
 const feedbackSchema = z.object({ caseId: z.string().uuid(), acted: z.boolean(), outcome: z.enum(["positive", "mixed", "negative", "no_response", "not_yet"]), actualReply: z.string().max(500).optional(), note: z.string().max(500).optional() }).strict();
 const idParamsSchema = z.object({ id: z.string().uuid() });
 const caseLinkSchema = z.object({ personId: z.string().uuid() }).strict();
@@ -58,7 +60,13 @@ export async function registerRelationshipRoutes(app: FastifyInstance, dependenc
     try {
       await client.query("BEGIN");
       await client.query("INSERT INTO relationship_cases (id, owner_user_id, person_id, goal, status, source, initial_text_redacted, strategy_key, recommended_reply, created_at, updated_at) VALUES ($1,$2,$3,$4,'awaiting_reply',$5,$6,$7,$8,$9,$9)", [id, owner.id, parsed.data.personId ?? null, goal, parsed.data.source, cleanText, kind.role, cleanReply ?? null, now]);
-      await client.query("INSERT INTO relationship_events (id, owner_user_id, person_id, case_id, event_kind, payload_json, provenance, created_at) VALUES ($1,$2,$3,$4,'user_message',$5::jsonb,'user_authored',$6)", [randomUUID(), owner.id, parsed.data.personId ?? null, id, JSON.stringify({ version: 1, summary: cleanText, source: parsed.data.source }), now]);
+      const userNote = redact(parsed.data.userNote || parsed.data.text, 800);
+      await client.query("INSERT INTO relationship_events (id, owner_user_id, person_id, case_id, event_kind, payload_json, provenance, created_at) VALUES ($1,$2,$3,$4,'user_message',$5::jsonb,'user_authored',$6)", [randomUUID(), owner.id, parsed.data.personId ?? null, id, JSON.stringify({ version: 2, summary: userNote, source: parsed.data.source }), now]);
+      for (const [order, message] of (parsed.data.extractedConversation ?? []).entries()) {
+        await client.query("INSERT INTO relationship_events (id, owner_user_id, person_id, case_id, event_kind, payload_json, provenance, created_at) VALUES ($1,$2,$3,$4,'extracted_message',$5::jsonb,'model_extracted',$6)", [randomUUID(), owner.id, parsed.data.personId ?? null, id, JSON.stringify({ version: 1, order, speaker: message.speaker, text: redact(message.text, 1000), visibleTime: redact(message.visibleTime, 80) || undefined, signals: message.signals?.map((item) => redact(item, 80)), uncertain: message.uncertain === true, pageOrder: message.pageOrder, messageOrder: message.messageOrder }), now]);
+      }
+      const analysisSummary = redact(parsed.data.analysisSummary, 4000);
+      if (analysisSummary) await client.query("INSERT INTO relationship_events (id, owner_user_id, person_id, case_id, event_kind, payload_json, provenance, created_at) VALUES ($1,$2,$3,$4,'analysis_created',$5::jsonb,'model_generated',$6)", [randomUUID(), owner.id, parsed.data.personId ?? null, id, JSON.stringify({ version: 1, summary: analysisSummary, replyOptions: parsed.data.replyOptions ?? [] }), now]);
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
     return reply.code(201).send({ case: { id, personId: parsed.data.personId, goal, status: "awaiting_reply", source: parsed.data.source, strategyKey: kind.role, summary: cleanText.slice(0, 180), recommendedReply: cleanReply, createdAt: now, updatedAt: now } });
@@ -95,7 +103,26 @@ export async function registerRelationshipRoutes(app: FastifyInstance, dependenc
     const person = await dependencies.database.query("SELECT id FROM relationship_people WHERE id = $1 AND owner_user_id = $2 AND deleted_at IS NULL AND archived_at IS NULL", [input.data.personId, owner.id]);
     if (!person.rowCount) return reply.code(404).send({ error: "relationship_person_not_found" });
     const result = await dependencies.database.query("UPDATE relationship_cases SET person_id = $1, updated_at = now() WHERE id = $2 AND owner_user_id = $3 AND status <> 'archived' RETURNING id, person_id AS \"personId\", goal, status, source, strategy_key AS \"strategyKey\", initial_text_redacted AS summary, recommended_reply AS \"recommendedReply\", created_at AS \"createdAt\", updated_at AS \"updatedAt\", resolved_at AS \"resolvedAt\"", [input.data.personId, params.data.id, owner.id]);
+    if (result.rows[0]) {
+      await dependencies.database.query("UPDATE relationship_events SET person_id = $1 WHERE case_id = $2 AND owner_user_id = $3", [input.data.personId, params.data.id, owner.id]);
+      await dependencies.database.query("UPDATE relationship_feedback SET person_id = $1 WHERE case_id = $2 AND owner_user_id = $3", [input.data.personId, params.data.id, owner.id]);
+    }
     return result.rows[0] ? { case: result.rows[0] } : reply.code(404).send({ error: "relationship_case_not_found" });
+  });
+
+  app.get("/api/v1/account/relationships/people/:id/context", async (request, reply) => {
+    const owner = await user(request, reply, dependencies); if (!owner) return;
+    const params = idParamsSchema.safeParse(request.params); if (!params.success) return reply.code(400).send({ error: "invalid_relationship_person" });
+    const found = await dependencies.database.query("SELECT 1 FROM relationship_people WHERE id = $1 AND owner_user_id = $2 AND deleted_at IS NULL AND archived_at IS NULL", [params.data.id, owner.id]);
+    if (!found.rowCount) return reply.code(404).send({ error: "relationship_person_not_found" });
+    const [cases, events, feedback] = await Promise.all([
+      dependencies.database.query("SELECT id, person_id AS \"personId\", goal, status, source, strategy_key AS \"strategyKey\", initial_text_redacted AS summary, recommended_reply AS \"recommendedReply\", created_at AS \"createdAt\", updated_at AS \"updatedAt\", resolved_at AS \"resolvedAt\" FROM relationship_cases WHERE owner_user_id = $1 AND person_id = $2 AND status <> 'archived' ORDER BY updated_at DESC LIMIT 5", [owner.id, params.data.id]),
+      dependencies.database.query<{ caseId: string; eventKind: string; payload: Record<string, unknown>; createdAt: string }>("SELECT case_id AS \"caseId\", event_kind AS \"eventKind\", payload_json AS payload, created_at AS \"createdAt\" FROM relationship_events WHERE owner_user_id = $1 AND person_id = $2 AND deleted_at IS NULL AND event_kind IN ('extracted_message','analysis_created') ORDER BY created_at DESC LIMIT 80", [owner.id, params.data.id]),
+      dependencies.database.query<{ caseId: string; outcome: string; acted: boolean; note?: string; createdAt: string }>("SELECT case_id AS \"caseId\", outcome, acted, actual_reply_summary AS note, created_at AS \"createdAt\" FROM relationship_feedback WHERE owner_user_id = $1 AND person_id = $2 ORDER BY created_at DESC LIMIT 5", [owner.id, params.data.id]),
+    ]);
+    const extractedMessages = events.rows.filter((item) => item.eventKind === "extracted_message").slice(0, 30).reverse().map((item) => ({ caseId: item.caseId, createdAt: item.createdAt, speaker: item.payload.speaker, text: item.payload.text, visibleTime: item.payload.visibleTime, signals: item.payload.signals, uncertain: item.payload.uncertain }));
+    const priorAnalyses = events.rows.filter((item) => item.eventKind === "analysis_created").slice(0, 3).map((item) => ({ caseId: item.caseId, createdAt: item.createdAt, summary: item.payload.summary }));
+    return { context: { recentCases: cases.rows, extractedMessages, priorAnalyses, realityFeedback: feedback.rows } };
   });
 
   app.delete("/api/v1/account/relationships/people/:id", async (request, reply) => {

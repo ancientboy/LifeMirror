@@ -10,8 +10,10 @@ import { recordProductMetric } from "@/lib/product-metrics";
 import { createLifeEventLoop, persistLifeEventLoop, readLifeEventLoops } from "@/lib/life-event-loops";
 import { classifyRelationship } from "@/lib/relationships/taxonomy";
 import { buildRelationshipContext } from "@/lib/relationships/context-builder";
+import { shouldGenerateRelationshipReply } from "@/lib/relationships/reply";
 import { saveRelationshipCase, saveRelationshipFeedback } from "@/lib/relationships/repository";
-import type { ExtractedConversation, RelationshipCase, RelationshipPerson } from "@/lib/relationships/types";
+import { extractedConversationText, mergeExtractedConversation } from "@/lib/relationships/vision";
+import type { ExtractedConversation, RelationshipCase, RelationshipMemoryContext, RelationshipPerson, RelationshipReplyOption } from "@/lib/relationships/types";
 import { AttachmentPicker, type AttachmentDraft } from "./relationship-intake/AttachmentPicker";
 import { AttachmentPreview } from "./relationship-intake/AttachmentPreview";
 import styles from "./ShiguangChat.module.css";
@@ -25,7 +27,7 @@ type Props = {
   opening?: string;
   mode?: "home" | "result";
   onboarding?: boolean;
-  relationship?: { person?: RelationshipPerson; activeCase?: RelationshipCase; onActivity?: () => void; onCaseCreated?: (value: RelationshipCase) => void };
+  relationship?: { person?: RelationshipPerson; activeCase?: RelationshipCase; memory?: RelationshipMemoryContext; onActivity?: () => void; onCaseCreated?: (value: RelationshipCase) => void };
 };
 const assetPath = (path: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
 const visionInputEnabled = process.env.NEXT_PUBLIC_VISION_INPUT_ENABLED !== "false";
@@ -83,7 +85,8 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
-  const [suggestedReply, setSuggestedReply] = useState("");
+  const [replyOptions, setReplyOptions] = useState<RelationshipReplyOption[]>([]);
+  const [selectedReplyId, setSelectedReplyId] = useState("");
   const [clarificationOpen, setClarificationOpen] = useState(false);
   const [relationshipCase, setRelationshipCase] = useState<RelationshipCase | undefined>(relationship?.activeCase);
   const [outcomeSaved, setOutcomeSaved] = useState(false);
@@ -114,7 +117,12 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     return () => window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, hydrate);
   }, [context, mode, theme]);
   useEffect(() => { const sync = () => setMemorySettings(getMemorySettings()); sync(); window.addEventListener(MEMORY_CHANGED_EVENT, sync); return () => window.removeEventListener(MEMORY_CHANGED_EVENT, sync); }, []);
-  useEffect(() => { setRelationshipCase(relationship?.activeCase); setSuggestedReply(relationship?.activeCase?.recommendedReply ?? ""); setOutcomeSaved(false); }, [relationship?.activeCase]);
+  useEffect(() => {
+    setRelationshipCase(relationship?.activeCase);
+    const saved = relationship?.activeCase?.recommendedReply;
+    setReplyOptions(saved ? [{ id: "saved", tone: "natural", text: saved, why: "上次保存的建议" }] : []);
+    setSelectedReplyId(saved ? "saved" : ""); setOutcomeSaved(false);
+  }, [relationship?.activeCase]);
   useEffect(() => {
     fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
       setAuthenticated(response.ok);
@@ -157,11 +165,6 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     return value.conversation;
   }
 
-  function conversationText(value: ExtractedConversation | undefined) {
-    if (!value) return "";
-    return value.pages.flatMap((page) => page.messages.map((message) => `${message.speaker === "user" ? "我" : message.speaker === "other" ? "TA" : "说话人待确认"}：${message.text}`)).join("\n");
-  }
-
   async function generate(activeThread: ChatThread, history: ChatMessage[], assistantId: string, activeSettings: MemorySettings, retried = false, analysisText?: string) {
     const controller = new AbortController(); abortRef.current = controller;
     setSources([]); setStreamState("thinking");
@@ -170,7 +173,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       const latestQuestion = analysisText ?? [...history].reverse().find((item) => item.role === "user")?.text ?? "";
       const memory = retrieveRelevantMemory(latestQuestion, activeSettings);
       const classification = relationship ? classifyRelationship(latestQuestion, relationship.person ? { domain: relationship.person.domain, role: relationship.person.role, stage: relationship.person.stage, powerPosition: relationship.person.powerPosition } : undefined) : undefined;
-      const relationshipContext = classification ? buildRelationshipContext({ classification, person: relationship?.person, activeCase: relationshipCase }) : "";
+      const relationshipContext = classification ? buildRelationshipContext({ classification, person: relationship?.person, activeCase: relationshipCase, memory: relationship?.memory }) : "";
       const apiMessages = history.filter((item) => item.text.trim()).map(({ role, text }) => ({ role, content: text }));
       if (analysisText) {
         const index = apiMessages.findLastIndex((message) => message.role === "user");
@@ -222,15 +225,16 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       setClarificationOpen(false);
       recordProductMetric("relationship_clarification_answered", "relationship", `rel-clarified:${thread.id}:${Date.now()}`);
     }
-    setAttachmentError(""); setSuggestedReply(""); setOutcomeSaved(false);
+    setAttachmentError(""); setReplyOptions([]); setSelectedReplyId(""); setOutcomeSaved(false);
     let extracted: ExtractedConversation | undefined;
     if (attachments.length) {
       try { extracted = await extractAttachments(attachments); }
       catch (error) { setAttachmentError(error instanceof Error && error.message === "vision_rate_limited" ? "图片识别请求有点多，请稍等一分钟再试。图片还在，不需要重新选择。" : "截图暂时没有识别成功。图片还在，你可以重试，或先粘贴聊天文字。"); return; }
     }
-    const extractedText = conversationText(extracted);
+    const extractedMessages = mergeExtractedConversation(extracted);
+    const extractedText = extractedConversationText(extractedMessages);
     const displayQuestion = question || `请分析这 ${attachments.length} 张聊天截图。`;
-    const analysisText = [relationshipHint ? `[用户补充的关系角色]\n${relationshipHint}` : "", question, extractedText ? `[聊天截图识别结果，仅作为可纠正的画面文字]\n${extractedText}` : ""].filter(Boolean).join("\n\n");
+    const analysisText = [relationshipHint ? `[用户补充的关系角色]\n${relationshipHint}` : "", question ? `[用户补充／主观感受]\n${question}` : "", extractedText ? `[截图可见事实（按画面左右归属，内容可被用户纠正）]\n${extractedText}` : ""].filter(Boolean).join("\n\n");
     const activeSettings = temporary ? { ...memorySettings, enabled: false } : memorySettings;
     const capturedFact = captureExplicitMemory(displayQuestion, activeSettings);
     if (capturedFact) {
@@ -248,10 +252,21 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     setInput(""); setFeedbackFor(null); stickToBottom.current = true; relationship?.onActivity?.();
     if (relationship) recordProductMetric("relationship_text_submitted", "relationship", `rel-text:${userMessage.id}`);
     const generated = await generate(thread, history, pending.id, activeSettings, false, analysisText || displayQuestion);
-    const replyMatch = generated.match(/(?:可以直接发|建议回复|你可以回)[：:]\s*[“"]?([^\n”"]{2,500})/u);
-    if (replyMatch?.[1]) setSuggestedReply(replyMatch[1].trim().replace(/[”"]$/u, ""));
-    if (relationship && generated.trim()) {
-      const next = await saveRelationshipCase({ personId: relationship.person?.id, text: displayQuestion, source: attachments.length ? "screenshot" : "text", recommendedReply: replyMatch?.[1] }).catch(() => null);
+    const classification = relationship ? classifyRelationship(`${question}\n${extractedText}`, relationship.person ? { domain: relationship.person.domain, role: relationship.person.role, stage: relationship.person.stage, powerPosition: relationship.person.powerPosition } : undefined) : undefined;
+    let generatedReplies: RelationshipReplyOption[] = [];
+    let recommendedReplyId = "";
+    if (relationship && classification && shouldGenerateRelationshipReply({ userNote: question, goal: classification.goal, messages: extractedMessages })) {
+      const replyResponse = await fetch("/api/shiguang/relationship/reply", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ userNote: question, analysis: generated, context: buildRelationshipContext({ classification, person: relationship.person, activeCase: relationshipCase, memory: relationship.memory }), messages: extractedMessages }) }).catch(() => null);
+      if (replyResponse?.ok) {
+        const value = await replyResponse.json() as { options?: RelationshipReplyOption[]; recommendedReplyId?: string };
+        generatedReplies = Array.isArray(value.options) ? value.options : [];
+        recommendedReplyId = generatedReplies.some((option) => option.id === value.recommendedReplyId) ? value.recommendedReplyId! : generatedReplies[0]?.id ?? "";
+        setReplyOptions(generatedReplies); setSelectedReplyId(recommendedReplyId);
+      }
+    }
+    if (relationship && generated.trim() && !temporary) {
+      const recommendedReply = generatedReplies.find((option) => option.id === recommendedReplyId)?.text;
+      const next = await saveRelationshipCase({ personId: relationship.person?.id, text: displayQuestion, userNote: question, source: attachments.length ? "screenshot" : "text", recommendedReply, extractedConversation: extractedMessages, analysisSummary: generated, replyOptions: generatedReplies }).catch(() => null);
       if (next) { setRelationshipCase(next); relationship.onCaseCreated?.(next); }
     }
     attachments.forEach((item) => URL.revokeObjectURL(item.previewUrl)); setAttachments([]);
@@ -298,6 +313,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
   }
 
   async function copySuggestedReply() {
+    const suggestedReply = replyOptions.find((option) => option.id === selectedReplyId)?.text ?? replyOptions[0]?.text;
     if (!suggestedReply) return;
     await navigator.clipboard.writeText(suggestedReply).catch(() => undefined);
     recordProductMetric("relationship_reply_copied", "relationship", `rel-copy:${relationshipCase?.id ?? crypto.randomUUID()}`);
@@ -316,7 +332,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     <div className={styles.messages} aria-live="polite" ref={messagesRef} onScroll={(event) => { const node = event.currentTarget; stickToBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 90; }}>{messages.map((message) => <div className={message.role === "assistant" ? styles.assistant : styles.user} key={message.id}>{message.role === "assistant" && <img src={assetPath(avatar)} alt="" />}<p>{message.role === "assistant" && !message.text && generating ? <span className={styles.thinking}>拾光正在想<span>···</span></span> : message.text}{streamState === "streaming" && message.id === messages.at(-1)?.id && <i />}</p></div>)}</div>
     {sources.length > 0 && <aside className={styles.sources} aria-label="拾光本次查证的来源"><small>我刚刚核对的来源</small>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}{source.publishedAt ? <span>{source.publishedAt.slice(0, 10)}</span> : null}</a>)}</aside>}
     {showRetry && <div className={styles.recovery}><span>{streamState === "stopped" ? "已停止，刚才的话还在。" : "回答没有完整结束，刚才的话还在。"}</span><button type="button" onClick={() => void retryLast()}><ArrowClockwise /> 重新回答</button></div>}
-    {relationship && suggestedReply && !generating && <aside className={styles.replyCard}><small>可以直接发</small><p>{suggestedReply}</p><button type="button" onClick={() => void copySuggestedReply()} aria-label="复制这句话" title="复制这句话"><Copy /></button></aside>}
+    {relationship && replyOptions.length > 0 && !generating && <aside className={styles.replyCard}><small>可以直接发</small><p>{replyOptions.find((option) => option.id === selectedReplyId)?.text ?? replyOptions[0].text}</p>{replyOptions.length > 1 && <div className={styles.replyChoices}>{replyOptions.map((option) => <button type="button" key={option.id} className={option.id === selectedReplyId ? styles.selectedReply : ""} onClick={() => setSelectedReplyId(option.id)}>{option.tone === "warm" ? "温柔" : option.tone === "direct" ? "直接" : option.tone === "boundary" ? "有边界" : "自然"}</button>)}</div>}<button className={styles.copyReply} type="button" onClick={() => void copySuggestedReply()} aria-label="复制这句话" title="复制这句话"><Copy /></button></aside>}
     {relationship && relationshipCase && !generating && <aside className={styles.outcomeCard}><b>{outcomeSaved ? "这次现实结果已经记下，下一次判断会参考它。" : "TA 后来怎么回？"}</b>{!outcomeSaved && <div><button type="button" onClick={() => void reportRelationshipOutcome("positive")}>回应不错</button><button type="button" onClick={() => void reportRelationshipOutcome("mixed")}>有来有回</button><button type="button" onClick={() => void reportRelationshipOutcome("negative")}>不太顺利</button><button type="button" onClick={() => void reportRelationshipOutcome("no_response")}>还没回复</button></div>}</aside>}
     {relationship && clarificationOpen && <aside className={styles.clarificationCard}><b>这是谁发来的？</b><p>关系不同，主动程度和边界会不一样。选一个最接近的就好。</p><div>{["暧昧／约会对象", "伴侣", "前任", "朋友", "同事／领导", "家人"].map((label) => <button type="button" key={label} onClick={() => void send(label)}>{label}</button>)}</div></aside>}
     {!generating && latestAssistantId && userTurnCount >= 2 && <div className={styles.feedback}><span>{feedbackFor === latestAssistantId ? <><Check /> 已收到，谢谢你告诉我</> : "这次有帮到你吗？"}</span>{feedbackFor !== latestAssistantId && <><button type="button" onClick={() => giveFeedback(latestAssistantId, true)}><ThumbsUp /> 有帮助</button><button type="button" onClick={() => giveFeedback(latestAssistantId, false)}><ThumbsDown /> 没说中</button></>}</div>}

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { relationshipPolicyFor } from "./policy.js";
 import { relationshipAnswerSchema } from "./response-schema.js";
+import { buildRelationshipContext } from "./context-builder.js";
+import { filterRelationshipReplies, shouldGenerateRelationshipReply } from "./reply.js";
 import { classifyRelationship } from "./taxonomy.js";
-import { inferredUserSideFromBubbles, speakerFromBubbleSide } from "./vision.js";
+import { inferredUserSideFromBubbles, mergeExtractedConversation, speakerFromBubbleSide } from "./vision.js";
 
 test("the same relationship taxonomy routes romance, work, friendship and family", () => {
   assert.deepEqual(classifyRelationship("暧昧对象问我周末有没有空，怎么回").role, "dating");
@@ -36,4 +38,37 @@ test("vision assigns chat ownership from bubble position instead of message sema
   assert.equal(speakerFromBubbleSide("center"), "unknown");
   assert.equal(inferredUserSideFromBubbles(["left", "center"]), "right");
   assert.equal(inferredUserSideFromBubbles(["center", "unknown"]), "unknown");
+});
+
+test("overlapping screenshots become one ordered conversation without deleting later legitimate repeats", () => {
+  const merged = mergeExtractedConversation({ inferredUserSide: "right", missingRegions: [], warnings: [], pages: [
+    { attachmentId: "a", order: 0, messages: [{ speaker: "other", text: "在干嘛" }, { speaker: "user", text: "看看你" }, { speaker: "other", text: "刚开一把" }] },
+    { attachmentId: "b", order: 1, messages: [{ speaker: "user", text: "看看你" }, { speaker: "other", text: "刚开一把" }, { speaker: "other", text: "你最近怎么玩这个了" }, { speaker: "user", text: "看看你" }] },
+  ] });
+  assert.deepEqual(merged.map((item) => item.text), ["在干嘛", "看看你", "刚开一把", "你最近怎么玩这个了", "看看你"]);
+});
+
+test("reply generation is optional and unsafe incoming/meta replies are rejected", () => {
+  const messages = [{ speaker: "other" as const, text: "你最近怎么开始玩这个了？" }, { speaker: "user" as const, text: "我玩啥？" }];
+  assert.equal(shouldGenerateRelationshipReply({ userNote: "好像没以前热情了", goal: "interpret_signal", messages }), false);
+  assert.equal(shouldGenerateRelationshipReply({ userNote: "我应该怎么回", goal: "draft_reply", messages }), true);
+  const options = filterRelationshipReplies([
+    { id: "copied", tone: "natural", text: "你最近怎么开始玩这个了？", why: "错误" },
+    { id: "meta", tone: "natural", text: "这句是你问的吗？我以为是57跟你聊的。", why: "错误" },
+    { id: "valid", tone: "warm", text: "那你先玩，打完再给我看看你。", why: "自然承接" },
+  ], messages);
+  assert.deepEqual(options.map((item) => item.id), ["valid"]);
+});
+
+test("person memory labels extracted evidence, prior hypotheses and reality feedback separately", () => {
+  const classification = classifyRelationship("他最近不太热情");
+  const context = buildRelationshipContext({ classification, memory: {
+    recentCases: [],
+    extractedMessages: [{ speaker: "other", text: "刚开一把", createdAt: "2026-08-12" }],
+    priorAnalyses: [{ summary: "当时推测可能在忙", createdAt: "2026-08-12" }],
+    realityFeedback: [{ outcome: "positive", acted: true, note: "后来主动解释了", createdAt: "2026-08-13" }],
+  } });
+  assert.match(context, /画面证据，可被用户纠正/);
+  assert.match(context, /仅是当时假设，不是事实/);
+  assert.match(context, /现实反馈（优先用于校准判断）/);
 });
