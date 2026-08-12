@@ -9,6 +9,15 @@
 .topbar>a { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:999px; color:#68716c; font-size:11px; }
 .topbar>a:hover { color:#315d52; background:#dce8e1; }
 .topbar>a svg { width:17px; height:17px; }
+.conversationMode { width:min(760px,calc(100% - 32px)); margin:14px auto 0; padding:4px; display:grid; grid-template-columns:1fr 1fr; gap:4px; border:1px solid rgba(49,93,82,.14); border-radius:18px; background:rgba(255,252,246,.66); box-shadow:0 10px 32px rgba(49,63,58,.06); }
+.conversationMode button { min-width:0; min-height:54px; padding:9px 14px; display:flex; align-items:center; justify-content:center; gap:9px; border:0; border-radius:14px; color:#68716c; background:transparent; cursor:pointer; }
+.conversationMode button>svg { width:21px; height:21px; flex:none; }
+.conversationMode button>span { display:grid; gap:2px; text-align:left; }
+.conversationMode b { font-size:13px; }
+.conversationMode small { color:#8a918d; font-size:9px; }
+.conversationMode .activeConversationMode { color:#fffaf1; background:#315d52; box-shadow:0 7px 18px rgba(49,93,82,.2); }
+.conversationMode .activeConversationMode small { color:rgba(255,250,241,.72); }
+.generalConversation { width:min(760px,calc(100% - 32px)); margin:12px auto 18px; }
 .homeChat { min-height:520px; display:flex; }
 .homeChat>section { flex:1; min-height:520px; margin:0; }
 .followUp { width:min(900px,calc(100% - 32px)); margin:18px auto 0; padding:14px 16px; display:flex; gap:12px; align-items:flex-start; border:1px solid #d8d2c6; border-radius:18px; background:rgba(255,250,241,.72); }
@@ -76,6 +85,11 @@
   .identity>img { width:36px; height:36px; }
   .identity b { font-size:16px; }
   .topbar>a span { display:none; }
+  .conversationMode { width:calc(100% - 20px); margin-top:10px; border-radius:16px; }
+  .conversationMode button { min-height:48px; padding:7px 9px; gap:7px; }
+  .conversationMode button>svg { width:18px; height:18px; }
+  .conversationMode b { font-size:12px; }
+  .generalConversation { width:100%; margin:4px 0 16px; }
   .homeChat,.homeChat>section { min-height:calc(100dvh - 210px); }
   .welcome { margin-top:14px; padding:23px 19px; gap:20px; }
   .continuity { padding:14px; }
