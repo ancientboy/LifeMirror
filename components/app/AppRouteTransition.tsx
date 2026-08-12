@@ -1,6 +1,5 @@
 "use client";
 
-import { Aperture } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "./AppRouteTransition.module.css";
@@ -27,5 +26,5 @@ export function AppRouteTransition() {
   }, []);
 
   if (!pending) return null;
-  return <div className={styles.overlay} role="status" aria-live="polite"><Aperture weight="thin" /><span>正在打开…</span></div>;
+  return <div className={styles.overlay} role="status" aria-live="polite"><img src="/characters/shiguang/mini/shiguang-mini-glide.webp" alt="" /><span>拾光带你过去…</span></div>;
 }
