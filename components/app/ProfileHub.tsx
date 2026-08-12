@@ -9,11 +9,55 @@ import styles from "./ProfileHub.module.css";
 import { AccountDataSync } from "./AccountDataSync";
 import { BIRTH_PROFILE_CHANGED_EVENT, formatSavedBirthProfile, getSavedBirthProfile, removeSavedBirthProfile, type SavedBirthProfile } from "@/lib/birth-profile";
 import { getUserProfile, saveUserProfile, USER_PROFILE_CHANGED_EVENT, type GenderDisplay, type UserProfile } from "@/lib/user-profile";
-import { writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
+import { readLocalAccountData, writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 
 const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
+const MAX_AVATAR_SOURCE_BYTES = 15 * 1024 * 1024;
+const AVATAR_MAX_EDGE = 512;
+const AVATAR_TARGET_BYTES = 220 * 1024;
 type ExpressionPreferences = { tone: "balanced" | "direct" | "gentle" | "clear"; length: "short" | "standard" | "detailed"; followUp: "natural" | "ask" | "avoid"; updatedAt?: string | null };
 const defaultExpressionPreferences: ExpressionPreferences = { tone: "balanced", length: "standard", followUp: "natural" };
+
+function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("avatar_encode_failed")), "image/webp", quality));
+}
+
+async function loadAvatarImage(file: File) {
+  const source = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("avatar_decode_failed")); image.src = source; });
+    return image;
+  } finally { URL.revokeObjectURL(source); }
+}
+
+async function compressAvatar(file: File) {
+  const image = await loadAvatarImage(file);
+  const longestEdge = Math.max(image.naturalWidth, image.naturalHeight) || 1;
+  const scale = Math.min(1, AVATAR_MAX_EDGE / longestEdge);
+  let width = Math.max(1, Math.round(image.naturalWidth * scale));
+  let height = Math.max(1, Math.round(image.naturalHeight * scale));
+  let blob: Blob | undefined;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext("2d"); if (!context) throw new Error("avatar_canvas_unavailable");
+    context.drawImage(image, 0, 0, width, height);
+    for (const quality of [.86, .76, .66, .56]) {
+      blob = await canvasBlob(canvas, quality);
+      if (blob.size <= AVATAR_TARGET_BYTES) break;
+    }
+    if (blob && blob.size <= AVATAR_TARGET_BYTES) break;
+    width = Math.max(256, Math.round(width * .78)); height = Math.max(256, Math.round(height * .78));
+  }
+  if (!blob) throw new Error("avatar_encode_failed");
+  const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("avatar_read_failed")); reader.onerror = () => reject(new Error("avatar_read_failed")); reader.readAsDataURL(blob); });
+  return { dataUrl, width, height, byteSize: blob.size };
+}
+
+function readableAvatarSize(bytes: number) {
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 export function ProfileHub() {
   const [guest, setGuest] = useState(true);
@@ -29,6 +73,10 @@ export function ProfileHub() {
   const [profile, setProfile] = useState<UserProfile>(() => ({ version: 1, nickname: "", avatar: "", gender: "hidden", updatedAt: "" }));
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileNotice, setProfileNotice] = useState("");
+  const [avatarStatus, setAvatarStatus] = useState<"idle" | "compressing" | "ready" | "error">("idle");
+  const [avatarDetail, setAvatarDetail] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
   const [expressionPreferences, setExpressionPreferences] = useState<ExpressionPreferences>(defaultExpressionPreferences);
   const [expressionBusy, setExpressionBusy] = useState(false);
   const [expressionSaved, setExpressionSaved] = useState(false);
@@ -127,20 +175,36 @@ export function ProfileHub() {
     if (response.ok) { window.localStorage.clear(); window.location.href = "/app/"; }
   }
 
-  function persistProfile() {
-    setProfile(saveUserProfile(profile));
-    setProfileSaved(true);
-    setEditingProfile(false);
-    window.setTimeout(() => setProfileSaved(false), 1800);
+  async function persistProfile() {
+    if (avatarStatus === "compressing" || profileSaving) return;
+    const saved = saveUserProfile(profile);
+    setProfile(saved); setProfileSaving(true); setEditingProfile(false); setProfileNotice("");
+    if (guest) {
+      setProfileNotice("已保存到这台设备"); setProfileSaved(true); setProfileSaving(false);
+      window.setTimeout(() => setProfileSaved(false), 2200);
+      return;
+    }
+    setProfileNotice("正在同步头像…");
+    try {
+      const response = await fetch("/api/v1/account/data", { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ data: readLocalAccountData() }) });
+      const value = await response.json().catch(() => null) as { data?: AccountSnapshot } | null;
+      if (!response.ok || !value?.data) throw new Error("profile_sync_failed");
+      writeLocalAccountData(value.data); setProfile(getUserProfile()); setProfileNotice("头像已保存并同步");
+    } catch { setProfileNotice("已保存到这台设备，网络恢复后会自动同步"); }
+    finally { setProfileSaving(false); setProfileSaved(true); window.setTimeout(() => setProfileSaved(false), 2600); }
   }
 
-  function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {
+  async function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 600_000) return;
-    const reader = new FileReader();
-    reader.onload = () => setProfile((current) => ({ ...current, avatar: typeof reader.result === "string" ? reader.result : current.avatar }));
-    reader.readAsDataURL(file);
+    event.target.value = "";
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > MAX_AVATAR_SOURCE_BYTES) { setAvatarStatus("error"); setAvatarDetail("请选择 JPG、PNG 或 WebP，原图不超过 15MB"); return; }
+    setAvatarStatus("compressing"); setAvatarDetail("正在压缩头像…");
+    try {
+      const compressed = await compressAvatar(file);
+      setProfile((current) => ({ ...current, avatar: compressed.dataUrl }));
+      setAvatarStatus("ready"); setAvatarDetail(`预览已更新 · ${compressed.width}×${compressed.height} · ${readableAvatarSize(compressed.byteSize)}，点击保存后同步`);
+    } catch { setAvatarStatus("error"); setAvatarDetail("这张图片暂时无法处理，请换一张再试"); }
   }
 
   const displayName = profile.nickname || (accountEmail ? accountEmail.split("@")[0] : "镜像旅人");
@@ -154,17 +218,19 @@ export function ProfileHub() {
         {profile.avatar && !profile.avatar.startsWith("preset:") ? <img src={profile.avatar} alt="我的头像" /> : <span>{[...displayName][0]?.toUpperCase() || "我"}</span>}
       </div>
       <div className={styles.identityText}><small>个人资料</small><h2 id="personal-profile-title">{displayName}</h2><p>{genderLabel}{birthProfile ? ` · ${birthProfile.year}年${birthProfile.month}月${birthProfile.day}日` : " · 尚未填写生日"}</p></div>
-      <button type="button" onClick={() => setEditingProfile((value) => !value)}>{editingProfile ? <X /> : <PencilSimple />}{editingProfile ? "取消" : "编辑"}</button>
+      <button type="button" onClick={() => { setEditingProfile((value) => !value); setAvatarStatus("idle"); setAvatarDetail(""); }}>{editingProfile ? <X /> : <PencilSimple />}{editingProfile ? "取消" : "编辑"}</button>
       {editingProfile && <div className={styles.profileEditor}>
         <div className={styles.avatarEditor}>
-          <label><Camera /><span>上传头像</span><small>JPG／PNG，600KB 以内</small><input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadAvatar} /></label>
+          <label className={avatarStatus === "compressing" ? styles.avatarBusy : ""}><Camera /><span>{avatarStatus === "compressing" ? "正在压缩头像…" : "上传头像"}</span><small>JPG／PNG／WebP，自动压缩后再保存</small><input type="file" accept="image/png,image/jpeg,image/webp" disabled={avatarStatus === "compressing"} onChange={(event) => void uploadAvatar(event)} /></label>
+          {profile.avatar && !profile.avatar.startsWith("preset:") && <div className={styles.avatarPreview}><img src={profile.avatar} alt="待保存的头像预览" /><span>{avatarStatus === "ready" ? "待保存" : "当前头像"}</span></div>}
           <div>{avatarPresets.map((color) => <button type="button" aria-label={`使用${color}头像`} key={color} style={{ background: color }} onClick={() => setProfile((current) => ({ ...current, avatar: `preset:${color}` }))} />)}</div>
         </div>
+        {avatarDetail && <p className={`${styles.avatarStatus} ${avatarStatus === "error" ? styles.avatarError : ""}`} role="status">{avatarDetail}</p>}
         <label><span>昵称</span><input maxLength={20} value={profile.nickname} onChange={(event) => setProfile((current) => ({ ...current, nickname: event.target.value }))} placeholder="怎么称呼你" /></label>
         <label><span>性别显示</span><select value={profile.gender} onChange={(event) => setProfile((current) => ({ ...current, gender: event.target.value as GenderDisplay }))}><option value="hidden">不展示</option><option value="female">女性</option><option value="male">男性</option><option value="nonbinary">非二元／其他</option></select></label>
-        <button className={styles.saveProfile} type="button" onClick={persistProfile}><Check />保存个人资料</button>
+        <button className={styles.saveProfile} type="button" disabled={avatarStatus === "compressing" || profileSaving} onClick={() => void persistProfile()}><Check />{profileSaving ? "正在保存…" : avatarStatus === "compressing" ? "正在压缩头像…" : "保存个人资料"}</button>
       </div>}
-      {profileSaved && <span className={styles.savedNotice}><Check /> 已保存</span>}
+      {profileSaved && <span className={styles.savedNotice}><Check /> {profileNotice || "已保存"}</span>}
     </section>
 
     <section className={styles.accountSection}>
