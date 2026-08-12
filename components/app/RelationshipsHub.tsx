@@ -88,7 +88,7 @@ export function RelationshipsHub() {
       setSearchResult(null);
       await refresh();
     } catch (error) {
-      setNotice(error instanceof Error && error.message === "person_not_found" ? "没有找到这个邀请码，请检查后重试。" : "暂时无法发送申请。");
+      setNotice(error instanceof Error && error.message === "person_not_found" ? "没有找到这个好友邀请，请检查后重试。" : "暂时无法发送申请。");
     } finally { setBusy(false); }
   }
 

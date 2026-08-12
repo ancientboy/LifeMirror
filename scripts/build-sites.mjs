@@ -637,6 +637,96 @@ function normalizeInviteCode(value) {
   return /^[A-Z0-9][A-Z0-9-]{5,31}$/.test(code) ? code : "";
 }
 
+function utcMonthStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+function experienceInviteView(row, monthlyAccepted = 0) {
+  if (!row) return null;
+  const useCount = Number(row.useCount || 0);
+  const maxUses = Number(row.maxUses || 0);
+  const monthRemaining = Math.max(0, 10 - Number(monthlyAccepted || 0));
+  return {
+    id: row.id,
+    code: row.code,
+    initialSlots: Number(row.initialSlots || 3),
+    maxUses,
+    useCount,
+    qualifiedCount: Number(row.qualifiedCount || 0),
+    remaining: Math.max(0, Math.min(maxUses - useCount, monthRemaining)),
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt || null,
+    active: !row.revokedAt && Date.parse(row.expiresAt) > Date.now() && useCount < maxUses && monthRemaining > 0,
+  };
+}
+
+async function experienceInviteMonthlyAccepted(env, ownerUserId) {
+  const row = await env.DB.prepare("SELECT count(*) AS total FROM experience_invite_uses WHERE inviter_user_id = ? AND accepted_at >= ?")
+    .bind(ownerUserId, utcMonthStart()).first();
+  return Number(row?.total || 0);
+}
+
+async function findExperienceInvite(env, rawCode) {
+  const code = normalizeInviteCode(rawCode);
+  if (!code || !code.startsWith("SG-")) return { error: "invalid_experience_invite" };
+  const invite = await env.DB.prepare("SELECT id, owner_user_id AS ownerUserId, code, initial_slots AS initialSlots, max_uses AS maxUses, use_count AS useCount, qualified_count AS qualifiedCount, expires_at AS expiresAt, revoked_at AS revokedAt FROM experience_invite_batches WHERE code = ?")
+    .bind(code).first();
+  if (!invite) return { error: "invalid_experience_invite" };
+  if (invite.revokedAt) return { error: "experience_invite_revoked" };
+  if (Date.parse(invite.expiresAt) <= Date.now()) return { error: "experience_invite_expired" };
+  const monthlyAccepted = await experienceInviteMonthlyAccepted(env, invite.ownerUserId);
+  if (monthlyAccepted >= 10 || Number(invite.useCount || 0) >= Number(invite.maxUses || 0)) return { error: "experience_invite_full" };
+  return { invite, monthlyAccepted };
+}
+
+async function experienceInvitePreview(request, env) {
+  const code = new URL(request.url).searchParams.get("code");
+  const resolved = await findExperienceInvite(env, code);
+  if (resolved.error) return json({ error: resolved.error }, resolved.error === "invalid_experience_invite" ? 404 : 410);
+  return json({ invite: { ...experienceInviteView(resolved.invite, resolved.monthlyAccepted), inviter: await socialUser(env, resolved.invite.ownerUserId) } });
+}
+
+async function acceptExperienceInvite(request, env) {
+  const input = await body(request);
+  const resolved = await findExperienceInvite(env, input?.code);
+  if (resolved.error) return json({ error: resolved.error }, resolved.error === "invalid_experience_invite" ? 400 : 410);
+  const invite = resolved.invite;
+  const inviter = await socialUser(env, invite.ownerUserId);
+  const existingSession = await sessionUser(request, env);
+  if (existingSession) {
+    return json({ authenticated: true, created: false, attribution: "existing_user", inviter, user: { id: existingSession.id, email: ["invite", "referral"].includes(existingSession.provider) ? null : existingSession.email, displayName: existingSession.displayName, provider: existingSession.provider }, data: await readAccountData(env.DB, existingSession.id) });
+  }
+  const now = new Date().toISOString();
+  const reservation = await env.DB.prepare("UPDATE experience_invite_batches SET use_count = use_count + 1, updated_at = ? WHERE id = ? AND revoked_at IS NULL AND expires_at > ? AND use_count < max_uses")
+    .bind(now, invite.id, now).run();
+  if (!reservation.meta?.changes) return json({ error: "experience_invite_full" }, 410);
+  const userId = crypto.randomUUID();
+  const syntheticEmail = "referral-" + userId + "@anonymous.lifemirror.invalid";
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO identity_users (id, email, display_name, provider, created_at, updated_at) VALUES (?, ?, NULL, 'referral', ?, ?)").bind(userId, syntheticEmail, now, now),
+      env.DB.prepare("INSERT INTO experience_invite_uses (id, invite_id, inviter_user_id, invited_user_id, state, accepted_at) VALUES (?, ?, ?, ?, 'accepted', ?)").bind(crypto.randomUUID(), invite.id, invite.ownerUserId, userId, now),
+    ]);
+  } catch (error) {
+    await env.DB.prepare("UPDATE experience_invite_batches SET use_count = CASE WHEN use_count > 0 THEN use_count - 1 ELSE 0 END, updated_at = ? WHERE id = ?").bind(new Date().toISOString(), invite.id).run().catch(() => undefined);
+    throw error;
+  }
+  const data = await migrateGuestData(env, userId, input);
+  const token = await createSession(env, userId);
+  return json({ authenticated: true, created: true, attribution: "new_user", inviter, user: { id: userId, email: null, displayName: null, provider: "referral" }, data }, 201, { "set-cookie": sessionCookie(token) });
+}
+
+async function qualifyExperienceInvite(env, invitedUserId, eventType) {
+  if (!["first_reply_received", "conversation_continued", "mirror_result_ready"].includes(eventType)) return;
+  const use = await env.DB.prepare("SELECT id, invite_id AS inviteId FROM experience_invite_uses WHERE invited_user_id = ? AND state = 'accepted'").bind(invitedUserId).first();
+  if (!use) return;
+  const now = new Date().toISOString();
+  const qualified = await env.DB.prepare("UPDATE experience_invite_uses SET state = 'qualified', qualified_at = ? WHERE id = ? AND state = 'accepted'").bind(now, use.id).run();
+  if (!qualified.meta?.changes) return;
+  await env.DB.prepare("UPDATE experience_invite_batches SET qualified_count = qualified_count + 1, max_uses = CASE WHEN max_uses < 10 THEN max_uses + 1 ELSE max_uses END, updated_at = ? WHERE id = ?").bind(now, use.inviteId).run();
+}
+
 async function resolveBetaInvite(env, rawCode) {
   const code = normalizeInviteCode(rawCode);
   if (!code) return { error: "invalid_invite" };
@@ -662,7 +752,7 @@ async function resolveBetaInvite(env, rawCode) {
 
 async function acceptBetaInvite(request, env) {
   const existingSession = await sessionUser(request, env);
-  if (existingSession) return json({ authenticated: true, created: false, user: { id: existingSession.id, email: existingSession.provider === "invite" ? null : existingSession.email, displayName: existingSession.displayName, provider: existingSession.provider }, data: await readAccountData(env.DB, existingSession.id) });
+  if (existingSession) return json({ authenticated: true, created: false, user: { id: existingSession.id, email: ["invite", "referral"].includes(existingSession.provider) ? null : existingSession.email, displayName: existingSession.displayName, provider: existingSession.provider }, data: await readAccountData(env.DB, existingSession.id) });
   const input = await body(request);
   const resolved = await resolveBetaInvite(env, input?.code);
   if (resolved.error) return json({ error: resolved.error }, resolved.error === "invalid_invite" ? 400 : 410);
@@ -741,20 +831,28 @@ async function verifyCode(request, env) {
   await env.DB.prepare("UPDATE email_codes SET consumed_at = ? WHERE id = ?").bind(new Date().toISOString(), record.id).run();
   const invitedUser = await sessionUser(request, env);
   let user;
-  if (invitedUser?.provider === "invite") {
+  if (["invite", "referral"].includes(invitedUser?.provider)) {
     const target = await env.DB.prepare("SELECT id, email, display_name AS displayName, provider FROM identity_users WHERE email = ?").bind(email).first();
     if (target && target.id !== invitedUser.id) {
       const invitedData = await readAccountData(env.DB, invitedUser.id);
       await mergeAuthoritativeAccountData(env.DB, target.id, invitedData);
-      const targetParticipant = await env.DB.prepare("SELECT 1 AS found FROM beta_participants WHERE user_id = ?").bind(target.id).first();
-      if (targetParticipant) await env.DB.prepare("DELETE FROM beta_participants WHERE user_id = ?").bind(invitedUser.id).run();
-      else await env.DB.prepare("UPDATE beta_participants SET user_id = ?, bound_email_at = ? WHERE user_id = ?").bind(target.id, new Date().toISOString(), invitedUser.id).run();
+      const boundAt = new Date().toISOString();
+      if (invitedUser.provider === "invite") {
+        const targetParticipant = await env.DB.prepare("SELECT 1 AS found FROM beta_participants WHERE user_id = ?").bind(target.id).first();
+        if (targetParticipant) await env.DB.prepare("DELETE FROM beta_participants WHERE user_id = ?").bind(invitedUser.id).run();
+        else await env.DB.prepare("UPDATE beta_participants SET user_id = ?, bound_email_at = ? WHERE user_id = ?").bind(target.id, boundAt, invitedUser.id).run();
+      } else {
+        const targetReferral = await env.DB.prepare("SELECT 1 AS found FROM experience_invite_uses WHERE invited_user_id = ?").bind(target.id).first();
+        if (targetReferral) await env.DB.prepare("DELETE FROM experience_invite_uses WHERE invited_user_id = ?").bind(invitedUser.id).run();
+        else await env.DB.prepare("UPDATE experience_invite_uses SET invited_user_id = ?, bound_at = ? WHERE invited_user_id = ?").bind(target.id, boundAt, invitedUser.id).run();
+      }
       await env.DB.prepare("DELETE FROM identity_users WHERE id = ?").bind(invitedUser.id).run();
       user = { ...target, created: false };
     } else {
       const now = new Date().toISOString();
       await env.DB.prepare("UPDATE identity_users SET email = ?, provider = 'email', updated_at = ? WHERE id = ?").bind(email, now, invitedUser.id).run();
-      await env.DB.prepare("UPDATE beta_participants SET bound_email_at = ? WHERE user_id = ?").bind(now, invitedUser.id).run();
+      if (invitedUser.provider === "invite") await env.DB.prepare("UPDATE beta_participants SET bound_email_at = ? WHERE user_id = ?").bind(now, invitedUser.id).run();
+      else await env.DB.prepare("UPDATE experience_invite_uses SET bound_at = ? WHERE invited_user_id = ?").bind(now, invitedUser.id).run();
       user = { id: invitedUser.id, email, displayName: invitedUser.displayName, provider: "email", created: false };
     }
     await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, 'account_bound', 'account', ?, ?)")
@@ -780,6 +878,8 @@ async function chatgptLogin(request, env) {
 }
 
 async function authApi(request, env, pathname) {
+  if (pathname === "/api/v1/auth/experience-invite" && request.method === "GET") return experienceInvitePreview(request, env);
+  if (pathname === "/api/v1/auth/experience-invite" && request.method === "POST") return acceptExperienceInvite(request, env);
   if (pathname === "/api/v1/auth/invite" && request.method === "POST") return acceptBetaInvite(request, env);
   if (pathname === "/api/v1/auth/request-code" && request.method === "POST") return requestCode(request, env);
   if (pathname === "/api/v1/auth/verify-code" && request.method === "POST") return verifyCode(request, env);
@@ -791,7 +891,30 @@ async function authApi(request, env, pathname) {
   }
   const user = await sessionUser(request, env);
   if (!user) return json({ authenticated: false, error: "authentication_required" }, 401);
-  if (pathname === "/api/v1/auth/session" && request.method === "GET") return json({ authenticated: true, user: { ...user, email: user.provider === "invite" ? null : user.email } });
+  if (pathname === "/api/v1/auth/session" && request.method === "GET") return json({ authenticated: true, user: { ...user, email: ["invite", "referral"].includes(user.provider) ? null : user.email } });
+  if (pathname === "/api/v1/account/experience-invites" && request.method === "GET") {
+    const monthlyAccepted = await experienceInviteMonthlyAccepted(env, user.id);
+    const current = await env.DB.prepare("SELECT id, code, initial_slots AS initialSlots, max_uses AS maxUses, use_count AS useCount, qualified_count AS qualifiedCount, expires_at AS expiresAt, revoked_at AS revokedAt FROM experience_invite_batches WHERE owner_user_id = ? ORDER BY created_at DESC LIMIT 1").bind(user.id).first();
+    return json({ batch: experienceInviteView(current, monthlyAccepted), summary: { monthlyAccepted, monthlyLimit: 10, initialSlots: 3, validityDays: 30 } });
+  }
+  if (pathname === "/api/v1/account/experience-invites" && request.method === "POST") {
+    const monthlyAccepted = await experienceInviteMonthlyAccepted(env, user.id);
+    const current = await env.DB.prepare("SELECT id, code, initial_slots AS initialSlots, max_uses AS maxUses, use_count AS useCount, qualified_count AS qualifiedCount, expires_at AS expiresAt, revoked_at AS revokedAt FROM experience_invite_batches WHERE owner_user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1").bind(user.id, new Date().toISOString()).first();
+    if (current) return json({ batch: experienceInviteView(current, monthlyAccepted), summary: { monthlyAccepted, monthlyLimit: 10, initialSlots: 3, validityDays: 30 }, existing: true });
+    if (monthlyAccepted >= 10) return json({ error: "experience_invite_monthly_limit" }, 429);
+    const now = new Date(); const id = crypto.randomUUID(); let code = "";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = "SG-" + randomHex(8).toUpperCase();
+      const collision = await env.DB.prepare("SELECT 1 AS found FROM experience_invite_batches WHERE code = ?").bind(candidate).first();
+      if (!collision) { code = candidate; break; }
+    }
+    if (!code) return json({ error: "experience_invite_generation_failed" }, 503);
+    const expiresAt = new Date(now.getTime() + 30 * 86400000).toISOString();
+    const initialSlots = Math.min(3, 10 - monthlyAccepted);
+    await env.DB.prepare("INSERT INTO experience_invite_batches (id, owner_user_id, code, initial_slots, max_uses, use_count, qualified_count, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?)")
+      .bind(id, user.id, code, initialSlots, initialSlots, expiresAt, now.toISOString(), now.toISOString()).run();
+    return json({ batch: experienceInviteView({ id, code, initialSlots, maxUses: initialSlots, useCount: 0, qualifiedCount: 0, expiresAt, revokedAt: null }, monthlyAccepted), summary: { monthlyAccepted, monthlyLimit: 10, initialSlots: 3, validityDays: 30 }, existing: false }, 201);
+  }
   if (pathname === "/api/v1/account/data" && request.method === "GET") return json({ data: await readAccountData(env.DB, user.id) });
   if (pathname === "/api/v1/account/data" && request.method === "PUT") {
     const input = await body(request);
@@ -939,6 +1062,7 @@ async function authApi(request, env, pathname) {
     if (!eventTypes.includes(eventType) || !["chat","daily","mirror","share","relationship","onboarding","account"].includes(surface) || !/^[a-zA-Z0-9:_-]{8,120}$/.test(eventKey)) return json({ error: "invalid_product_metric" }, 400);
     await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), user.id, eventType, surface, eventKey, new Date().toISOString()).run();
+    await qualifyExperienceInvite(env, user.id, eventType);
     return json({ ok: true }, 201);
   }
   if (pathname === "/api/v1/account/life-loops" && request.method === "POST") {
@@ -1166,13 +1290,13 @@ async function ensureSocialProfile(env, userId) {
 }
 
 async function socialUser(env, userId) {
-  const identity = await env.DB.prepare("SELECT id, email, display_name AS displayName FROM identity_users WHERE id = ?").bind(userId).first();
+  const identity = await env.DB.prepare("SELECT id, email, display_name AS displayName, provider FROM identity_users WHERE id = ?").bind(userId).first();
   if (!identity) return null;
   const data = await readAccountData(env.DB, userId);
   const profile = data.settings?.userProfile || {};
   return {
     id: identity.id,
-    name: String(profile.nickname || identity.displayName || String(identity.email || "镜像朋友").split("@")[0]).slice(0, 24),
+    name: String(profile.nickname || identity.displayName || (["invite", "referral"].includes(identity.provider) ? "一位朋友" : String(identity.email || "镜像朋友").split("@")[0])).slice(0, 24),
     avatar: typeof profile.avatar === "string" && profile.avatar.length < 800000 ? profile.avatar : "",
   };
 }
@@ -1624,7 +1748,7 @@ async function opsApi(request, env, pathname) {
     const [tables, versions] = await Promise.all([env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all(), env.DB.prepare("SELECT component, version FROM runtime_versions").all()]);
     const tableNames = new Set((tables.results || []).map((item) => String(item.name)));
     const versionMap = Object.fromEntries((versions.results || []).map((item) => [item.component, Number(item.version)]));
-    const checks = { sourceCommit: /^[0-9a-f]{7,64}$/i.test(String(env.SOURCE_COMMIT || "")), schema: ["account_data", "memory_events", "memory_observations", "background_tasks", "account_item_tombstones", "release_acceptance_runs", "mirror_feedback_events", "beta_invites", "beta_participants"].every((name) => tableNames.has(name)), versions: ["observation_extractor", "context_builder", "account_merge_policy", "release_recovery_contract", "release_acceptance_contract"].every((name) => Number(versionMap[name]) >= 1) };
+    const checks = { sourceCommit: /^[0-9a-f]{7,64}$/i.test(String(env.SOURCE_COMMIT || "")), schema: ["account_data", "memory_events", "memory_observations", "background_tasks", "account_item_tombstones", "release_acceptance_runs", "mirror_feedback_events", "beta_invites", "beta_participants", "experience_invite_batches", "experience_invite_uses"].every((name) => tableNames.has(name)), versions: ["observation_extractor", "context_builder", "account_merge_policy", "release_recovery_contract", "release_acceptance_contract"].every((name) => Number(versionMap[name]) >= 1) };
     const passed = Object.values(checks).every(Boolean); const now = new Date().toISOString();
     await env.DB.prepare("INSERT INTO recovery_drill_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 16, ?, ?, ?)").bind(crypto.randomUUID(), String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), now).run();
     return json({ passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 16 }, passed ? 200 : 503);

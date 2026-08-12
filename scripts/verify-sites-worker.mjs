@@ -20,6 +20,8 @@ for (const contract of [
   "/api/v1/ops/recovery/drill",
   "/api/v1/ops/acceptance/run",
   "/api/v1/auth/invite",
+  "/api/v1/auth/experience-invite",
+  "/api/v1/account/experience-invites",
   "/api/v1/ops/invites",
   "account_item_tombstones",
   "llm_call_audits",
@@ -47,6 +49,9 @@ const betaMigration = await readFile(new URL("../.openai/drizzle/0015_beta_acces
 for (const contract of ["beta_invites", "beta_participants", "invite_accepted", "generation_retried", "chat_feedback_helpful", "account_bound"]) assert.ok(betaMigration.includes(contract), `missing beta experience contract: ${contract}`);
 const relationshipMigration = await readFile(new URL("../.openai/drizzle/0016_relationship_engine.sql", import.meta.url), "utf8");
 for (const contract of ["relationship_people", "relationship_cases", "relationship_events", "relationship_feedback", "attachment_metadata", "relationship_outcome_positive", "vision_parse_failed"]) assert.ok(relationshipMigration.includes(contract), `missing relationship engine contract: ${contract}`);
+const experienceInviteMigration = await readFile(new URL("../.openai/drizzle/0017_user_experience_invites.sql", import.meta.url), "utf8");
+for (const contract of ["experience_invite_batches", "experience_invite_uses", "qualified_at", "bound_at"]) assert.ok(experienceInviteMigration.includes(contract), `missing user experience invite contract: ${contract}`);
+for (const contract of ["experienceInviteMonthlyAccepted", "qualifyExperienceInvite", "experience_invite_monthly_limit", 'provider: "referral"']) assert.ok(source.includes(contract), `missing user experience invite Worker behavior: ${contract}`);
 assert.ok(source.includes('env.VISION_MODEL || "qwen/qwen3.6-27b"'), "vision must default to the active Groq multimodal model");
 assert.ok(!source.includes("meta-llama/llama-4-scout-17b-16e-instruct"), "deprecated Groq vision model must not remain in the worker");
 assert.ok(source.includes('side === "right" ? "user" : side === "left" ? "other" : "unknown"'), "vision speaker ownership must be derived from bubble position");
