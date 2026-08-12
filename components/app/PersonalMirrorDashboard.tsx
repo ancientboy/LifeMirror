@@ -283,6 +283,6 @@ export function PersonalMirrorDashboard() {
     </section>
     <AppBottomNav active="mirror" />
     {sandboxPerson && <RelationshipSandbox person={sandboxPerson} onClose={() => setSandboxPerson(null)} />}
-    {mirrorPerson && <PersonMirror person={mirrorPerson} onClose={() => setMirrorPerson(null)} onPractice={setSandboxPerson} />}
+    {mirrorPerson && <PersonMirror person={mirrorPerson} onClose={() => setMirrorPerson(null)} onPractice={(person) => { setMirrorPerson(null); setSandboxPerson(person); }} />}
   </main>;
 }

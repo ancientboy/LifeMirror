@@ -14,4 +14,22 @@
 .minorCheck span{display:grid;gap:2px}
 .minorCheck small{color:#66756f;font-size:12px;font-weight:400}
 .saveProfile{background:#315d52!important;color:#fff!important}
-@media(max-width:620px){.profileFields{grid-template-columns:1fr}.wideField{grid-column:auto}}
+.birthGateway{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;padding:14px;border:1px solid #d9d2c3;border-radius:14px;background:#f7f1e6}
+.birthGateway>span{display:flex;align-items:center;gap:10px;min-width:0}
+.birthGateway>span>svg{flex:0 0 auto;width:22px;height:22px;color:#92743e}
+.birthGateway>span>span{display:grid;gap:4px;min-width:0}
+.birthGateway b{color:#315d52;font-size:15px}
+.birthGateway small{overflow:hidden;color:#66756f;text-overflow:ellipsis;white-space:nowrap}
+.birthGateway button{flex:0 0 auto;background:#315d52!important;color:#fff!important}
+.profileNotice{display:flex;align-items:center;gap:7px;margin:12px 0 0!important;color:#315d52!important;font-size:13px!important}
+.referenceGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.referenceGrid article{position:static!important;display:grid;align-content:start;gap:8px;padding:14px!important;border:1px solid #e0d8c8!important;border-radius:14px;background:#fffaf3}
+.referenceGrid article>span{display:flex;align-items:center;gap:7px;color:#315d52}
+.referenceGrid article>span svg{width:19px;height:19px;color:#92743e}
+.referenceGrid article p{margin:0!important;color:#66756f;font-size:13px;line-height:1.55!important}
+.referenceGrid article>button{position:static!important;justify-self:start;padding:7px 10px!important;background:#e8e2d5!important;color:#315d52!important;font-size:12px}
+.referenceDetails{display:grid;gap:5px;margin-top:2px;padding-top:10px;border-top:1px solid #e5dfd1}
+.referenceDetails strong{color:#24443d;font:400 17px/1.5 Georgia,serif}
+.referenceDetails p{font-size:12px!important}
+.locationPicker{grid-column:1 / -1;min-width:0}
+@media(max-width:620px){.profileFields{grid-template-columns:1fr}.wideField{grid-column:auto}.birthGateway{align-items:flex-start;flex-direction:column}.birthGateway button{width:100%}.referenceGrid{grid-template-columns:1fr}.locationPicker{grid-column:auto}}
