@@ -48,7 +48,7 @@ async function compressAvatar(file: File) {
       if (blob.size <= AVATAR_TARGET_BYTES) break;
     }
     if (blob && blob.size <= AVATAR_TARGET_BYTES) break;
-    width = Math.max(256, Math.round(width * .78)); height = Math.max(256, Math.round(height * .78));
+    width = Math.max(1, Math.round(width * .78)); height = Math.max(1, Math.round(height * .78));
   }
   if (!blob) throw new Error("avatar_encode_failed");
   const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("avatar_read_failed")); reader.onerror = () => reject(new Error("avatar_read_failed")); reader.readAsDataURL(blob); });
