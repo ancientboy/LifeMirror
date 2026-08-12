@@ -26,6 +26,11 @@
     "lib/shiguang-response-policy.test.ts",
     "lib/safety-boundary.ts",
     "lib/safety-boundary.test.ts",
+    "lib/relationships/types.ts",
+    "lib/relationships/taxonomy.ts",
+    "lib/relationships/policy.ts",
+    "lib/relationships/response-schema.ts",
+    "lib/relationships/relationships.test.ts",
     "server/tools/astrology/**/*.ts",
     "server/tools/bazi/**/*.ts"
   ]

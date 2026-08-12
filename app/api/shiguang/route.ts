@@ -2,16 +2,29 @@ import { z } from "zod";
 import { formatJudgmentFactPack, hasOnlyKnownFactIds, isJudgmentFactPack, type JudgmentFactPack } from "@/lib/shiguang-judgment";
 import { mirrorResultQualityError } from "@/lib/mirror-result-quality";
 import { buildPlannerMessages, formatResearchContext, normalizeResearchResult, parseShiguangPlan, type ResearchResult } from "@/server/llm/shiguang-runtime";
-import { classifySafetyBoundary, CRISIS_RESPONSE, safetyPrompt } from "@/lib/safety-boundary";
+import { classifyRelationshipSafety, classifySafetyBoundary, CRISIS_RESPONSE, relationshipSafetyPrompt, safetyPrompt } from "@/lib/safety-boundary";
+import { relationshipPolicyFor } from "@/lib/relationships/policy";
+import type { RelationshipClassification } from "@/lib/relationships/types";
 
 export const runtime = "nodejs";
 
 const requestSchema = z.object({
   theme: z.enum(["east", "west"]),
-  mode: z.enum(["chat", "mirror_result", "daily_guidance"]).default("chat"),
+  mode: z.enum(["chat", "relationship", "mirror_result", "daily_guidance"]).default("chat"),
   kind: z.enum(["tarot", "bazi", "astrology"]).optional(),
   context: z.string().max(10_000),
   factPack: z.unknown().optional(),
+  relationship: z.object({
+    domain: z.enum(["romance", "friendship", "work", "family", "other"]),
+    role: z.enum(["dating", "partner", "ex", "friend", "colleague", "manager", "report", "client", "parent", "child", "sibling", "relative", "other"]),
+    stage: z.enum(["unknown", "new", "developing", "stable", "conflict", "cooling", "separated", "repairing"]),
+    powerPosition: z.enum(["roughly_equal", "user_lower_power", "user_higher_power", "dependent", "unknown"]),
+    goal: z.enum(["interpret_signal", "draft_reply", "decide_initiation", "repair", "set_boundary", "refuse", "prepare_conversation", "other"]),
+    confidence: z.number().min(0).max(1),
+    reasonCodes: z.array(z.string().max(80)).max(10),
+    missingCriticalField: z.enum(["role", "speaker", "goal"]).optional(),
+    personId: z.string().max(120).optional(), caseId: z.string().max(120).optional(),
+  }).optional(),
   memory: z.object({
     facts: z.array(z.object({ text: z.string().max(180), updatedAt: z.string().max(40) })).max(5),
     evidence: z.array(z.object({ source: z.string().max(80), question: z.string().max(500), summary: z.string().max(500), savedAt: z.string().max(40) })).max(3),
@@ -55,6 +68,22 @@ function researchedChatPrompt(theme: "east" | "west", context: string, memory: z
 <research_sources>
 ${formatResearchContext(research)}
 </research_sources>`;
+}
+
+function relationshipSystemPrompt(theme: "east" | "west", context: string, classification: RelationshipClassification | undefined, memory: z.infer<typeof requestSchema>["memory"] | undefined, userText: string) {
+  const policy = classification ? relationshipPolicyFor(classification) : relationshipPolicyFor({ domain: "other", role: "other", stage: "unknown", powerPosition: "unknown", goal: "other", confidence: 0, reasonCodes: [] });
+  const relationshipRisk = relationshipSafetyPrompt(classifyRelationshipSafety(userText));
+  return `${systemPrompt(theme, context, memory)}
+
+这一轮是现实关系分析。先基于聊天中真正出现的文字和行为判断，不替 TA 读心，也不把单次表现升级成人格结论。关系策略是“${policy.label}”：优先检查${policy.priorities.join("、")}；必须避免${policy.avoid.join("、")}。
+
+回答必须自然包含四件事，但不要写成长报告：
+1. 用一小段给出“现在更可能发生了什么”的明确判断；
+2. 说清最容易误判、目前仍不能确认的一点；
+3. 单独写一行“可以直接发：……”并给出一句自然、真正能发送的话；
+4. 最后告诉用户接下来观察哪一个现实信号。
+
+若关系角色缺失会显著改变建议，只问一个短问题并给出 2–4 个选项；否则先用低假设建议。领导、同事和家庭关系必须考虑权力差、现实依赖与安全。出现暴力、胁迫、跟踪、未成年人成人恋爱、自伤或职业报复风险时，停止优化操控性话术，优先现实安全。不要使用“置信度”“依恋类型”“回避型人格”等标签。${relationshipRisk ? `\n\n<relationship_safety>\n${relationshipRisk}\n</relationship_safety>` : ""}`;
 }
 
 function mirrorResultPrompt(kind: "tarot" | "bazi" | "astrology", theme: "east" | "west", pack: JudgmentFactPack) {
@@ -221,12 +250,16 @@ export async function POST(request: Request) {
   if (parsed.data.mode === "mirror_result" && !pack) return Response.json({ error: "missing_or_invalid_fact_pack" }, { status: 400 });
 
   const latestUserMessage = [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  const safetyBoundary = parsed.data.mode === "chat" ? classifySafetyBoundary(latestUserMessage) : "none";
+  const relationshipMode = parsed.data.mode === "relationship" && process.env.RELATIONSHIP_ENGINE_ENABLED !== "false";
+  const conversationalMode = parsed.data.mode === "chat" || parsed.data.mode === "relationship";
+  const safetyBoundary = conversationalMode ? classifySafetyBoundary(latestUserMessage) : "none";
   if (safetyBoundary === "crisis") return new Response(CRISIS_RESPONSE, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-shiguang-safety-boundary": "crisis" } });
 
   const plan = parsed.data.mode === "chat" ? await planChat(baseUrl, apiKey, model, parsed.data.messages) : { intent: "conversation" as const };
   const research = plan.intent === "research" && plan.searchQuery ? await searchWeb(plan.searchQuery) : undefined;
-  const prompt = parsed.data.mode === "mirror_result" && parsed.data.kind
+  const prompt = relationshipMode
+    ? relationshipSystemPrompt(parsed.data.theme, parsed.data.context, parsed.data.relationship, parsed.data.memory, latestUserMessage)
+    : parsed.data.mode === "mirror_result" && parsed.data.kind
     ? mirrorResultPrompt(parsed.data.kind, parsed.data.theme, pack!)
     : parsed.data.mode === "daily_guidance"
       ? dailyGuidancePrompt(parsed.data.context)
@@ -235,7 +268,7 @@ export async function POST(request: Request) {
         : plan.intent === "research"
           ? `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}\n\n用户要核实实时外部事实，但本服务当前没有可用检索来源。坦诚说明你此刻无法可靠查证；不要凭记忆或猜测作答。你仍可帮用户明确接下来应从哪类官方来源核实。`
           : `${systemPrompt(parsed.data.theme, parsed.data.context, parsed.data.memory)}${safetyPrompt(safetyBoundary) ? `\n\n<high_risk_boundary>\n${safetyPrompt(safetyBoundary)}\n</high_risk_boundary>` : ""}`;
-  if (parsed.data.mode === "chat") {
+  if (conversationalMode) {
     try {
       const stream = await streamComplete(baseUrl, apiKey, { model, temperature: .72, max_tokens: 900, messages: [{ role: "system", content: prompt }, ...parsed.data.messages] });
       return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no", ...(research?.sources.length ? { "x-shiguang-sources": encodeURIComponent(JSON.stringify(research.sources)) } : {}) } });

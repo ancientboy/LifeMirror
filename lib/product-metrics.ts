@@ -24,6 +24,19 @@ export const PRODUCT_METRIC_EVENTS = [
   "chat_feedback_helpful",
   "chat_feedback_missed",
   "account_bound",
+  "relationship_entry_opened",
+  "relationship_text_submitted",
+  "relationship_image_submitted",
+  "relationship_clarification_shown",
+  "relationship_clarification_answered",
+  "relationship_answer_received",
+  "relationship_reply_copied",
+  "relationship_person_saved",
+  "relationship_case_revisited",
+  "relationship_feedback_submitted",
+  "relationship_outcome_positive",
+  "relationship_outcome_negative",
+  "vision_parse_failed",
 ] as const;
 
 export type ProductMetricEvent = typeof PRODUCT_METRIC_EVENTS[number];

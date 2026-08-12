@@ -4,6 +4,7 @@ import { Aperture, ArrowRight, Brain, CheckCircle, ClockCounterClockwise, Sparkl
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
+import { RelationshipWorkspace } from "./relationship-intake/RelationshipWorkspace";
 import { ShiguangChat } from "./ShiguangChat";
 import styles from "./ShiguangHome.module.css";
 import { AccountDataSync } from "./AccountDataSync";
@@ -22,6 +23,7 @@ type AccountContextResponse = { context?: { runtime?: DailyRuntime } };
 type AccountDataResponse = { data?: AccountSnapshot };
 
 const DAILY_LOOP_KEY = "dailyLoop";
+const relationshipEntryEnabled = process.env.NEXT_PUBLIC_RELATIONSHIP_ENTRY_ENABLED !== "false";
 
 function localDay(date = new Date()) {
   // A daily promise and its evening check-in must follow the user's device day.
@@ -241,24 +243,23 @@ export function ShiguangHome() {
       {todayRecord?.status ? <><small><CheckCircle weight="fill" /> 今天已回访：{todayRecord.status === "done" ? "我做了" : todayRecord.status === "later" ? "还没" : "今天先放下"}</small><button type="button" onClick={() => seedChat(`今天的「${todayRecord.action}」我${todayRecord.status === "done" ? "做了" : todayRecord.status === "later" ? "还没做" : "决定先放下"}。`)}>和拾光接着聊</button></> : <><small>今晚回来告诉拾光，今天这一步后来怎样了。</small><span><button type="button" onClick={() => checkIn("done")}>我做了</button><button type="button" onClick={() => checkIn("later")}>还没</button><button type="button" onClick={() => checkIn("release")}>先放下</button></span></>}
     </div>
   </section>;
-  const chatCard = <section className={`${styles.welcome} ${styles.conversation}`}>
-    {newUser && <div><small>{dateLabel} · 第一次见面</small><h1>有事就说，我会记得后来。</h1><p>不用先理解任何玩法。直接说一件正在发生的事就好。</p></div>}
-    <section className={styles.homeChat} id="shiguang-chat"><ShiguangChat mode="home" theme="east" onboarding={newUser} context={`这是 LifeMirror 的常规聊天首页。这里首先是用户可以安全开口的私人空间。先自然回应近况、帮用户把感受或关系中的真实卡点说清；只有在确实有帮助时，才建议六爻、命盘、塔罗或占星中的一个作为补充视角，并说明为什么。不要强迫用户做测试。${latestQuestion ? `用户上次保存的问题是「${latestQuestion}」。如果用户愿意回顾，先问后来发生了什么，不要重新起卦。` : ""}`} opening={latestQuestion ? `我还记得你上次在意的是“${latestQuestion}”。后来有什么变化吗？` : "我在。今天，有什么事在心里吗？"} /></section>
-    <Link className={styles.exploreLink} href="/app/explore/">想从命盘、塔罗或六爻开始？去探索 <ArrowRight /></Link>
-  </section>;
+  const relationshipWorkspace = relationshipEntryEnabled
+    ? <RelationshipWorkspace mode={newUser ? "first_visit" : "returning_unlinked"} />
+    : <ShiguangChat theme="east" mode="home" onboarding={newUser} context="这是拾光首页的长期对话。" />;
 
   return <main className={styles.shell}>
     <AccountDataSync />
     <header className={styles.topbar}>
-      <div className={styles.identity}><img src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><span><b>拾光</b><small><i /> 日常对话</small></span></div>
+      <div className={styles.identity}><img src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><span><b>拾光</b><small><i /> 关系与聊天</small></span></div>
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
-    {newUser ? chatCard : <>
+    {relationshipWorkspace}
+    {!newUser && <>
       {priorityCard && <section className={`${styles.welcome} ${styles.continuity}`}>{priorityCard}</section>}
       {dailyCard}
       {(weeklyRecords.length >= 2 || recentEventResults.length > 0) && <section className={styles.weeklyMirror}><small><Sparkle /> 本周镜像 · 只根据你确认过的现实反馈</small><h2>{recentEventResults.length ? `这周有 ${recentEventResults.length} 件悬着的事出现了变化。` : `这周你给了 ${weeklyDone} 件事一个落点${weeklyReleased ? `，也允许 ${weeklyReleased} 件事暂时放下` : ""}。`}</h2><p>{recentEventResults[0] ? `最值得回看的是“${recentEventResults[0].userFact}”。现实结果会优先于当时的象征判断，拾光会据此修正下一次回应。` : "不是每天都要完成什么。你愿意回来确认一件事，本身就在让拾光更贴近你的真实节奏。"}</p><button type="button" onClick={() => seedChat(`我想一起回看这周：有${recentEventResults.length}件等待中的事出现了结果，我完成了${weeklyDone}件今日行动，暂时放下了${weeklyReleased}件。请只根据这些真实回访，说明哪些判断被支持、哪些需要修正，以及下周最值得留意的一件事。`)}>一起回看 <ArrowRight /></button></section>}
-      {chatCard}
     </>}
+    <Link className={styles.exploreLink} href="/app/explore/">想从命盘、塔罗或六爻补充一个视角？去探索 <ArrowRight /></Link>
     <AppBottomNav active="home" />
   </main>;
 }

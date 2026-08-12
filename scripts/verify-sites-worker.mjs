@@ -12,6 +12,8 @@ for (const contract of [
   "/api/v1/account/product-metrics/events",
   "/api/v1/account/expression-preferences",
   "/api/v1/account/notifications",
+  "/api/v1/account/relationships",
+  "/api/shiguang/vision/extract",
   "/api/v1/social/",
   "/api/v1/ops/summary",
   "/api/v1/ops/tasks/replay",
@@ -25,6 +27,10 @@ for (const contract of [
   "share_funnel_events",
   "mirror_feedback_events",
   "release_acceptance_runs",
+  "relationship_people",
+  "relationship_cases",
+  "relationship_feedback",
+  "attachment_metadata",
   "coreExperience",
   "openChatStream",
   '"text/event-stream; charset=utf-8"',
@@ -39,6 +45,9 @@ const coreMetricsMigration = await readFile(new URL("../.openai/drizzle/0014_cor
 for (const eventType of ["life_loop_created", "life_loop_feedback", "memory_recall_positive", "memory_recall_negative", "share_intent"]) assert.ok(coreMetricsMigration.includes(eventType), `missing core experience metric: ${eventType}`);
 const betaMigration = await readFile(new URL("../.openai/drizzle/0015_beta_access_and_chat_experience.sql", import.meta.url), "utf8");
 for (const contract of ["beta_invites", "beta_participants", "invite_accepted", "generation_retried", "chat_feedback_helpful", "account_bound"]) assert.ok(betaMigration.includes(contract), `missing beta experience contract: ${contract}`);
+const relationshipMigration = await readFile(new URL("../.openai/drizzle/0016_relationship_engine.sql", import.meta.url), "utf8");
+for (const contract of ["relationship_people", "relationship_cases", "relationship_events", "relationship_feedback", "attachment_metadata", "relationship_outcome_positive", "vision_parse_failed"]) assert.ok(relationshipMigration.includes(contract), `missing relationship engine contract: ${contract}`);
+assert.ok(source.includes("原图") === false, "Worker must not persist screenshot originals");
 
 const worker = await import(pathToFileURL(workerPath.pathname).href + `?verify=${Date.now()}`);
 assert.equal(typeof worker.default?.fetch, "function");

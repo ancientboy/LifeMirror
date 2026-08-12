@@ -1,6 +1,6 @@
 ---
 title: PHASE-020 Relationship AI Entry & Extensible Relationship Engine
-status: planned
+status: implemented
 version: 0.11.1
 baseline: main@7d7c1b7860d9e58a796649ee8a76de07d7405b36
 updated: August 2026
@@ -1277,3 +1277,13 @@ PHASE-020 完成必须同时满足：
 9. family。
 
 在 R1 的使用率与现实反馈闭环没有验证前，不提前铺开所有关系首页入口，也不继续增加重型人物表单。
+
+---
+
+## 20. 实施结果
+
+PHASE-020 已按 R0–R5 落地：所有用户首页首屏共用常驻关系工作区，新用户只看到更简洁的引导，长期用户继续保留人物、关系案例、今日指引、周度镜像和历史对话。文字与最多三张聊天截图进入同一关系引擎；截图在浏览器端压缩并去除元数据，服务端只保留内容哈希和处理状态，不保存原图。
+
+统一分类、策略、安全边界、规范化人物／案例／事件／反馈模型及旧数据懒迁移已经接入 Next、Fastify 与 Sites Worker。恋爱、朋友、同事、领导和家庭共享同一契约，通过策略层调整判断重点、可发送回复、现实风险和后续观察信号。现实反馈会绑定 `personId/caseId`，下一次对话优先读取同一人物最近案例，且查询始终受 `owner_user_id` 隔离。
+
+发布保持五个独立回滚开关，默认开启：`RELATIONSHIP_ENGINE_ENABLED`、`NEXT_PUBLIC_RELATIONSHIP_ENTRY_ENABLED`、`VISION_INPUT_ENABLED`、`RELATIONSHIP_NORMALIZED_WRITE_ENABLED`、`RELATIONSHIP_NORMALIZED_READ_ENABLED`。最终验收包含类型检查、关系策略与安全测试、完整回归、静态构建、Worker 合约验证、D1 迁移验证和部署后健康检查。

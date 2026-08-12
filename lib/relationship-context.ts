@@ -1,6 +1,7 @@
 import { createClientId } from "./client-id";
 import { markAccountDataChanged } from "./account-data";
 import { buildRelationshipArchive, buildRelationshipCalibration, calculateRelationshipLoopMetrics, type RelationshipArchive, type RelationshipCalibration, type RelationshipLoopMetrics } from "./relationship-learning";
+import type { PowerPosition, RelationshipDomain, RelationshipRole, RelationshipStage } from "./relationships/types";
 
 /**
  * A private, user-authored view of a real person.  It deliberately does not
@@ -10,6 +11,12 @@ export type PrivatePerson = {
   id: string;
   displayName: string;
   relationshipType?: string;
+  /** Normalized routing fields. relationshipType remains the owner's label. */
+  relationshipDomain?: RelationshipDomain;
+  relationshipRole?: RelationshipRole;
+  relationshipStage?: RelationshipStage;
+  powerPosition?: PowerPosition;
+  relationshipConfirmed?: boolean;
   userDescription?: string;
   communicationNotes?: string;
   /** Owner-entered birth data. It is private and never a claim made by TA. */
@@ -120,7 +127,7 @@ export function getPrivatePeople(): PrivatePerson[] {
   return Array.isArray(value) ? value.filter((item): item is PrivatePerson => Boolean(item && typeof item === "object" && typeof (item as PrivatePerson).id === "string" && typeof (item as PrivatePerson).displayName === "string")) : [];
 }
 
-export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "userDescription" | "communicationNotes" | "birthProfile" | "stableReferences" | "isMinor"> & { id?: string }) {
+export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "relationshipType" | "relationshipDomain" | "relationshipRole" | "relationshipStage" | "powerPosition" | "relationshipConfirmed" | "userDescription" | "communicationNotes" | "birthProfile" | "stableReferences" | "isMinor"> & { id?: string }) {
   const displayName = input.displayName.trim().slice(0, 40);
   if (!displayName) return null;
   const current = getPrivatePeople();
@@ -129,6 +136,11 @@ export function savePrivatePerson(input: Pick<PrivatePerson, "displayName" | "re
   const person: PrivatePerson = {
     id: existing?.id ?? createClientId(), displayName,
     relationshipType: input.relationshipType?.trim().slice(0, 40) || undefined,
+    relationshipDomain: input.relationshipDomain ?? existing?.relationshipDomain,
+    relationshipRole: input.relationshipRole ?? existing?.relationshipRole,
+    relationshipStage: input.relationshipStage ?? existing?.relationshipStage,
+    powerPosition: input.powerPosition ?? existing?.powerPosition,
+    relationshipConfirmed: input.relationshipConfirmed ?? existing?.relationshipConfirmed,
     userDescription: input.userDescription?.trim().slice(0, 300) || undefined,
     communicationNotes: input.communicationNotes?.trim().slice(0, 300) || undefined,
     birthProfile: input.birthProfile,
