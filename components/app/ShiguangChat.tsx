@@ -335,8 +335,8 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       const waitingForReply = message.role === "assistant" && !message.text && streamState === "thinking";
       const replyArriving = theme === "east" && message.role === "assistant" && Boolean(message.text) && streamState === "streaming" && message.id === messages.at(-1)?.id;
       return <div className={message.role === "assistant" ? styles.assistant : styles.user} key={message.id}>
-        {message.role === "assistant" && <img className={waitingForReply && theme === "east" ? styles.miniThinking : ""} src={assetPath(waitingForReply && theme === "east" ? miniThinking : avatar)} alt="" />}
-        <div className={styles.bubbleWrap}>{replyArriving && <img className={styles.miniArrival} src={assetPath(miniArrival)} alt="" />}<p>{waitingForReply ? <span className={styles.thinking}>拾光正在理一理<span>···</span></span> : message.text}{streamState === "streaming" && message.id === messages.at(-1)?.id && <i />}</p></div>
+        {message.role === "assistant" && !waitingForReply && <img src={assetPath(avatar)} alt="" />}
+        <div className={`${styles.bubbleWrap} ${waitingForReply && theme === "east" ? styles.thinkingBubble : ""}`}>{waitingForReply && theme === "east" && <img className={styles.miniThinking} src={assetPath(miniThinking)} alt="" />}{replyArriving && <img className={styles.miniArrival} src={assetPath(miniArrival)} alt="" />}<p>{waitingForReply ? <span className={styles.thinking}>拾光正在理一理<span>···</span></span> : message.text}{streamState === "streaming" && message.id === messages.at(-1)?.id && <i />}</p></div>
       </div>;
     })}</div>
     {sources.length > 0 && <aside className={styles.sources} aria-label="拾光本次查证的来源"><small>我刚刚核对的来源</small>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}{source.publishedAt ? <span>{source.publishedAt.slice(0, 10)}</span> : null}</a>)}</aside>}
