@@ -16,6 +16,8 @@
     "lib/daily-guidance.test.ts",
     "lib/home-experience.ts",
     "lib/home-experience.test.ts",
+    "lib/conversation-mode.ts",
+    "lib/conversation-mode.test.ts",
     "lib/question-routing.ts",
     "lib/question-routing.test.ts",
     "lib/mirror-result-quality.ts",
