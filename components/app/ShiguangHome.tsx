@@ -1,6 +1,6 @@
 "use client";
 
-import { Aperture, ArrowRight, Brain, CheckCircle, ClockCounterClockwise, Sparkle } from "@phosphor-icons/react";
+import { Aperture, ArrowRight, Brain, ChatCircleDots, CheckCircle, ClockCounterClockwise, Sparkle, UsersThree } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
@@ -14,6 +14,7 @@ import { buildDailyGuidanceContext, sanitizeDailyGuidance, type DailyGuidance, t
 import { dailyEvidenceFingerprint, isNewHomeExperience } from "@/lib/home-experience";
 import { metricDayKey, recordProductMetric } from "@/lib/product-metrics";
 import { patchLocalLifeEventLoop, readLifeEventLoops, type LifeEventLoop } from "@/lib/life-event-loops";
+import { initialConversationMode, type ConversationMode } from "@/lib/conversation-mode";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 type DailyLoopStatus = "done" | "later" | "release";
@@ -79,6 +80,8 @@ export function ShiguangHome() {
   const [dailyLoop, setDailyLoop] = useState<DailyLoopRecord[]>([]);
   const [lifeLoops, setLifeLoops] = useState<LifeEventLoop[]>([]);
   const [newUser, setNewUser] = useState(true);
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("general");
+  const [pendingChatSeed, setPendingChatSeed] = useState("");
   const dailyRunRef = useRef(0);
   const dailyAbortRef = useRef<AbortController | null>(null);
   const dailyFingerprintRef = useRef("");
@@ -88,9 +91,25 @@ export function ShiguangHome() {
   const dateLabel = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(new Date());
   const dayIndex = Math.floor(Date.now() / 86_400_000) % stateFallbacks.length;
   function seedChat(text: string) {
-    window.dispatchEvent(new CustomEvent("life-mirror:chat-seed", { detail: text }));
-    document.getElementById("shiguang-chat")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    window.setTimeout(() => document.querySelector<HTMLTextAreaElement>("textarea")?.focus(), 240);
+    setConversationMode("general");
+    setPendingChatSeed(text);
+  }
+
+  useEffect(() => {
+    if (!ready || conversationMode !== "general" || !pendingChatSeed) return;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("life-mirror:chat-seed", { detail: pendingChatSeed }));
+      document.getElementById("shiguang-chat")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => document.querySelector<HTMLTextAreaElement>("textarea")?.focus(), 240);
+      setPendingChatSeed("");
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [conversationMode, pendingChatSeed, ready]);
+
+  function switchConversationMode(next: ConversationMode) {
+    if (next === conversationMode) return;
+    setConversationMode(next);
+    recordProductMetric("conversation_mode_changed", "chat", `conversation-mode:${next}:${Date.now()}`);
   }
 
   function enterAsGuest() {
@@ -186,7 +205,9 @@ export function ShiguangHome() {
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, refresh);
 
     async function initialize() {
-      const guestRequested = new URLSearchParams(window.location.search).get("guest") === "1";
+      const search = new URLSearchParams(window.location.search);
+      setConversationMode(initialConversationMode(window.location.search, relationshipEntryEnabled));
+      const guestRequested = search.get("guest") === "1";
       if (guestRequested) {
         window.localStorage.setItem("life-mirror:guest-session:v1", "active");
         setReady(true);
@@ -249,17 +270,21 @@ export function ShiguangHome() {
       {todayRecord?.status ? <><small><CheckCircle weight="fill" /> 今天已回访：{todayRecord.status === "done" ? "我做了" : todayRecord.status === "later" ? "还没" : "今天先放下"}</small><button type="button" onClick={() => seedChat(`今天的「${todayRecord.action}」我${todayRecord.status === "done" ? "做了" : todayRecord.status === "later" ? "还没做" : "决定先放下"}。`)}>和拾光接着聊</button></> : <><small>今晚回来告诉拾光，今天这一步后来怎样了。</small><span><button type="button" onClick={() => checkIn("done")}>我做了</button><button type="button" onClick={() => checkIn("later")}>还没</button><button type="button" onClick={() => checkIn("release")}>先放下</button></span></>}
     </div>
   </section>;
-  const relationshipWorkspace = relationshipEntryEnabled
+  const conversationWorkspace = relationshipEntryEnabled && conversationMode === "relationship"
     ? <RelationshipWorkspace mode={newUser ? "first_visit" : "returning_unlinked"} />
-    : <ShiguangChat theme="east" mode="home" onboarding={newUser} context="这是拾光首页的长期对话。" />;
+    : <div className={styles.generalConversation}><ShiguangChat key="general-conversation" theme="east" mode="home" onboarding={newUser} context="这是拾光首页的普通长期对话。用户正在直接和拾光聊天，并未进入关系分析场景。自然回应用户当下想说的事；即使内容提到他人，也不要要求用户关联人物或套用关系工作区格式。" opening="我在。今天想从哪件事聊起？" /></div>;
 
   return <main className={styles.shell}>
     <AccountDataSync />
     <header className={styles.topbar}>
-      <div className={styles.identity}><img src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><span><b>拾光</b><small><i /> 关系与聊天</small></span></div>
+      <div className={styles.identity}><img src={assetPath("/characters/shiguang/shiguang-east-chibi-v2.png")} alt="Q版东方拾光" /><span><b>拾光</b><small><i /> 你的 AI 伙伴</small></span></div>
       <Link href="/app/profile/#memory"><Brain /><span>记忆</span></Link>
     </header>
-    {relationshipWorkspace}
+    {relationshipEntryEnabled && <nav className={styles.conversationMode} aria-label="选择和拾光的聊天方式">
+      <button type="button" className={conversationMode === "general" ? styles.activeConversationMode : ""} aria-pressed={conversationMode === "general"} onClick={() => switchConversationMode("general")}><ChatCircleDots /><span><b>和拾光聊聊</b><small>说说你自己的事</small></span></button>
+      <button type="button" className={conversationMode === "relationship" ? styles.activeConversationMode : ""} aria-pressed={conversationMode === "relationship"} onClick={() => switchConversationMode("relationship")}><UsersThree /><span><b>看懂一段关系</b><small>解读聊天与回复</small></span></button>
+    </nav>}
+    {conversationWorkspace}
     {!newUser && <>
       {priorityCard && <section className={`${styles.welcome} ${styles.continuity}`}>{priorityCard}</section>}
       {dailyCard}
