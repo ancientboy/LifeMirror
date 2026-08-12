@@ -570,14 +570,16 @@ VISION_MAX_TOTAL_BYTES=3145728
 VISION_RETENTION_MODE=ephemeral
 ```
 
-现有：
+Sites 当前默认复用 Groq 备用 Key，并使用 `qwen/qwen3.6-27b` 处理最多三张聊天截图；`VISION_API_KEY`、`VISION_BASE_URL` 和 `VISION_MODEL` 仍可独立覆盖。不得把文本模型 `deepseek-v4-flash` 或 `llama-3.3-70b-versatile` 当作视觉模型。原默认视觉模型 `meta-llama/llama-4-scout-17b-16e-instruct` 已于 2026-07-17 从 Groq 下线，不再作为 fallback。
+
+文本链路现有：
 
 ```text
 DeepSeek → 普通文本主模型
 Groq → 文本备用模型
 ```
 
-保持不变。视觉模型只做截图解析，解析出的结构化对话再交给关系引擎。
+保持不变。视觉模型只做截图解析，解析出的结构化对话再交给关系引擎；Free Plan 额度只用于 beta 验证，正式放量前仍需按真实图片请求量评估配额与成本。
 
 ## 7.2 提取结果
 

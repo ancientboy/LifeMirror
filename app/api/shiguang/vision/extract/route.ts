@@ -26,12 +26,12 @@ export async function POST(request: Request) {
   if (images.some((image) => !allowed.has(image.type) || image.size > 1_200_000) || images.reduce((sum, image) => sum + image.size, 0) > 3_200_000) return Response.json({ error: "invalid_image" }, { status: 400 });
   const apiKey = process.env.VISION_API_KEY || process.env.LLM_FALLBACK_API_KEY;
   const baseUrl = (process.env.VISION_BASE_URL || process.env.LLM_FALLBACK_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
-  const model = process.env.VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+  const model = process.env.VISION_MODEL || "qwen/qwen3.6-27b";
   if (!apiKey) return Response.json({ error: "vision_not_configured" }, { status: 503 });
   const imageBlocks = await Promise.all(images.map(async (image) => ({ type: "image_url", image_url: { url: `data:${image.type};base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}` } })));
   const prompt = `按图片顺序提取聊天截图中肉眼可见的对话。只做转录和版面识别，不推断任何人的动机、人格或关系结论。尽量区分用户与 TA；无法判断就写 unknown。保留可见时间以及“已读、撤回、转账、表情”等画面信号；看不清的文字不要猜。只返回 JSON：{pages:[{order,messages:[{speaker,text,visibleTime?,signals?,uncertain?}]}],inferredUserSide:"left|right|mixed|unknown",missingRegions:[],warnings:[]}。`;
   try {
-    const upstream = await fetch(`${baseUrl}/chat/completions`, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ model, temperature: 0, max_tokens: 2400, response_format: { type: "json_object" }, messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageBlocks] }] }), signal: AbortSignal.timeout(45_000) });
+    const upstream = await fetch(`${baseUrl}/chat/completions`, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ model, temperature: 0, max_tokens: 2400, reasoning_effort: "none", response_format: { type: "json_object" }, messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageBlocks] }] }), signal: AbortSignal.timeout(45_000) });
     if (!upstream.ok) throw new Error("vision_upstream_failed");
     const payload = await upstream.json() as { choices?: Array<{ message?: { content?: string } }> };
     const parsed = extractedSchema.parse(extractJson(payload.choices?.[0]?.message?.content ?? ""));

@@ -47,6 +47,8 @@ const betaMigration = await readFile(new URL("../.openai/drizzle/0015_beta_acces
 for (const contract of ["beta_invites", "beta_participants", "invite_accepted", "generation_retried", "chat_feedback_helpful", "account_bound"]) assert.ok(betaMigration.includes(contract), `missing beta experience contract: ${contract}`);
 const relationshipMigration = await readFile(new URL("../.openai/drizzle/0016_relationship_engine.sql", import.meta.url), "utf8");
 for (const contract of ["relationship_people", "relationship_cases", "relationship_events", "relationship_feedback", "attachment_metadata", "relationship_outcome_positive", "vision_parse_failed"]) assert.ok(relationshipMigration.includes(contract), `missing relationship engine contract: ${contract}`);
+assert.ok(source.includes('env.VISION_MODEL || "qwen/qwen3.6-27b"'), "vision must default to the active Groq multimodal model");
+assert.ok(!source.includes("meta-llama/llama-4-scout-17b-16e-instruct"), "deprecated Groq vision model must not remain in the worker");
 assert.ok(source.includes("原图") === false, "Worker must not persist screenshot originals");
 
 const worker = await import(pathToFileURL(workerPath.pathname).href + `?verify=${Date.now()}`);
