@@ -26,5 +26,5 @@ export function AppRouteTransition() {
   }, []);
 
   if (!pending) return null;
-  return <div className={styles.overlay} role="status" aria-live="polite"><img src="/characters/shiguang/mini/shiguang-mini-glide.webp" alt="" /><span>拾光带你过去…</span></div>;
+  return <div className={styles.overlay} role="status" aria-live="polite"><img src="/characters/shiguang/mini/shiguang-mini-arrival.webp" alt="" /><span>拾光带你过去…</span></div>;
 }
