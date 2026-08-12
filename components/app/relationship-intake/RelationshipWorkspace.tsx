@@ -56,7 +56,7 @@ export function RelationshipWorkspace({ mode }: Props) {
     ? { eyebrow: "把聊天交给拾光", title: "看不懂 TA，也不知道怎么回？", body: "粘贴聊天、发截图，或者直接描述发生了什么。拾光会先判断这段互动，再给你一句真正说得出口的话。" }
     : person
       ? { eyebrow: `正在聊 · ${person.displayName}`, title: activeCase ? "TA 后来怎么回？" : `继续聊 ${person.displayName}`, body: activeCase?.summary ? `我还记得上次是“${activeCase.summary}”。把新的回应或变化发来，不用重新讲背景。` : "把最新的聊天、截图或变化发来，拾光会接着已有的情况判断。" }
-      : { eyebrow: "关系工作区", title: "今天想聊谁？", body: "把最近的聊天、截图或发生的事情告诉拾光。入口一直在这里，聊过一次也不会消失。" };
+      : { eyebrow: "关系分析", title: "今天想看懂哪段关系？", body: "把最近的聊天、截图或发生的事情告诉拾光。不保存人物也可以先分析当前这一次。" };
 
   async function savePerson() {
     const displayName = newName.trim().slice(0, 40); if (!displayName) return;
