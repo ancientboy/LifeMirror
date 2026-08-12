@@ -4,7 +4,7 @@
 .shell > header small, .moderation header small, .acceptance header small { display: block; margin-top: 28px; color: #a9823d; font-size: 9px; letter-spacing: .16em; }
 .shell h1 { margin: 8px 0; font: 38px Georgia, "Songti SC", serif; }
 .shell > header p { max-width: 680px; color: #68716c; line-height: 1.7; }
-.state, .grid, .moderation, .acceptance { max-width: 920px; margin: 28px auto 0; }
+.state, .grid, .moderation, .acceptance, .validation { max-width: 920px; margin: 28px auto 0; }
 .state { display: flex; align-items: center; gap: 10px; padding: 24px; border: 1px solid #d8d2c6; border-radius: 18px; background: #fffaf3; }
 .state p { margin: 0; color: #68716c; }
 .state button { margin-left: auto; }
@@ -15,6 +15,17 @@
 .grid p { margin: 0; color: #68716c; font-size: 11px; line-height: 1.6; }
 .grid .alert { border-color: #b56d5f; background: #fff2ed; }
 .moderation, .acceptance { padding: 24px; border: 1px solid #d8d2c6; border-radius: 22px; background: #fffaf3; }
+.validation { padding:24px; border:1px solid rgba(49,93,82,.2); border-radius:22px; background:linear-gradient(135deg,#edf3ef,#fffaf3); }
+.validation>header { display:flex; align-items:center; gap:12px; }
+.validation>header>svg { width:30px; height:30px; color:#a9823d; }
+.validation>header div { flex:1; }
+.validation h2 { margin:4px 0 0; font:26px Georgia,"Songti SC",serif; }
+.validation>p { color:#68716c; font-size:12px; }
+.validation .waiting { padding:7px 10px; border-radius:999px; color:#856b38; background:#f4ead3; font-size:11px; }
+.metricGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:16px; }
+.metricGrid article { display:grid; gap:5px; padding:13px; border:1px solid rgba(49,93,82,.12); border-radius:13px; background:#fffdf8; }
+.metricGrid small,.metricGrid span { color:#68716c; font-size:10px; }
+.metricGrid b { font:24px Georgia,serif; }
 .moderation > header, .acceptance > header { display: flex; align-items: center; gap: 12px; }
 .moderation > header svg, .acceptance > header svg { width: 30px; height: 30px; color: #315d52; }
 .moderation h2, .acceptance h2 { margin: 4px 0 0; font: 26px Georgia, "Songti SC", serif; }
@@ -31,5 +42,5 @@
 .acceptance button:disabled { opacity: .55; }
 .acceptance ul { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; color: #68716c; font-size: 12px; }
 .failed { color: #a5483c; }
-@media (max-width: 760px) { .grid { grid-template-columns: 1fr 1fr; } .moderation article { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 760px) { .grid,.metricGrid { grid-template-columns: 1fr 1fr; } .moderation article { align-items: flex-start; flex-direction: column; } .validation>header { align-items:flex-start; flex-wrap:wrap; } }
 @media (max-width: 460px) { .grid, .acceptance ul { grid-template-columns: 1fr; } .acceptance > div { align-items: flex-start; flex-direction: column; } }

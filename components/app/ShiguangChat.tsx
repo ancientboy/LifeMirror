@@ -7,7 +7,7 @@ import { createClientId } from "@/lib/client-id";
 import { ACCOUNT_DATA_CHANGED_EVENT, writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
 import { CHAT_HISTORY_CHANGED_EVENT, createChatThread, deleteChatThread, getChatThreads, saveChatThread, type ChatMessage, type ChatThread } from "@/lib/shiguang-chat-history";
 import { recordProductMetric } from "@/lib/product-metrics";
-import { createLifeEventLoop, readLifeEventLoops, upsertLocalLifeEventLoop } from "@/lib/life-event-loops";
+import { createLifeEventLoop, persistLifeEventLoop, readLifeEventLoops } from "@/lib/life-event-loops";
 import { localShiguangReply } from "@/lib/shiguang-response-policy";
 import styles from "./ShiguangChat.module.css";
 
@@ -86,6 +86,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: createClientId(), role: "user", text: question, createdAt: now };
     recordProductMetric("chat_message_sent", "chat", `chat:${userMessage.id}`);
+    if (messages.some((message) => message.role === "user")) recordProductMetric("conversation_continued", "chat", `continued:${thread.id}:${userMessage.id}`);
     if (mode === "result") recordProductMetric("tool_continued_chat", "mirror", `tool-chat:${userMessage.id}`);
     const assistantId = createClientId();
     const pending: ChatMessage = { id: assistantId, role: "assistant", text: "", createdAt: now };
@@ -107,6 +108,7 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
       setResponseMode("local"); finalText = localShiguangReply(question, context); setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, text: finalText } : message));
     }
     if (!temporary) setThread(saveChatThread({ ...thread, messages: [...messages, userMessage, { ...pending, text: finalText }] }));
+    recordProductMetric("first_reply_received", "chat", `reply:${assistantId}`);
     setStreaming(false);
   }
 
@@ -114,14 +116,9 @@ export function ShiguangChat({ theme, context, opening = "如果你对这次结�
     const assistant = [...messages].reverse().find((item) => item.role === "assistant" && item.text.trim());
     const user = [...messages].reverse().find((item) => item.role === "user" && item.text.trim());
     if (!assistant || !user || loopSavedFor === assistant.id) return;
-    const loop = createLifeEventLoop(user.text, assistant.text);
-    const localData = upsertLocalLifeEventLoop(loop);
-    if (authenticated) {
-      void fetch("/api/v1/account/life-loops", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ loop }) })
-        .then(async (response) => response.ok ? await response.json() as { data?: AccountSnapshot } : null)
-        .then((value) => { if (value?.data) writeLocalAccountData(value.data); })
-        .catch(() => writeLocalAccountData(localData));
-    }
+    const loop = createLifeEventLoop(user.text, assistant.text, { source: "chat" });
+    await persistLifeEventLoop(loop);
+    recordProductMetric("life_loop_created", "chat", `loop-create:${loop.id}`);
     setLoopSavedFor(assistant.id);
   }
 

@@ -17,6 +17,7 @@ type MirrorHistoryItem = {
 };
 
 type DailyLoopItem = { date?: string; theme?: string; action?: string; status?: "done" | "later" | "release"; checkedInAt?: string };
+type LifeEventLoopItem = { userFact?: string; shiguangJudgment?: string; suggestedAction?: string; outcomeStatus?: "waiting" | "better" | "same" | "worse" | "closed"; status?: "open" | "resolved" | "dismissed"; updatedAt?: string; createdAt?: string };
 type DailyRuntimeContext = {
   observations?: Array<{ title?: string; summary?: string; evidenceCount?: number; lastObservedAt?: string }>;
   dailyCheckins?: Array<{ id?: string; summary?: string; occurredAt?: string }>;
@@ -70,7 +71,7 @@ function recentContext(history: MirrorHistoryItem[]) {
   })).filter((item) => item.question || item.summary);
 }
 
-export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, history: MirrorHistoryItem[], explicitFacts: Array<{ text?: string; updatedAt?: string }> = [], dailyLoop: DailyLoopItem[] = [], runtime: DailyRuntimeContext | null = null): DailyGuidanceContext {
+export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, history: MirrorHistoryItem[], explicitFacts: Array<{ text?: string; updatedAt?: string }> = [], dailyLoop: DailyLoopItem[] = [], runtime: DailyRuntimeContext | null = null, lifeEventLoops: LifeEventLoopItem[] = []): DailyGuidanceContext {
   const recent = recentContext(history);
   const authorizedFacts = explicitFacts.map((item) => ({ text: item.text?.trim() ?? "", updatedAt: item.updatedAt ?? "" })).filter((item) => item.text).slice(0, 3);
   // Automatic observations can guide a Daily only as a current, provisional
@@ -81,15 +82,21 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
     .sort((left, right) => String(right.checkedInAt || right.date || "").localeCompare(String(left.checkedInAt || left.date || ""))).slice(0, 3)
     .map((item) => ({ date: item.date ?? "", action: String(item.action).slice(0, 160), status: item.status }));
   const latestCheckin = recentCheckins[0];
+  const activeLifeLoop = lifeEventLoops.filter((item) => item?.status === "open" && item.userFact)
+    .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))[0] ?? null;
+  const recentlyResolvedLoops = lifeEventLoops.filter((item) => item?.status === "resolved" && item.userFact)
+    .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || ""))).slice(0, 3);
   if (!profile || !hasUsableCoordinates(profile)) {
     const date = new Date().toISOString().slice(0, 10);
-    const evidence: DailyEvidence[] = recent.length
+    const evidence: DailyEvidence[] = activeLifeLoop
+      ? [{ label: "近期状态", detail: `仍在等待进展：${activeLifeLoop.userFact}` }]
+      : recent.length
       ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }, { label: "近期镜像", detail: recent[0].source }]
       : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }];
     if (latestCheckin) evidence.unshift({ label: "近期状态", detail: `最近一次小行动：${latestCheckin.status === "done" ? "已完成" : latestCheckin.status === "release" ? "先放下" : "还在进行"}「${latestCheckin.action}」` });
     else if (activeObservation) evidence.unshift({ label: "近期状态", detail: `最近反复出现：${activeObservation.title}` });
     if (authorizedFacts.length) evidence.push({ label: "授权现实", detail: `你明确保留：${authorizedFacts[0].text}` });
-    return { mode: "daily_state_note", date, evidence: evidence.slice(0, 4), modelContext: { date, mode: "daily_state_note", recent, recentCheckins, authorizedFacts, activeObservation } };
+    return { mode: "daily_state_note", date, evidence: evidence.slice(0, 4), modelContext: { date, mode: "daily_state_note", activeLifeLoop, recentlyResolvedLoops, recent, recentCheckins, authorizedFacts, activeObservation } };
   }
 
   try {
@@ -128,7 +135,8 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
         ? `${transit.contacts[0].transit}${transit.contacts[0].name}本命${transit.contacts[0].natal} · ${transit.contacts[0].window}主题 · 今日${baziDayRelation.dayPillar}日`
         : `太阳${dailySun?.sign.name ?? ""} · 月亮${dailyMoon?.sign.name ?? ""}${dayPillar ? ` · 今日${dayPillar.ganZhi}日` : ""}` },
     ];
-    if (latestCheckin) evidence.push({ label: "近期状态", detail: `最近一次小行动：${latestCheckin.status === "done" ? "已完成" : latestCheckin.status === "release" ? "先放下" : "还在进行"}「${latestCheckin.action}」` });
+    if (activeLifeLoop) evidence.push({ label: "近期状态", detail: `仍在等待进展：${activeLifeLoop.userFact}` });
+    else if (latestCheckin) evidence.push({ label: "近期状态", detail: `最近一次小行动：${latestCheckin.status === "done" ? "已完成" : latestCheckin.status === "release" ? "先放下" : "还在进行"}「${latestCheckin.action}」` });
     else if (activeObservation) evidence.push({ label: "近期状态", detail: `最近反复出现：${activeObservation.title}` });
     else if (recent.length) {
       evidence.push({ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` });
@@ -140,7 +148,7 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
       date: `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`,
       evidence,
       modelContext: {
-        mode: "personal_daily_fortune", date: today, recent, recentCheckins, authorizedFacts, activeObservation,
+        mode: "personal_daily_fortune", date: today, activeLifeLoop, recentlyResolvedLoops, recent, recentCheckins, authorizedFacts, activeObservation,
         natal: {
           bazi: {
             dayMaster: natalBazi.fiveElementProfile.dayMaster, dayMasterElement: natalBazi.fiveElementProfile.dayMasterElement,
@@ -160,7 +168,7 @@ export function buildDailyGuidanceContext(profile: DailyBirthProfile | null, his
     return {
       mode: "daily_state_note", date,
       evidence: recent.length ? [{ label: "近期状态", detail: `最近在意：${recent[0].question || "一件尚未落定的事"}` }] : [{ label: "近期状态", detail: "今天的状态与此刻的对话" }],
-      modelContext: { date, mode: "daily_state_note", recent, recentCheckins, authorizedFacts, activeObservation },
+      modelContext: { date, mode: "daily_state_note", activeLifeLoop, recentlyResolvedLoops, recent, recentCheckins, authorizedFacts, activeObservation },
     };
   }
 }

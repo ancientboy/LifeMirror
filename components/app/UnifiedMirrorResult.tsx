@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CircleNotch, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { ArrowRight, Check, CircleNotch, Sparkle, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { ShareQuoteCard } from "./ShareQuoteCard";
 import styles from "./UnifiedMirrorResult.module.css";
@@ -8,6 +8,7 @@ import { buildJudgmentFactPack } from "@/lib/shiguang-judgment";
 import { saveMirrorHistory, updateMirrorHistoryFeedback, type MirrorHistoryPersistence, type MirrorHistoryRecord } from "@/lib/mirror-history";
 import { recordProductMetric } from "@/lib/product-metrics";
 import { createClientId } from "@/lib/client-id";
+import { createLifeEventLoop, persistLifeEventLoop } from "@/lib/life-event-loops";
 
 export type MirrorKind = "tarot" | "bazi" | "astrology";
 export type MirrorResult = {
@@ -122,6 +123,7 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
   const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<MirrorHistoryRecord["feedback"]>();
   const [feedbackState, setFeedbackState] = useState<"idle" | "saving" | MirrorHistoryPersistence>("idle");
+  const [loopState, setLoopState] = useState<"idle" | "saving" | "saved">("idle");
   const requestKey = useMemo(() => JSON.stringify({ kind, question, facts }), [facts, kind, question]);
   const resultFallback = useMemo(() => contextualFallback(fallback, question, facts), [fallback, facts, question]);
   const factPack = useMemo(() => buildJudgmentFactPack(kind, facts), [facts, kind]);
@@ -200,6 +202,15 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
     void updateMirrorHistoryFeedback(savedRecordId, next).then(setFeedbackState);
   }
 
+  async function waitForReality() {
+    if (loopState !== "idle") return;
+    setLoopState("saving");
+    const loop = createLifeEventLoop(question, result.interpretation, { suggestedAction: result.action, source: kind, sourceRecordId: savedRecordId ?? undefined });
+    await persistLifeEventLoop(loop);
+    recordProductMetric("life_loop_created", "mirror", `loop-create:${loop.id}`);
+    setLoopState("saved");
+  }
+
   return <section className={`${styles.shell} ${styles[theme]}`} aria-live="polite">
     <header><div><small><Sparkle /> 拾光解读 · {labels[kind]}{historical ? " · 上次测算" : ""}</small><h2>{result.headline}</h2></div>{mode === "loading" && <span><CircleNotch className={styles.spin} />拾光正在组织语言</span>}</header>
     {mode === "basic" && <p className={styles.notice}><WarningCircle /> 拾光暂时无法完成这次解读，以下是依据本次牌阵整理的基础解读。</p>}
@@ -207,7 +218,8 @@ export function UnifiedMirrorResult({ kind, theme, question, facts, fallback, ti
       <article><small>这对你意味着什么</small><p>{result.interpretation}</p></article>
       <article><small>现在可以做的一步</small><p>{result.action}</p></article>
     </div>
-    <aside><small>想接着说的话</small><p>{result.reflectionQuestion}</p><a href={`/app/home/?continue=${encodeURIComponent(result.reflectionQuestion)}`}>和拾光继续聊 <ArrowRight /></a></aside>
+    <aside><small>让这次镜像回到现实</small><p>{result.reflectionQuestion}</p><div className={styles.nextActions}><a href={`/app/home/?continue=${encodeURIComponent(`关于“${question}”，拾光刚才的判断是：${result.interpretation}。${result.reflectionQuestion}`)}`}>和拾光继续聊 <ArrowRight /></a><button type="button" onClick={() => void waitForReality()} disabled={loopState !== "idle"}>{loopState === "saved" ? <><Check /> 已加入后来回访</> : loopState === "saving" ? "正在保存…" : "等现实有回应时再回来"}</button></div></aside>
+    <details className={styles.professional}><summary>查看这次判断的专业依据</summary><p>{facts}</p><small>盘面事实是象征参考；后来真实发生的事始终拥有更高优先级。</small></details>
     <p className={styles.notice} role="status">
       {saveState === "server" && "✓ 已同步到“我的”"}
       {saveState === "guest" && "✓ 游客记录已保存在这台设备"}

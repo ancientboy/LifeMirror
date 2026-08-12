@@ -61,3 +61,21 @@ test("a provisional runtime observation can guide Daily without becoming an expl
   assert.equal(context.evidence[0]?.detail, "最近反复出现：工作与承担");
   assert.deepEqual((context.modelContext as { authorizedFacts?: unknown[] }).authorizedFacts, []);
 });
+
+test("an open reality loop outranks older mirror history", () => {
+  const context = buildDailyGuidanceContext(null, [{ question: "旧的镜像问题", savedAt: "2026-08-01" }], [], [], null, [
+    { userFact: "我在等那次面试的结果", status: "open", updatedAt: "2026-08-11T10:00:00Z" },
+  ]);
+  assert.equal(context.evidence[0]?.detail, "仍在等待进展：我在等那次面试的结果");
+  assert.equal((context.modelContext as { activeLifeLoop?: { userFact?: string } }).activeLifeLoop?.userFact, "我在等那次面试的结果");
+});
+
+test("a resolved reality loop is retained for calibration but is no longer active", () => {
+  const context = buildDailyGuidanceContext(null, [], [], [], null, [
+    { userFact: "面试已经有结果", status: "resolved", outcomeStatus: "better", updatedAt: "2026-08-11T10:00:00Z" },
+  ]);
+  const model = context.modelContext as { activeLifeLoop?: unknown; recentlyResolvedLoops?: Array<{ userFact?: string }> };
+  assert.equal(model.activeLifeLoop, null);
+  assert.equal(model.recentlyResolvedLoops?.[0]?.userFact, "面试已经有结果");
+  assert.doesNotMatch(context.evidence[0]?.detail ?? "", /面试已经有结果/);
+});

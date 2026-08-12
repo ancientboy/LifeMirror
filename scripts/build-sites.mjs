@@ -678,6 +678,15 @@ async function authApi(request, env, pathname) {
     await env.DB.prepare("DELETE FROM expression_preferences WHERE user_id = ?").bind(user.id).run();
     return json({ preferences: await readExpressionPreferences(env, user.id) });
   }
+  if (pathname === "/api/v1/account/product-metrics/events" && request.method === "POST") {
+    const input = await body(request);
+    const eventType = String(input?.eventType || ""); const surface = String(input?.surface || ""); const eventKey = String(input?.eventKey || "");
+    const eventTypes = ["chat_message_sent","daily_opened","daily_checkin_completed","mirror_result_ready","tool_continued_chat","share_card_shared","share_link_created","share_response_created","first_reply_received","conversation_continued","life_loop_created","life_loop_feedback","memory_recall_positive","memory_recall_negative","share_intent"];
+    if (!eventTypes.includes(eventType) || !["chat","daily","mirror","share","relationship"].includes(surface) || !/^[a-zA-Z0-9:_-]{8,120}$/.test(eventKey)) return json({ error: "invalid_product_metric" }, 400);
+    await env.DB.prepare("INSERT OR IGNORE INTO product_metric_events (id, user_id, event_type, surface, event_key, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), user.id, eventType, surface, eventKey, new Date().toISOString()).run();
+    return json({ ok: true }, 201);
+  }
   if (pathname === "/api/v1/account/life-loops" && request.method === "POST") {
     const input = await body(request); const candidate = input?.loop;
     const id = String(candidate?.id || "").trim().slice(0, 120);
@@ -686,7 +695,8 @@ async function authApi(request, env, pathname) {
     if (!id || userFact.length < 2 || shiguangJudgment.length < 4) return json({ error: "invalid_life_loop" }, 400);
     const account = await readAccountData(env.DB, user.id); const now = new Date().toISOString();
     const current = Array.isArray(account.settings?.lifeEventLoops) ? account.settings.lifeEventLoops : [];
-    const loop = { id, userFact, shiguangJudgment, actionStatus: "pending", outcomeStatus: "waiting", status: "open", createdAt: String(candidate?.createdAt || now).slice(0, 40), updatedAt: now };
+    const source = ["chat", "liuyao", "tarot", "bazi", "astrology"].includes(String(candidate?.source || "")) ? candidate.source : undefined;
+    const loop = { id, userFact, shiguangJudgment, suggestedAction: String(candidate?.suggestedAction || "").replace(/\s+/g, " ").trim().slice(0, 400) || undefined, source, sourceRecordId: String(candidate?.sourceRecordId || "").slice(0, 120) || undefined, judgmentCalibration: "pending", actionStatus: "pending", outcomeStatus: "waiting", status: "open", createdAt: String(candidate?.createdAt || now).slice(0, 40), updatedAt: now };
     const lifeEventLoops = [loop, ...current.filter((item) => item && String(item.id || "") !== id)].slice(0, 20);
     const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, lifeEventLoops } });
     await upsertMemoryEvent(env, user.id, { id: "life-loop:" + id, sourceKind: "life_event_loop", sourceKey: id, content: userFact, occurredAt: now });
@@ -702,6 +712,7 @@ async function authApi(request, env, pathname) {
     if (["pending", "taken", "skipped"].includes(String(input?.actionStatus || ""))) next.actionStatus = input.actionStatus;
     if (["waiting", "better", "same", "worse", "closed"].includes(String(input?.outcomeStatus || ""))) next.outcomeStatus = input.outcomeStatus;
     if (["open", "resolved", "dismissed"].includes(String(input?.status || ""))) next.status = input.status;
+    if (["pending", "strengthened", "revised", "overturned"].includes(String(input?.judgmentCalibration || ""))) next.judgmentCalibration = input.judgmentCalibration;
     current[index] = next;
     const data = await writeAccountData(env.DB, user.id, { ...account, settings: { ...account.settings, lifeEventLoops: current.slice(0, 20) } });
     return json({ loop: next, data });
@@ -1251,18 +1262,19 @@ async function runReleaseAcceptance(env) {
     checks.syntheticCleanup = Number(remaining?.total || 0) === 0;
   }
   const passed = Object.values(checks).every(Boolean);
-  await env.DB.prepare("INSERT INTO release_acceptance_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 13, ?, ?, ?)")
+  await env.DB.prepare("INSERT INTO release_acceptance_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 14, ?, ?, ?)")
     .bind(runId, String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), new Date().toISOString()).run();
-  return { passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13, runId };
+  return { passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 14, runId };
 }
 
 async function opsApi(request, env, pathname) {
-  if (pathname === "/api/v1/ops/health" && request.method === "GET") return json({ status: "ok", phase: "P0-P3", sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13, runtimeVersions: RUNTIME_VERSIONS });
+  if (pathname === "/api/v1/ops/health" && request.method === "GET") return json({ status: "ok", phase: "S4-S7-instrumented", sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 14, runtimeVersions: RUNTIME_VERSIONS });
   if (!(await opsAuthorized(request, env))) return json({ error: "operations_authentication_required" }, 401);
   if (pathname === "/api/v1/ops/access" && request.method === "GET") return json({ authorized: true });
   if (pathname === "/api/v1/ops/summary" && request.method === "GET") {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [audits, tasks, reports, deliveries, shareFunnel, feedback, acceptance, budget] = await Promise.all([
+    const monthSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [audits, tasks, reports, deliveries, shareFunnel, feedback, acceptance, budget, coreSignals, retention] = await Promise.all([
       env.DB.prepare("SELECT operation, outcome, count(*) AS total, round(avg(latency_ms)) AS averageLatencyMs, sum(estimated_cost_microusd) AS estimatedCostMicrousd FROM llm_call_audits WHERE occurred_at >= ? GROUP BY operation, outcome").bind(since).all(),
       env.DB.prepare("SELECT status, count(*) AS total FROM background_tasks GROUP BY status").all(),
       env.DB.prepare("SELECT status, count(*) AS total FROM relationship_safety_reports GROUP BY status").all(),
@@ -1271,6 +1283,8 @@ async function opsApi(request, env, pathname) {
       env.DB.prepare("SELECT feedback, count(*) AS total FROM mirror_feedback_events WHERE updated_at >= ? GROUP BY feedback").bind(since).all(),
       env.DB.prepare("SELECT id, source_commit AS sourceCommit, schema_version AS schemaVersion, result, checks_json AS checksJson, created_at AS createdAt FROM release_acceptance_runs ORDER BY created_at DESC LIMIT 1").first(),
       checkDailyLlmBudget(env),
+      env.DB.prepare("SELECT event_type AS eventType, count(*) AS total, count(DISTINCT user_id) AS users FROM product_metric_events WHERE occurred_at >= ? GROUP BY event_type").bind(monthSince).all(),
+      env.DB.prepare("SELECT count(*) AS newUsers, SUM(CASE WHEN EXISTS (SELECT 1 FROM product_metric_events e WHERE e.user_id = u.id AND date(e.occurred_at) = date(u.created_at, '+1 day')) THEN 1 ELSE 0 END) AS dayOneUsers, SUM(CASE WHEN EXISTS (SELECT 1 FROM product_metric_events e WHERE e.user_id = u.id AND date(e.occurred_at) = date(u.created_at, '+7 day')) THEN 1 ELSE 0 END) AS daySevenUsers FROM identity_users u WHERE u.created_at >= ? AND u.provider <> 'release_acceptance'").bind(monthSince).first(),
     ]);
     const grouped = {};
     for (const row of audits.results || []) {
@@ -1283,7 +1297,12 @@ async function opsApi(request, env, pathname) {
       if (failureRate >= Number(env.LLM_FAILURE_ALERT_RATE || .1)) alerts.push({ kind: "llm_failure_rate", operation, value: failureRate });
       if (latencyMs >= Number(env.LLM_LATENCY_ALERT_MS || 12000)) alerts.push({ kind: "llm_latency", operation, value: Math.round(latencyMs) });
     }
-    return json({ windowHours: 24, llm: audits.results || [], tasks: tasks.results || [], moderation: reports.results || [], deliveries: deliveries.results || [], shareFunnel: shareFunnel.results || [], feedback: feedback.results || [], acceptance: acceptance ? { ...acceptance, checks: safeParse(acceptance.checksJson, {}) } : null, budget, alerts, privacy: "aggregate_content_free" });
+    const signals = Object.fromEntries((coreSignals.results || []).map((item) => [item.eventType, { total: Number(item.total || 0), users: Number(item.users || 0) }]));
+    const signalTotal = (key) => Number(signals[key]?.total || 0); const signalUsers = (key) => Number(signals[key]?.users || 0); const newUsers = Number(retention?.newUsers || 0);
+    const dayOneRetention = newUsers ? Number(retention?.dayOneUsers || 0) / newUsers : 0; const daySevenRetention = newUsers ? Number(retention?.daySevenUsers || 0) / newUsers : 0;
+    const realityFeedbackRate = signalTotal("life_loop_created") ? signalTotal("life_loop_feedback") / signalTotal("life_loop_created") : 0;
+    const coreExperience = { sampleUsers: newUsers, firstConversationContinuationRate: signalUsers("first_reply_received") ? signalUsers("conversation_continued") / signalUsers("first_reply_received") : 0, eventCreationRate: newUsers ? signalUsers("life_loop_created") / newUsers : 0, dayOneRetention, daySevenRetention, realityFeedbackRate, memoryAccuracyRate: signalTotal("memory_recall_positive") + signalTotal("memory_recall_negative") ? signalTotal("memory_recall_positive") / (signalTotal("memory_recall_positive") + signalTotal("memory_recall_negative")) : 0, toolContinuationRate: signalTotal("mirror_result_ready") ? signalTotal("tool_continued_chat") / signalTotal("mirror_result_ready") : 0, shareIntentRate: signalTotal("mirror_result_ready") ? signalTotal("share_intent") / signalTotal("mirror_result_ready") : 0, signals, monetizationGate: { minimumSampleReached: newUsers >= 30, observationWindowDays: 30, ready: newUsers >= 30 && dayOneRetention >= .3 && daySevenRetention >= .15 && realityFeedbackRate >= .25 } };
+    return json({ windowHours: 24, llm: audits.results || [], tasks: tasks.results || [], moderation: reports.results || [], deliveries: deliveries.results || [], shareFunnel: shareFunnel.results || [], feedback: feedback.results || [], coreExperience, acceptance: acceptance ? { ...acceptance, checks: safeParse(acceptance.checksJson, {}) } : null, budget, alerts, privacy: "aggregate_content_free" });
   }
   if (pathname === "/api/v1/ops/acceptance/run" && request.method === "POST") {
     const result = await runReleaseAcceptance(env);
@@ -1318,8 +1337,8 @@ async function opsApi(request, env, pathname) {
     const versionMap = Object.fromEntries((versions.results || []).map((item) => [item.component, Number(item.version)]));
     const checks = { sourceCommit: /^[0-9a-f]{7,64}$/i.test(String(env.SOURCE_COMMIT || "")), schema: ["account_data", "memory_events", "memory_observations", "background_tasks", "account_item_tombstones", "release_acceptance_runs", "mirror_feedback_events"].every((name) => tableNames.has(name)), versions: ["observation_extractor", "context_builder", "account_merge_policy", "release_recovery_contract", "release_acceptance_contract"].every((name) => Number(versionMap[name]) >= 1) };
     const passed = Object.values(checks).every(Boolean); const now = new Date().toISOString();
-    await env.DB.prepare("INSERT INTO recovery_drill_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 13, ?, ?, ?)").bind(crypto.randomUUID(), String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), now).run();
-    return json({ passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 13 }, passed ? 200 : 503);
+    await env.DB.prepare("INSERT INTO recovery_drill_runs (id, source_commit, schema_version, result, checks_json, created_at) VALUES (?, ?, 14, ?, ?, ?)").bind(crypto.randomUUID(), String(env.SOURCE_COMMIT || "unknown"), passed ? "passed" : "failed", JSON.stringify(checks), now).run();
+    return json({ passed, checks, sourceCommit: String(env.SOURCE_COMMIT || "unknown"), schemaVersion: 14 }, passed ? 200 : 503);
   }
   return json({ error: "not_found" }, 404);
 }
@@ -1408,8 +1427,10 @@ async function shiguang(request, env) {
   const sharedEvents = Array.isArray(memory.sharedEvents) && memory.sharedEvents.length ? memory.sharedEvents.map((item) => "- " + String(item.content || "")).join("\n") : "本轮没有双方明确共享的关系互动。";
   const chatSystem = "你是 LifeMirror 的拾光，一位温柔、安静、真诚、有洞察的长期陪伴者。你不是客服、算命先生或心理报告生成器。请像熟悉用户处境的真人一样自然接话：先回应这一次用户实际说的内容与情绪，不复述整句，不用‘我听见你’作为固定开头；再根据需要追问、澄清或给一个小而可撤回的建议。只有当前结果上下文确实相关时才引用盘面证据，并明确区分事实、象征解释与待验证假设。不要每一轮都总结、推荐工具或强行用问题收尾；允许简短回应、承接上一轮和自然停顿。禁止宿命论、确定性预测、空泛鸡汤，以及医疗、法律、财务替代建议。\n\n你只能使用下面的本轮上下文和已授权记忆。明确记忆来自用户主动保存的陈述；镜像记录只是过去的象征性观察，绝不能变成对用户人格或现实经历的断言。人物资料只是用户自己的视角，不能当作对方的内心或人格事实。双方共享互动只可复述已经明确发送或回答的内容，不能推断对方未说出的心理。如果它们与用户当前说法冲突，以当前说法为准。若未结束事项和当前话题有关，优先自然关心进展；绝不假装知道答案或强行提起。\n\n用户明确选择的表达方式：" + expressionInstruction(expression) + (highRiskInstruction(boundary) ? "\n\n<high_risk_boundary>\n" + highRiskInstruction(boundary) + "\n</high_risk_boundary>" : "") + "\n\n<mirror_context>\n" + input.context + "\n</mirror_context>\n\n<authorized_explicit_memory>\n" + explicitFacts + "\n</authorized_explicit_memory>\n\n<retrieved_mirror_evidence>\n" + mirrorEvidence + "\n</retrieved_mirror_evidence>\n\n<user_marked_open_loops>\n" + openLoops + "\n</user_marked_open_loops>\n\n<owner_authored_people_context>\n" + people + "\n</owner_authored_people_context>\n\n<shared_relationship_interactions>\n" + sharedEvents + "\n</shared_relationship_interactions>\n\n文化表达：" + (input.theme === "east" ? "克制自然的东方语感" : "温暖清晰的西方象征语感");
   const governedChatSystem = chatSystem + "\n\n拾光的核心定位：会记得后来发生了什么的 AI 朋友。回答前在内部依次完成：识别情绪、找出真正担心、区分已知事实与猜测、检查相关历史、形成可被纠正的暂时判断、选择一个可撤回的下一步、判断是否需要以后回访；不要展示分析过程。默认用自然的两到三小段：先说具体理解，再给有态度但可被纠正的判断，最后只在有帮助时给一个可撤回的小动作。不要用‘我听见你了’‘这件事我接住了’‘你怎么看’‘你想选哪个’‘要不要一起想想’‘决定权在你’等咨询师或客服模板。只有缺少一个会改变判断的事实时，才问一个具体问题。";
+  const dailyGuidanceSystem = "你是 LifeMirror 的拾光。根据 <daily_context> 生成一条今日导航，只能使用其中已有事实。若 mode 是 personal_daily_fortune，把 natal 当稳定底图、today 当今天的变量；若 mode 是 daily_state_note，不得冒充命理或运势。现实落点严格按 activeLifeLoop、recentCheckins、activeObservation、recent 的顺序选择：activeLifeLoop 是用户明确等待现实回应的当前事项，应优先承接；recentlyResolvedLoops 只用于校准过去判断，不得继续写成未完成事项。theme 是一句明确自然的今日判断，reason 说明和此刻的关系，action 只给一个今天能完成且可撤回的小动作。不做吉凶预测，不补造经历，不反问用户。sources 只能从本命底图、今日行运、近期状态、近期镜像中选择。只返回 JSON，字段必须是 theme, reason, action, sources。\n<daily_context>\n" + input.context + "\n</daily_context>";
   try {
-    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: input.mode === "mirror_result" ? mirrorResultSystem(input) : governedChatSystem }, ...messages] }, { userId: user?.id || null, operation: input.mode === "mirror_result" ? "mirror_result" : input.mode === "daily_guidance" ? "daily_guidance" : "chat" });
+    const system = input.mode === "mirror_result" ? mirrorResultSystem(input) : input.mode === "daily_guidance" ? dailyGuidanceSystem : governedChatSystem;
+    const generated = await completeWithFallback(env, { stream: true, temperature: 0.65, messages: [{ role: "system", content: system }, ...messages] }, { userId: user?.id || null, operation: input.mode === "mirror_result" ? "mirror_result" : input.mode === "daily_guidance" ? "daily_guidance" : "chat" });
     return new Response(generated.text, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-shiguang-model-source": generated.provider } });
   } catch {
     return json({ error: "llm_upstream_failed" }, 502);

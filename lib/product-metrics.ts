@@ -9,6 +9,13 @@ export const PRODUCT_METRIC_EVENTS = [
   "share_card_shared",
   "share_link_created",
   "share_response_created",
+  "first_reply_received",
+  "conversation_continued",
+  "life_loop_created",
+  "life_loop_feedback",
+  "memory_recall_positive",
+  "memory_recall_negative",
+  "share_intent",
 ] as const;
 
 export type ProductMetricEvent = typeof PRODUCT_METRIC_EVENTS[number];

@@ -28,6 +28,14 @@
 .shell aside { border-left: 3px solid #b89a5e; }
 .shell aside a { width: max-content; display: flex; align-items: center; gap: 6px; margin-top: 13px; padding: 9px 12px; border-radius: 999px; color: #315d52; background: #edf4ef; font-size: 11px; font-weight: 700; }
 .shell aside a svg { width: 14px; }
+.nextActions { display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }
+.nextActions a { margin-top:0!important; }
+.nextActions button { display:flex; align-items:center; gap:6px; padding:9px 12px; border:1px solid rgba(49,93,82,.2); border-radius:999px; color:#315d52; background:#fffdf7; font-size:11px; font-weight:700; cursor:pointer; }
+.nextActions button:disabled { opacity:.72; cursor:default; }
+.professional { padding:13px 15px; border:1px solid rgba(49,93,82,.12); border-radius:14px; color:#68736e; background:rgba(255,255,255,.5); font-size:11px; }
+.professional summary { width:max-content; cursor:pointer; color:#526c62; font-weight:700; }
+.professional p { margin:10px 0 6px; line-height:1.7; white-space:pre-wrap; }
+.professional small { color:#8a8170; }
 .notice { display: flex; align-items: center; gap: 7px; margin: 0; padding: 10px 12px; border-radius: 12px; background: #a9823d12; color: #76694f; font-size: 12px; }
 .notice button { margin-left: .3rem; border: 0; border-bottom: 1px solid currentColor; padding: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
 .feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #6b756f; font-size: 12px; }

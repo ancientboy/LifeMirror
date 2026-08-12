@@ -41,6 +41,8 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       if (response.status === 401) { setStatus("登录后即可生成让对方回应的关系链接"); return; }
       if (!response.ok) throw new Error();
       const payload = await response.json() as { path: string }; const url = new URL(payload.path, window.location.origin).toString();
+      recordProductMetric("share_link_created", "share", `share-link:${Date.now()}:${variant}`);
+      recordProductMetric("share_intent", "share", `share-intent:${Date.now()}:${variant}`);
       recordProductMetric("share_card_shared", "share", `share-card:${Date.now()}:${variant}`);
       if (typeof navigator.share === "function") await navigator.share({ title: "LifeMirror · 关系镜像", text: current.quote, url }); else await navigator.clipboard.writeText(url);
       setStatus(typeof navigator.share === "function" ? "已打开分享面板" : "回应链接已复制");
@@ -66,7 +68,7 @@ export function ShareQuoteCard({ title, quote, meta, theme, image, contentByVari
       context.fillStyle = dark ? colors.accent : "#806d43"; context.font = "600 22px sans-serif"; context.fillText(variant === "paper" ? "拾光 · 一句朋友话" : variant === "night" ? "拾光 · 清醒但不刺人" : "拾光 · 留一点未说完", 92, 1220);
       const portrait = await loadImage(visualImage); if (portrait) { const ratio = portrait.width / portrait.height; const height = variant === "character" ? 680 : 640; context.drawImage(portrait, variant === "character" ? 650 : 640, 570, height * ratio, height); }
       const blob = await exportCanvas(canvas); const name = `lifemirror-${theme}-${variant}.png`;
-      if (action === "share") recordProductMetric("share_card_shared", "share", `share-card:${Date.now()}:${variant}`);
+      if (action === "share") { recordProductMetric("share_card_shared", "share", `share-card:${Date.now()}:${variant}`); recordProductMetric("share_intent", "share", `share-intent:${Date.now()}:${variant}`); }
       if (action === "share" && typeof File !== "undefined" && typeof navigator.share === "function") { const file = new File([blob], name, { type: "image/png" }); if (typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "LifeMirror · 拾光", text: `${current.quote}\n${current.meta}` }); setStatus("已打开系统分享面板"); return; } catch (error) { if (error instanceof DOMException && error.name === "AbortError") { setStatus("已取消分享，卡片仍可保存"); return; } } } }
       downloadBlob(blob, name); setStatus(action === "share" ? "当前浏览器不支持直接分享，已为你保存图片" : "这款分享卡已保存");
     } catch { setStatus("暂时无法生成分享卡，请稍后再试"); }

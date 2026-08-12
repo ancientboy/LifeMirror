@@ -17,6 +17,8 @@ import { ShiguangChat } from "./ShiguangChat";
 import styles from "./DailyMirrorExperience.module.css";
 import { markAccountDataChanged } from "@/lib/account-data";
 import { createClientId } from "@/lib/client-id";
+import { createLifeEventLoop, persistLifeEventLoop } from "@/lib/life-event-loops";
+import { recordProductMetric } from "@/lib/product-metrics";
 
 type CoinValue = 2 | 3;
 type Toss = readonly [CoinValue, CoinValue, CoinValue];
@@ -297,6 +299,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
   const [pendingToss, setPendingToss] = useState<Toss | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [loopSaved, setLoopSaved] = useState(false);
   const [error, setError] = useState("");
   const [shareStatus, setShareStatus] = useState("");
   const [shareArtifact, setShareArtifact] = useState<ShareArtifact | null>(null);
@@ -413,7 +416,15 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
     setPendingToss(null);
     setCastingPhase("idle");
     releaseShareArtifact();
-    setQuestion(""); setTopicHint(""); setIntentSelection(null); setIntentClarification(null); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionKnowledge(null); setAnalysisContext(null); setReflectionResult(null); setSaved(false); setError(""); setShareStatus(""); setStage("question");
+    setQuestion(""); setTopicHint(""); setIntentSelection(null); setIntentClarification(null); setTosses([]); setHexagram(null); setKnowledge(null); setReflectionKnowledge(null); setAnalysisContext(null); setReflectionResult(null); setSaved(false); setLoopSaved(false); setError(""); setShareStatus(""); setStage("question");
+  }
+
+  async function waitForLiuyaoReality() {
+    if (!reflectionResult || loopSaved) return;
+    const loop = createLifeEventLoop(reflectionResult.question, reflectionResult.reflection.shiguangInterpretation, { suggestedAction: reflectionResult.reflection.practicalGuidance, source: "liuyao" });
+    await persistLifeEventLoop(loop);
+    recordProductMetric("life_loop_created", "mirror", `loop-create:${loop.id}`);
+    setLoopSaved(true);
   }
 
   async function resolveIntentAndContinue() {
@@ -882,7 +893,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
             {reflectionResult.explanationTrace.liuyao_factors.length > 0 && <div><small>传统结构线索</small><ul>{reflectionResult.explanationTrace.liuyao_factors.map((item) => <li key={item}>{humanizeLiuyaoFactor(item)}</li>)}</ul></div>}
           </details>
           {error && <div className={styles.error} role="alert">{error}</div>}
-          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>问一个新问题</button><p className={styles.savedNote}>{saved ? "✓ 已自动记录到“我的”" : "正在自动记录这次镜像…"}</p></div>
+          <div className={styles.reflectionActions}><button className={styles.secondaryButton} onClick={startMirror}>问一个新问题</button><button className={styles.primaryButton} type="button" onClick={() => void waitForLiuyaoReality()} disabled={loopSaved}>{loopSaved ? <><Check /> 已加入后来回访</> : "等现实有回应时再回来"}</button><p className={styles.savedNote}>{saved ? "✓ 已自动记录到“我的”" : "正在自动记录这次镜像…"}</p></div>
           {saved && <p className={styles.savedNote}>已保存到“我的镜像”。</p>}
         </section>
       )}
