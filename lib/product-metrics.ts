@@ -11,6 +11,7 @@ export const PRODUCT_METRIC_EVENTS = [
   "share_response_created",
   "first_reply_received",
   "conversation_continued",
+  "conversation_mode_changed",
   "life_loop_created",
   "life_loop_feedback",
   "memory_recall_positive",
