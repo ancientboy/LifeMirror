@@ -14,6 +14,7 @@ for (const contract of [
   "/api/v1/account/notifications",
   "/api/v1/account/relationships",
   "/api/shiguang/vision/extract",
+  "/api/shiguang/person-mirror",
   "/api/v1/social/",
   "/api/v1/ops/summary",
   "/api/v1/ops/tasks/replay",
@@ -38,6 +39,7 @@ for (const contract of [
   '"text/event-stream; charset=utf-8"',
   "async scheduled(",
 ]) assert.ok(source.includes(contract), `missing Worker release contract: ${contract}`);
+for (const contract of ["personMirrorChat", "你不是拾光，也不是咨询师", "现实反馈 > 用户明确纠正 > TA 在截图中真实说过的话"]) assert.ok(source.includes(contract), `missing person mirror isolation contract: ${contract}`);
 
 const migration = await readFile(new URL("../.openai/drizzle/0012_release_reliability_and_moderation.sql", import.meta.url), "utf8");
 for (const table of ["account_item_tombstones", "notification_delivery_outbox", "share_funnel_events", "recovery_drill_runs"]) assert.ok(migration.includes(table), `missing D1 migration table: ${table}`);
