@@ -1,10 +1,12 @@
 "use client";
 
-import { ArrowLeft, CalendarBlank, ChartPolar, Check, ChatCenteredText, Plus, Sparkle, Star, Trash } from "@phosphor-icons/react";
-import { useState } from "react";
+import { ArrowLeft, CalendarBlank, ChartPolar, Check, ChatCenteredText, CircleNotch, Plus, Sparkle, Star, Trash } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
 import { buildPersonContext, personMirrorInsight } from "@/lib/person-context";
-import { coachRehearsalReply, createPersonSimulationReply } from "@/lib/relationship-rehearsal";
 import { createRelationshipLoop, deletePersonObservation, getPrivatePeople, getRelationshipLoopsForPerson, savePersonObservation, savePrivatePerson, saveSimulationAssessment, type PrivatePerson } from "@/lib/relationship-context";
+import { buildPersonMirrorChatInput, clearPersonMirrorTurns, personMirrorHasPersonalEvidence, readPersonMirrorTurns, writePersonMirrorTurns, type PersonMirrorTurn } from "@/lib/person-mirror-chat";
+import { fetchRelationshipPersonContext } from "@/lib/relationships/repository";
+import type { RelationshipMemoryContext } from "@/lib/relationships/types";
 import { calculateBazi } from "@/server/tools/bazi/engine";
 import type { BaziResult } from "@/server/tools/bazi/types";
 import { calculateAstrology } from "@/server/tools/astrology/core";
@@ -14,12 +16,15 @@ import { BirthDateFields } from "./BirthDateFields";
 import styles from "./PersonMirror.module.css";
 import profileStyles from "./PersonMirrorProfile.module.css";
 
-type Message = { role: "user" | "simulation"; text: string; id: string };
+const emptyRelationshipMemory: RelationshipMemoryContext = { recentCases: [], extractedMessages: [], priorAnalyses: [], realityFeedback: [] };
 
-export function PersonMirror({ person, onClose, onPractice }: { person: PrivatePerson; onClose: () => void; onPractice: (person: PrivatePerson) => void }) {
+export function PersonMirror({ person, onClose, initialPractice = false }: { person: PrivatePerson; onClose: () => void; initialPractice?: boolean }) {
   const [observation, setObservation] = useState("");
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<PersonMirrorTurn[]>([]);
+  const [serverMemory, setServerMemory] = useState<RelationshipMemoryContext>(emptyRelationshipMemory);
+  const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState("");
   const [correction, setCorrection] = useState<string | null>(null);
   const [correctionText, setCorrectionText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -33,6 +38,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
   const [birthDate, setBirthDate] = useState(person.birthProfile?.date ?? "");
   const [loopCreated, setLoopCreated] = useState(false);
   const [, refresh] = useState(0);
+  const practiceRef = useRef<HTMLElement>(null);
   const currentPerson = getPrivatePeople().find((item) => item.id === person.id) ?? person;
   const loops = getRelationshipLoopsForPerson(person.id);
   const evidence = currentPerson.observations ?? [];
@@ -41,6 +47,18 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
   const astrologyReference = currentPerson.stableReferences?.astrology.payload as Partial<AstrologyResult> | undefined;
   const baziPillars = baziReference?.pillars?.filter(Boolean).map((item) => item!.ganZhi).join(" · ");
   const astrologyPlanets = astrologyReference?.planets?.slice(0, 5);
+  const chatInput = buildPersonMirrorChatInput(currentPerson, context, serverMemory, messages);
+  const hasPersonalEvidence = personMirrorHasPersonalEvidence(chatInput);
+
+  useEffect(() => {
+    setMessages(readPersonMirrorTurns(person.id));
+    void fetchRelationshipPersonContext(person.id).then(setServerMemory).catch(() => setServerMemory(emptyRelationshipMemory));
+  }, [person.id]);
+
+  useEffect(() => {
+    if (!initialPractice) return;
+    window.setTimeout(() => practiceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }, [initialPractice]);
 
   function openBirthProfile() {
     setProfileOpen(true);
@@ -51,11 +69,24 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
   }
 
   function addObservation() { if (!savePersonObservation(person.id, observation)) return; setObservation(""); refresh((value) => value + 1); }
-  function send() {
-    const text = draft.trim(); if (!text) return;
-    const reply = createPersonSimulationReply(currentPerson, text, context);
-    setMessages((value) => [...value, { role: "user", text, id: crypto.randomUUID() }, { role: "simulation", text: reply, id: crypto.randomUUID() }]); setDraft("");
+  async function send() {
+    const text = draft.trim(); if (!text || generating) return;
+    const userTurn: PersonMirrorTurn = { role: "user", text, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    const pending = [...messages, userTurn];
+    setMessages(pending); writePersonMirrorTurns(person.id, pending); setDraft(""); setGenerationError(""); setGenerating(true);
+    try {
+      const response = await fetch("/api/shiguang/person-mirror", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(buildPersonMirrorChatInput(currentPerson, context, serverMemory, pending)) });
+      if (!response.ok) throw new Error("person_mirror_unavailable");
+      const value = await response.json() as { reply?: string };
+      if (!value.reply?.trim()) throw new Error("empty_person_mirror_reply");
+      const completed = [...pending, { role: "simulation" as const, text: value.reply.trim(), id: crypto.randomUUID(), createdAt: new Date().toISOString() }];
+      setMessages(completed); writePersonMirrorTurns(person.id, completed);
+    } catch {
+      setMessages(messages); writePersonMirrorTurns(person.id, messages); setDraft(text);
+      setGenerationError("这次模拟没有连接成功。你刚才写的话还在，可以直接重试。");
+    } finally { setGenerating(false); }
   }
+  function startNewPractice() { clearPersonMirrorTurns(person.id); setMessages([]); setCorrection(null); setCorrectionText(""); setGenerationError(""); setLoopCreated(false); }
   function saveCorrection() { if (!correctionText.trim()) return; savePersonObservation(person.id, correctionText, "owner_correction"); setCorrection(null); setCorrectionText(""); refresh((value) => value + 1); }
   function assessSimulation(assessment: "close" | "partial") { saveSimulationAssessment(person.id, assessment); refresh((value) => value + 1); }
   function prepareReality() {
@@ -92,7 +123,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
 
   return <div className={styles.backdrop}><main className={styles.page}>
     <header><button type="button" onClick={onClose}><ArrowLeft />返回</button><small>你的视角 · 私密保存</small></header>
-    <section className={styles.hero}><p>{currentPerson.relationshipType || "我在意的人"}</p><h1>{currentPerson.displayName}</h1><span>这是你目前视角下的 TA 镜像；真实互动会比模拟更重要。</span><div><button type="button" onClick={() => onPractice(currentPerson)}><Sparkle />快速演练</button><button type="button" onClick={() => document.getElementById("person-observation")?.focus()}><Plus />记录刚刚发生的事</button></div></section>
+    <section className={styles.hero}><p>{currentPerson.relationshipType || "我在意的人"}</p><h1>{currentPerson.displayName}</h1><span>这是你目前视角下的 TA 镜像；真实互动会比模拟更重要。</span><div><button type="button" onClick={() => practiceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}><Sparkle />和 TA 演练</button><button type="button" onClick={() => document.getElementById("person-observation")?.focus()}><Plus />记录刚刚发生的事</button></div></section>
     <section className={styles.grid}><article><small>拾光目前看到的线索</small><h2>{personMirrorInsight(context)}</h2><p>来自你的 {context.ownerObservations.length} 条观察、{context.realInteractions.length} 次真实反馈、{context.simulationCorrections.length} 条模拟纠正和 {context.simulationAssessments.length} 次轻量校正。它们不是对 TA 的人格结论。</p></article><article><small>未结束的事</small><h2>{context.openLoops.length ? `有 ${context.openLoops.length} 次沟通正等你带回结果` : "暂时没有等待中的沟通"}</h2><p>现实里的回应会成为下一次练习最优先的线索。</p></article></section>
     <section className={styles.timeline}><header><span><small>TA 的镜像资料</small><h2>只保留你的视角</h2></span><button type="button" onClick={() => setProfileOpen((value) => !value)}>{profileOpen ? "收起" : "编辑基本资料"}</button></header><p>{currentPerson.userDescription || "目前还没有你的观察。可以从一件最近发生的具体事开始。"}</p>{currentPerson.communicationNotes && <p>沟通时你想留意：{currentPerson.communicationNotes}</p>}{currentPerson.birthProfile && <p>出生底图：{currentPerson.birthProfile.date}{currentPerson.birthProfile.timeKnown ? ` · ${currentPerson.birthProfile.time}` : " · 时间未知"}{currentPerson.birthProfile.place ? ` · ${currentPerson.birthProfile.place}` : ""}。它只作为待现实验证的象征参考，不会成为人格结论。</p>}{currentPerson.isMinor && <p>未成年人保护已启用：此镜像仅作为你的私密沟通准备，不提供邀请或共享入口。</p>}
       <div className={profileStyles.birthGateway}><span><CalendarBlank /><span><b>生日与出生资料</b><small>{currentPerson.birthProfile ? `${currentPerson.birthProfile.date}${currentPerson.birthProfile.place ? ` · ${currentPerson.birthProfile.place}` : ""}` : "填写后自动生成 TA 的命盘与星盘底图"}</small></span></span><button type="button" onClick={openBirthProfile}>{currentPerson.birthProfile ? "编辑并重新生成" : "添加生日"}</button></div>
@@ -122,7 +153,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
       <label className={profileStyles.minorCheck}><input name="isMinor" type="checkbox" defaultChecked={currentPerson.isMinor}/><span>TA 是未成年人 <small>仅限私密沟通准备</small></span></label>
       <button className={profileStyles.saveProfile}>保存资料</button>
     </form>}</section>
-    <section className={styles.chat}><header><div><small>和 {currentPerson.displayName} 练习一下</small><h2>说一句你真的可能会说的话</h2></div><ChatCenteredText /></header><p>这里是一种可纠正的可能回应，不是现实中的 TA，也不会被自动写成事实。</p><div className={styles.messages}>{messages.map((message) => <article className={message.role === "user" ? styles.user : styles.simulation} key={message.id}><b>{message.role === "user" ? "你" : `${currentPerson.displayName} · 模拟`}</b><p>{message.text}</p>{message.role === "simulation" && <div><button onClick={() => assessSimulation("close")}>像 TA</button><button onClick={() => assessSimulation("partial")}>有一点像</button><button onClick={() => setCorrection(message.id)}>不像 TA</button></div>}{correction === message.id && <aside><input autoFocus value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} placeholder="TA 更可能怎么说？"/><button onClick={saveCorrection}>保存这条纠正</button></aside>}</article>)}</div><div className={styles.compose}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`例如：${currentPerson.displayName}，我想聊聊昨天那件事……`} maxLength={240}/><button onClick={send}>发送</button></div>{messages.length > 0 && <><p className={styles.coach}><Sparkle />{coachRehearsalReply(messages.filter((item) => item.role === "user").at(-1)?.text ?? "")}</p><button className={styles.reality} onClick={prepareReality} disabled={loopCreated}><Check />{loopCreated ? "已准备，之后回来告诉拾光结果" : "我准备这么说，之后回来告诉拾光结果"}</button></>}</section>
+    <section className={styles.chat} ref={practiceRef}><header><div><small>{currentPerson.displayName} · 模拟演练</small><h2>现在直接和 TA 的镜像说</h2></div><span className={styles.simulationBadge}><ChatCenteredText /> 模拟，不代表本人</span></header><p>这里由 {currentPerson.displayName} 的沟通镜像直接回应。拾光不会自动插话；你标记的纠正和现实结果会优先用于下一次模拟。</p><div className={styles.evidenceStatus}>{hasPersonalEvidence ? `已结合人物资料、真实聊天和现实反馈中目前可用的线索。` : "目前人物线索还比较少，模拟会保持中性；可以在下方纠正，或先记录一件真实发生的事。"}</div><div className={styles.messages}>{messages.length ? messages.map((message) => <article className={message.role === "user" ? styles.user : styles.simulation} key={message.id}><b>{message.role === "user" ? "你" : `${currentPerson.displayName} · 模拟`}</b><p>{message.text}</p>{message.role === "simulation" && <div><button onClick={() => assessSimulation("close")}>像 TA</button><button onClick={() => assessSimulation("partial")}>有一点像</button><button onClick={() => setCorrection(message.id)}>不像 TA</button></div>}{correction === message.id && <aside><input autoFocus value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} placeholder="TA 更可能怎么说？"/><button onClick={saveCorrection}>保存这条纠正</button></aside>}</article>) : <div className={styles.emptyPractice}><b>这是独立的 TA 演练空间</b><span>你说一句，左侧会只以 {currentPerson.displayName} 的模拟身份回应。</span></div>}{generating && <article className={styles.simulation}><b>{currentPerson.displayName} · 模拟</b><p className={styles.generating}><CircleNotch /> 正在组织回应……</p></article>}</div>{generationError && <p className={styles.generationError}>{generationError}</p>}<div className={styles.compose}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`直接对 ${currentPerson.displayName} 说……`} maxLength={500}/><button onClick={() => void send()} disabled={generating || !draft.trim()}>{generating ? "等待" : "发送"}</button></div>{messages.length > 0 && <div className={styles.practiceActions}><button type="button" onClick={startNewPractice}>开始新一轮</button><button className={styles.reality} onClick={prepareReality} disabled={loopCreated}><Check />{loopCreated ? "已加入待回访" : "带回现实，之后记录结果"}</button></div>}</section>
     <section className={styles.timeline}><header><small>你们最近发生的事</small><h2>关系时间线</h2></header><form onSubmit={(event) => { event.preventDefault(); addObservation(); }}><textarea id="person-observation" value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="记录一件具体发生的事，不需要替 TA 下结论" maxLength={300}/><button>保存观察</button></form>{[...evidence, ...loops.map((loop) => ({ id: loop.id, text: loop.reflection || loop.situation, source: loop.status === "reported" ? "real_world_feedback" : "planned_action", createdAt: loop.reportedAt ?? loop.createdAt }))].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map((item) => <article key={item.id}><small>{item.source === "owner_correction" ? "模拟纠正" : item.source === "simulation_assessment" ? "模拟反馈" : item.source === "real_world_feedback" ? "真实互动" : item.source === "planned_action" ? "准备行动" : "你的观察"}</small><p>{item.text}</p>{"updatedAt" in item && <button aria-label="删除这条观察" onClick={() => { deletePersonObservation(person.id, item.id); refresh((value) => value + 1); }}><Trash /></button>}</article>)}</section>
   </main></div>;
 }
