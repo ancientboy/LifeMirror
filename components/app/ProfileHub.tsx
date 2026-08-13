@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Brain, CalendarBlank, Camera, Check, Copy, DeviceMobile, DownloadSimple, EnvelopeSimple, FloppyDisk, Gift, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowRight, Brain, CalendarBlank, Camera, Check, Copy, DownloadSimple, EnvelopeSimple, FloppyDisk, Gift, IdentificationCard, LockKey, PencilSimple, SignOut, Sparkle, Trash, UserCircle, UsersThree, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { addSavedFact, getMemorySettings, getSavedFacts, MEMORY_CHANGED_EVENT, removeSavedFact, updateMemorySettings, type MemorySettings, type SavedFact } from "@/lib/shiguang-memory";
@@ -227,12 +227,20 @@ export function ProfileHub() {
 
   return <main className={styles.shell}>
     {accountEmail && <AccountDataSync />}
-    <header><UserCircle weight="thin" /><small>MY LIFE MIRROR</small>{!guest && <h1>{displayName}</h1>}<p>{guest ? "当前以游客身份使用，记录仅保存在这台设备。" : "管理你的身份、镜像记录与隐私选择。"}</p></header>
+    <header className={styles.pageHeading}><small>MY LIFE MIRROR</small><h1>我的</h1><p>资料、记忆和账户，都收在这里。</p></header>
     <section className={styles.identityCard} aria-labelledby="personal-profile-title">
       <div className={styles.avatar} style={{ background: profile.avatar.startsWith("preset:") ? profile.avatar.slice(7) : avatarPresets[0] }}>
         {profile.avatar && !profile.avatar.startsWith("preset:") ? <img src={profile.avatar} alt="我的头像" /> : <span>{[...displayName][0]?.toUpperCase() || "我"}</span>}
       </div>
-      <div className={styles.identityText}><small>个人资料</small><h2 id="personal-profile-title">{displayName}</h2><p>{genderLabel}{birthProfile ? ` · ${birthProfile.year}年${birthProfile.month}月${birthProfile.day}日` : " · 尚未填写生日"}</p></div>
+      <div className={styles.identityText}>
+        <small>{guest ? "游客 · 仅保存在本机" : accountEmail || "已登录"}</small>
+        <h2 id="personal-profile-title">{displayName}</h2>
+        <p>{genderLabel}{birthProfile ? ` · ${birthProfile.year}年${birthProfile.month}月${birthProfile.day}日` : " · 尚未填写生日"}</p>
+        <div className={styles.identityBadges}>
+          {!guest && <span className={styles.syncBadge}><i />已同步</span>}
+          {publicId && <button type="button" className={styles.publicIdChip} onClick={async () => { try { await navigator.clipboard.writeText(publicId); setProfileSaved(true); setProfileNotice("ID 已复制"); window.setTimeout(() => setProfileSaved(false), 1800); } catch { /* ID remains visible for manual copy */ } }} aria-label={`复制 LifeMirror ID ${publicId}`}><IdentificationCard />ID {publicId}<Copy /></button>}
+        </div>
+      </div>
       <button type="button" onClick={() => { setEditingProfile((value) => !value); setAvatarStatus("idle"); setAvatarDetail(""); }}>{editingProfile ? <X /> : <PencilSimple />}{editingProfile ? "取消" : "编辑"}</button>
       {editingProfile && <div className={styles.profileEditor}>
         <div className={styles.avatarEditor}>
@@ -248,31 +256,23 @@ export function ProfileHub() {
       {profileSaved && <span className={styles.savedNotice}><Check /> {profileNotice || "已保存"}</span>}
     </section>
 
-    <section className={styles.accountSection}>
-      <article><DeviceMobile /><div><small>当前身份</small><h2>{guest ? "游客 · 本机模式" : accountProvider === "invite" ? "邀请测试账户" : accountProvider === "referral" ? "受邀体验账户" : accountEmail || "正在确认账户"}</h2><p>{guest ? "记录仅保存在这台设备；登录后会自动合并到你的账户。" : ["invite", "referral"].includes(accountProvider) ? "记录已经安全保存在服务器；绑定邮箱后可以换设备继续。" : "个人镜像、明确记忆与设置已启用跨设备同步。"}</p></div></article>
-      <Link href="/mirror/"><Sparkle /><span><b>查看我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
-      <Link href="/app/invite/"><Gift /><span><b>邀请朋友体验拾光</b><small>生成一组体验名额；不会自动添加好友</small></span><ArrowRight /></Link>
-      <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>邀请朋友、处理申请与查看双方关系镜像</small></span><ArrowRight /></Link>
-      {guest ? <Link href="/app/?login=1&return=/app/profile/"><LockKey /><span><b>登录并保存进度</b><small>登录后可跨设备同步、找回记录并使用好友功能</small></span><ArrowRight /></Link> : ["invite", "referral"].includes(accountProvider) ? <Link href="/app/?bind=1&return=/app/profile/"><EnvelopeSimple /><span><b>绑定邮箱</b><small>换设备继续，当前记录不会丢失</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><IdentificationCard /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
-      {publicId && <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicId); setProfileSaved(true); window.setTimeout(() => setProfileSaved(false), 1800); } catch { /* ID remains visible for manual copy */ } }}><IdentificationCard /><span><b>LifeMirror ID</b><small>{publicId} · 点击复制，好友可用它搜索你</small></span><Copy /></button>}
-      {!guest && <button type="button" onClick={() => void exportAccount()}><DownloadSimple /><span><b>导出我的数据</b><small>下载账户、镜像、表达偏好与可追溯理解记录</small></span><ArrowRight /></button>}
-      {!guest && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>{["invite", "referral"].includes(accountProvider) ? "未绑定邮箱前，退出后可能无法找回当前账户" : "退出后不会删除云端记录"}</small></span><ArrowRight /></button>}
-      {!guest && <button type="button" onClick={() => void deleteAccount()}><Trash /><span><b>永久删除账户</b><small>删除后，后台任务也不能重建这些记录</small></span><ArrowRight /></button>}
-    </section>
-
-    <section className={styles.birthPanel} aria-labelledby="birth-profile-title">
-      <header><CalendarBlank /><div><small>出生资料</small><h2 id="birth-profile-title">命盘与占星共用</h2><p>{birthProfile ? formatSavedBirthProfile(birthProfile) : "还没有保存出生资料。填写一次后，两个玩法都会自动载入。"}</p></div></header>
-      <div className={styles.birthActions}>
-        <Link href="/app/profile/birth/">{birthProfile ? "编辑出生资料" : "填写出生资料"} <ArrowRight /></Link>
-        <Link href="/app/chart/">去看命盘</Link>
-        <Link href="/app/astrology/">去看占星</Link>
-        {birthProfile && <button type="button" onClick={() => { removeSavedBirthProfile(); setBirthProfile(null); }}><Trash /> 删除资料</button>}
+    <section className={styles.primaryMenu} aria-labelledby="profile-shortcuts-title">
+      <header><small>常用功能</small><h2 id="profile-shortcuts-title">你的 LifeMirror</h2></header>
+      <Link href="/mirror/"><Sparkle /><span><b>我的镜像</b><small>回看保存过的体验与时间线</small></span><ArrowRight /></Link>
+      <div className={styles.birthRow}>
+        <CalendarBlank />
+        <span><b>出生资料与命盘</b><small>{birthProfile ? formatSavedBirthProfile(birthProfile) : "填写一次，命盘与占星自动共用"}</small></span>
+        <Link href="/app/profile/birth/">{birthProfile ? "编辑" : "填写"}<ArrowRight /></Link>
+        <nav aria-label="出生资料相关功能"><Link href="/app/chart/">命盘</Link><Link href="/app/astrology/">占星</Link>{birthProfile && <button type="button" onClick={() => { removeSavedBirthProfile(); setBirthProfile(null); }}>清除资料</button>}</nav>
       </div>
-      <small className={styles.birthPrivacy}>{guest ? "资料仅保存在这台设备。" : "资料会随账户跨设备同步。"} 不会用于六爻或塔罗。</small>
+      <Link href="/app/relationships/"><UsersThree /><span><b>好友与关系</b><small>管理好友、关系对象和双方镜像</small></span><ArrowRight /></Link>
+      <Link href="/app/invite/"><Gift /><span><b>邀请朋友体验</b><small>生成体验名额，不会自动添加好友</small></span><ArrowRight /></Link>
     </section>
 
-    <section className={styles.memoryPanel} id="memory" aria-labelledby="memory-title">
-      <header><Brain /><div><small>SHIGUANG MEMORY</small><h2 id="memory-title">拾光记忆</h2><p>默认关闭。开启后，每轮只检索与当前话题有关的少量记忆；镜像历史始终只是证据，不是对你的定义。</p></div></header>
+    <details className={styles.memoryPanel} id="memory">
+      <summary><Brain /><span><small>个性化</small><b id="memory-title">拾光记忆与回复方式</b><em>{settings.enabled ? `已开启 · ${facts.length} 条明确记忆` : "默认关闭，需要时再开启"}</em></span><ArrowRight /></summary>
+      <div className={styles.memoryBody}>
+      <p className={styles.memoryIntro}>开启后，每轮只检索与当前话题有关的少量记忆；镜像历史始终只是证据，不是对你的定义。</p>
       <div className={styles.settingRows}>
         <button type="button" role="switch" aria-checked={settings.enabled} onClick={() => toggle({ enabled: !settings.enabled })}><span><b>使用长期记忆</b><small>允许拾光在对话中读取已授权的相关记忆</small></span><i className={settings.enabled ? styles.on : ""} /></button>
         <button type="button" role="switch" aria-checked={settings.explicitFacts} disabled={!settings.enabled} onClick={() => toggle({ explicitFacts: !settings.explicitFacts })}><span><b>保存明确要求记住的信息</b><small>只有你说“请记住……”时才自动保存</small></span><i className={settings.explicitFacts ? styles.on : ""} /></button>
@@ -290,7 +290,18 @@ export function ProfileHub() {
         <label><span>追问</span><select value={expressionPreferences.followUp} disabled={expressionBusy} onChange={(event) => void saveExpressionPreferences({ ...expressionPreferences, followUp: event.target.value as ExpressionPreferences["followUp"] })}><option value="natural">自然决定</option><option value="ask">可以多问一句</option><option value="avoid">少把问题抛给我</option></select></label>
         {expressionSaved && <small className={styles.expressionSaved}><Check /> 已更新</small>}
       </section>}
-    </section>
+      </div>
+    </details>
+
+    <details className={styles.accountPanel}>
+      <summary><LockKey /><span><small>账户</small><b>账户与隐私</b><em>{guest ? "游客模式 · 记录仅在本机" : "已登录 · 数据跨设备同步"}</em></span><ArrowRight /></summary>
+      <div className={styles.accountRows}>
+        {guest ? <Link href="/app/?login=1&return=/app/profile/"><LockKey /><span><b>登录并保存进度</b><small>登录后可跨设备同步并使用好友功能</small></span><ArrowRight /></Link> : ["invite", "referral"].includes(accountProvider) ? <Link href="/app/?bind=1&return=/app/profile/"><EnvelopeSimple /><span><b>绑定邮箱</b><small>换设备继续，当前记录不会丢失</small></span><ArrowRight /></Link> : <div className={styles.accountReadonly}><EnvelopeSimple /><span><b>账户邮箱</b><small>{accountEmail}</small></span><Check /></div>}
+        {!guest && <button type="button" onClick={() => void exportAccount()}><DownloadSimple /><span><b>导出我的数据</b><small>下载账户、镜像、表达偏好与理解记录</small></span><ArrowRight /></button>}
+        {!guest && <button type="button" onClick={() => void logout()}><SignOut /><span><b>退出账户</b><small>{["invite", "referral"].includes(accountProvider) ? "未绑定邮箱前，退出后可能无法找回当前账户" : "退出后不会删除云端记录"}</small></span><ArrowRight /></button>}
+        {!guest && <button className={styles.dangerRow} type="button" onClick={() => void deleteAccount()}><Trash /><span><b>永久删除账户</b><small>删除后无法恢复</small></span><ArrowRight /></button>}
+      </div>
+    </details>
     <p className={styles.privacy}><LockKey /> LifeMirror 不会在未经授权时上传设备内记录。</p>
     <AppBottomNav active="profile" />
   </main>;
