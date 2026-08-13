@@ -11,6 +11,7 @@ import { calculateAstrology, calculateAstrologyTransits, calculateSecondaryProgr
 import type { AstrologyResult } from "../../server/tools/astrology/types";
 import { AstrologyChart } from "./AstrologyChart";
 import { LocationPicker } from "./LocationPicker";
+import { BirthDateFields } from "./BirthDateFields";
 import { ShiguangChat } from "./ShiguangChat";
 import { UnifiedMirrorResult, type MirrorResult } from "./UnifiedMirrorResult";
 import styles from "./BirthProfileForm.module.css";
@@ -20,7 +21,6 @@ import { getSavedNatalMirror, saveNatalMirror, saveNatalMirrorReflection, type S
 
 type Props = { tradition: "east" | "west"; profileOnly?: boolean };
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: Math.min(currentYear, 2100) - 1899 }, (_, index) => Math.min(currentYear, 2100) - index);
 const offsets = [-720, -660, -600, -540, -480, -420, -360, -300, -240, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 540, 570, 600, 660, 720, 780, 840];
 const formatOffset = (minutes: number) => `UTC${minutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, "0")}:${String(Math.abs(minutes) % 60).padStart(2, "0")}`;
 const formatCoordinate = (value: number) => Number.isFinite(value) ? Number(value.toFixed(4)).toString() : "";
@@ -164,11 +164,7 @@ export function BirthProfileForm({ tradition, profileOnly = false }: Props) {
   return <>
     <form className={`${styles.form} ${styles[tradition]}`} onSubmit={submit}>
       <div className={`${styles.notice} ${profileLoaded ? styles.profileLoaded : ""}`}><CalendarBlank /><p><b>{profileLoaded ? "已载入你的出生资料" : "先建立出生资料"}</b><span>{profileOnly ? "这是命盘与占星共用的唯一资料；保存后两个玩法都会自动载入。" : profileLoaded ? "命盘和占星会共用这份资料；修改并重新生成后会自动更新。" : "填写一次后会保存在你的设备；登录后可跨设备同步，并自动用于命盘与占星。"}</span></p>{profileLoaded && <Check weight="bold" />}</div>
-      <fieldset><legend>出生日期 <em>必填</em></legend><div className={styles.dateGrid}>
-        <label><span>年</span><input list="birth-years" inputMode="numeric" value={year} min={1900} max={currentYear} onChange={(event) => setYear(Number(event.target.value))} aria-label="出生年份" /><datalist id="birth-years">{years.map((value) => <option value={value} key={value} />)}</datalist></label>
-        <label><span>月</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option value={value} key={value}>{value} 月</option>)}</select></label>
-        <label><span>日</span><select value={validDay} onChange={(event) => setDay(Number(event.target.value))}>{Array.from({ length: maxDay }, (_, index) => index + 1).map((value) => <option value={value} key={value}>{value} 日</option>)}</select></label>
-      </div></fieldset>
+      <fieldset><legend>出生日期 <em>必填</em></legend><BirthDateFields required value={`${year}-${String(month).padStart(2, "0")}-${String(validDay).padStart(2, "0")}`} onChange={(value) => { const [nextYear, nextMonth, nextDay] = value.split("-").map(Number); setYear(nextYear); setMonth(nextMonth); setDay(nextDay); }} /></fieldset>
       <fieldset><legend>出生时间 <em>建议填写</em></legend><div className={styles.timeRow}><Clock /><select value={hour} disabled={unknownTime} onChange={(event) => setHour(Number(event.target.value))}>{Array.from({ length: 24 }, (_, index) => <option value={index} key={index}>{String(index).padStart(2, "0")} 时</option>)}</select><select value={minute} disabled={unknownTime} onChange={(event) => setMinute(Number(event.target.value))}>{[0, 15, 30, 45].map((value) => <option value={value} key={value}>{String(value).padStart(2, "0")} 分</option>)}</select><label className={styles.unknown}><input type="checkbox" checked={unknownTime} onChange={(event) => setUnknownTime(event.target.checked)} />不知道具体时间</label></div><small>{tradition === "east" ? "时辰影响时柱与起运时间；未知时只生成三柱，不伪造大运起点。" : "出生时间影响上升点与宫位；未知时将不展示宫位结论。"}</small></fieldset>
       <fieldset><legend>出生地点与时区 <em>必填</em></legend>
         <LocationPicker onSelect={applyChinaRegion} />
