@@ -18,47 +18,80 @@ export function AccountDataSync() {
     let ready = false;
     let last = "";
     let timer = 0;
+    let syncing = false;
+    let queuedPull = false;
 
-    async function push() {
+    function adopt(data: AccountSnapshot) {
+      const next = stable(data);
+      if (stable(readLocalAccountData()) !== next) writeLocalAccountData(data);
+      last = next;
+    }
+
+    async function mergeLocal() {
+      const data = readLocalAccountData();
+      const response = await fetch("/api/v1/account/data", {
+        method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ data }),
+      });
+      if (!response.ok) throw Object.assign(new Error("account_sync_failed"), { status: response.status });
+      const payload = await response.json() as { data: AccountSnapshot };
+      if (active) adopt(payload.data);
+    }
+
+    async function reconcile(pullRemote = false) {
       if (!ready || !active) return;
+      if (syncing) { queuedPull ||= pullRemote; return; }
+      syncing = true;
       try {
-        const data = readLocalAccountData();
-        const next = stable(data);
-        if (next === last) return;
-        const response = await fetch("/api/v1/account/data", {
-          method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ data }),
-        });
-        if (!response.ok) { if (response.status !== 401 && active) setIssue(true); return; }
-        const payload = await response.json() as { data: AccountSnapshot };
-        if (!active) return;
-        // The server may have merged a newer device's changes or filtered a
-        // tombstoned record.  Always adopt that authority response locally.
-        writeLocalAccountData(payload.data);
-        last = stable(payload.data);
+        const localAtStart = stable(readLocalAccountData());
+        if (localAtStart !== last) {
+          await mergeLocal();
+        } else if (pullRemote) {
+          const response = await fetch("/api/v1/account/data", { credentials: "include", cache: "no-store" });
+          if (!response.ok) throw Object.assign(new Error("account_pull_failed"), { status: response.status });
+          const payload = await response.json() as { data: AccountSnapshot };
+          if (!active) return;
+          // It is safe to adopt a newer cloud snapshot only while this device
+          // is still unchanged. If the user edited during the request, merge
+          // that edit through D1 first so neither device can overwrite it.
+          if (stable(readLocalAccountData()) === last) adopt(payload.data);
+          else await mergeLocal();
+        }
         setIssue(false);
-      } catch { if (active) setIssue(true); }
+      } catch (error) {
+        if (active && Number((error as { status?: number })?.status) !== 401) setIssue(true);
+      } finally {
+        syncing = false;
+        if (active && queuedPull) {
+          queuedPull = false;
+          window.setTimeout(() => { void reconcile(true); }, 0);
+        }
+      }
     }
 
     async function initialize() {
+      syncing = true;
       try {
-        const response = await fetch("/api/v1/account/data", { credentials: "include" });
-        if (!response.ok || !active) { if (response.status !== 401 && active) setIssue(true); return; }
-        const payload = await response.json() as { data: AccountSnapshot };
-        writeLocalAccountData(payload.data);
-        last = stable(readLocalAccountData());
+        // Merge first instead of GET-then-overwrite. This is the recovery path
+        // for records that were created on a phone while cloud sync was idle.
+        await mergeLocal();
+        if (!active) return;
         ready = true;
         setIssue(false);
-      } catch { if (active) setIssue(true); }
+      } catch (error) {
+        if (active && Number((error as { status?: number })?.status) !== 401) setIssue(true);
+      } finally { syncing = false; }
     }
 
     const changed = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => { void push(); }, 450);
+      timer = window.setTimeout(() => { void reconcile(false); }, 450);
     };
-    const interval = window.setInterval(() => { void push(); }, 2500);
+    const becameVisible = () => { if (document.visibilityState === "visible") void reconcile(true); };
+    const interval = window.setInterval(() => { void reconcile(true); }, 12_000);
     window.addEventListener(ACCOUNT_DATA_CHANGED_EVENT, changed);
     window.addEventListener("storage", changed);
-    document.addEventListener("visibilitychange", changed);
+    window.addEventListener("focus", becameVisible);
+    document.addEventListener("visibilitychange", becameVisible);
     void initialize();
 
     return () => {
@@ -67,7 +100,8 @@ export function AccountDataSync() {
       window.clearInterval(interval);
       window.removeEventListener(ACCOUNT_DATA_CHANGED_EVENT, changed);
       window.removeEventListener("storage", changed);
-      document.removeEventListener("visibilitychange", changed);
+      window.removeEventListener("focus", becameVisible);
+      document.removeEventListener("visibilitychange", becameVisible);
     };
   }, [retryKey]);
 

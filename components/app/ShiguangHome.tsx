@@ -221,7 +221,7 @@ export function ShiguangHome() {
         authenticated = true;
         window.localStorage.removeItem("life-mirror:guest-session:v1");
         const [accountResponse, contextResponse] = await Promise.all([
-          fetch("/api/v1/account/data", { credentials: "include" }),
+          fetch("/api/v1/account/data", { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ data: snapshot }) }),
           fetch("/api/v1/account/context?mode=daily_guidance", { credentials: "include" }),
         ]);
         if (accountResponse.ok) {

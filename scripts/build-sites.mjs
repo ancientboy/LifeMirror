@@ -781,11 +781,10 @@ async function migrateGuestData(env, userId, input) {
   const migrationId = String(input?.migrationId || "").slice(0, 120);
   const local = snapshot(input?.guestData);
   if (!migrationId) return readAccountData(env.DB, userId);
-  const receipt = await env.DB.prepare("SELECT 1 AS found FROM guest_migration_receipts WHERE user_id = ? AND migration_id = ?").bind(userId, migrationId).first();
-  if (receipt) return readAccountData(env.DB, userId);
-  const existing = await readAccountData(env.DB, userId);
-  const merged = mergeSnapshot(existing, local);
-  const saved = await writeAccountData(env.DB, userId, merged);
+  // The receipt makes the login event idempotent, but must not freeze the
+  // device snapshot forever. A returning phone can legitimately contain new
+  // people or conversations under the same stable migration id.
+  const saved = await mergeAuthoritativeAccountData(env.DB, userId, local);
   await env.DB.prepare("INSERT OR IGNORE INTO guest_migration_receipts (user_id, migration_id, created_at) VALUES (?, ?, ?)").bind(userId, migrationId, new Date().toISOString()).run();
   return saved;
 }
@@ -1628,8 +1627,8 @@ async function runReleaseAcceptance(env) {
 
     const migrationId = "release-" + runId;
     await migrateGuestData(env, userA, { migrationId, guestData: { history: [{ id: "guest-first", question: "synthetic", savedAt: now }] } });
-    const afterDuplicate = await migrateGuestData(env, userA, { migrationId, guestData: { history: [{ id: "guest-duplicate", question: "must-not-merge", savedAt: now }] } });
-    checks.guestMigrationIdempotent = afterDuplicate.history.some((item) => item.id === "guest-first") && !afterDuplicate.history.some((item) => item.id === "guest-duplicate");
+    const afterDuplicate = await migrateGuestData(env, userA, { migrationId, guestData: { history: [{ id: "guest-first", question: "synthetic", savedAt: now }, { id: "guest-later", question: "new local record", savedAt: now }] } });
+    checks.guestMigrationIdempotent = afterDuplicate.history.filter((item) => item.id === "guest-first").length === 1 && afterDuplicate.history.some((item) => item.id === "guest-later");
 
     const backup = await readAccountData(env.DB, userA);
     const restored = await writeAccountData(env.DB, userB, backup);

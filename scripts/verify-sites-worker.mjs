@@ -60,6 +60,12 @@ assert.ok(source.includes('side === "right" ? "user" : side === "left" ? "other"
 assert.ok(source.includes("不要输出 speaker"), "vision prompt must not ask the model to infer speaker identity");
 assert.ok(source.includes("vision_rate_limited"), "vision rate limits must stay distinguishable from parse failures");
 assert.ok(source.includes("原图") === false, "Worker must not persist screenshot originals");
+assert.ok(source.includes("const saved = await mergeAuthoritativeAccountData(env.DB, userId, local)"), "returning devices must merge new local records during login");
+assert.ok(!source.includes("if (receipt) return readAccountData(env.DB, userId)"), "a migration receipt must not freeze later device changes");
+
+const accountSync = await readFile(new URL("../components/app/AccountDataSync.tsx", import.meta.url), "utf8");
+for (const contract of ['method: "PUT"', 'cache: "no-store"', "await mergeLocal()", "visibilitychange"]) assert.ok(accountSync.includes(contract), `missing cross-device sync behavior: ${contract}`);
+assert.ok(accountSync.includes("Merge first instead of GET-then-overwrite"), "initial account sync must preserve unsynced device records");
 
 const worker = await import(pathToFileURL(workerPath.pathname).href + `?verify=${Date.now()}`);
 assert.equal(typeof worker.default?.fetch, "function");
