@@ -28,6 +28,8 @@
     "lib/shiguang-response-policy.test.ts",
     "lib/safety-boundary.ts",
     "lib/safety-boundary.test.ts",
+    "lib/birth-date-selection.ts",
+    "lib/birth-date-selection.test.ts",
     "lib/relationships/types.ts",
     "lib/relationships/taxonomy.ts",
     "lib/relationships/policy.ts",
