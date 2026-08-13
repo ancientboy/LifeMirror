@@ -180,10 +180,12 @@ export function deletePrivatePerson(id: string) {
   const people = getPrivatePeople().filter((person) => person.id !== id);
   const removedLoops = getRelationshipLoops().filter((loop) => loop.personId === id).map((loop) => loop.id);
   const settings = readSettings();
+  const simulationThreads = settings.personSimulationThreads && typeof settings.personSimulationThreads === "object" && !Array.isArray(settings.personSimulationThreads) ? settings.personSimulationThreads as Record<string, unknown> : {};
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({
     ...settings,
     privatePeople: people.slice(0, 40),
     relationshipLoops: getRelationshipLoops().filter((loop) => loop.personId !== id).slice(0, 100),
+    personSimulationThreads: Object.fromEntries(Object.entries(simulationThreads).filter(([personId]) => personId !== id)),
     deletedPrivatePeople: addDeletedSettingId("deletedPrivatePeople", id),
     deletedRelationshipLoops: [...new Set([...removedLoops, ...(Array.isArray(settings.deletedRelationshipLoops) ? settings.deletedRelationshipLoops.filter((value): value is string => typeof value === "string") : [])])].slice(0, 100),
     privatePeopleUpdatedAt: new Date().toISOString(),
