@@ -2,7 +2,7 @@ import { relationshipPromptContext } from "./policy.js";
 import type { RelationshipCase, RelationshipClassification, RelationshipMemoryContext, RelationshipPerson } from "./types.js";
 
 export function buildRelationshipContext(input: { classification: RelationshipClassification; person?: RelationshipPerson; activeCase?: RelationshipCase; recentCases?: RelationshipCase[]; memory?: RelationshipMemoryContext }) {
-  const person = input.person ? `当前人物：${input.person.displayName}（${input.person.relationshipLabel || input.person.role}）` : "当前未关联具体人物。";
+  const person = input.person ? `当前人物：${input.person.displayName}（${input.person.relationshipLabel || input.person.role}）\n用户对该人物的私密观察：${input.person.userDescription || "暂无"}\n沟通时需留意：${input.person.communicationNotes || "暂无"}` : "当前未关联具体人物。";
   const active = input.activeCase ? `上次未完成：${input.activeCase.summary || "有一件事正在等待现实回应"}` : "没有明确未完成事件。";
   const recent = (input.memory?.recentCases ?? input.recentCases ?? []).slice(0, 5).map((item) => `- ${item.summary || item.goal}：${item.status}`).join("\n") || "暂无同一人物近期案例。";
   const messages = (input.memory?.extractedMessages ?? []).slice(-24).map((item) => `- ${item.speaker === "user" ? "用户" : item.speaker === "other" ? "TA" : "画面提示／待确认"}：${item.text}`).join("\n") || "暂无已保存的截图对话文字。";
