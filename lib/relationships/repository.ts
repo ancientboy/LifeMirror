@@ -19,7 +19,7 @@ export async function fetchRelationshipSnapshot(): Promise<RelationshipSnapshot>
   return readLegacyRelationshipSnapshot();
 }
 
-export async function saveRelationshipPerson(input: { displayName: string; relationshipLabel?: string; legacyPersonId?: string }) {
+export async function saveRelationshipPerson(input: { displayName: string; relationshipLabel?: string; userDescription?: string; communicationNotes?: string; legacyPersonId?: string }) {
   const response = await fetch("/api/v1/account/relationships/people", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("relationship_person_save_failed");
   return (await response.json() as { person: RelationshipPerson }).person;
