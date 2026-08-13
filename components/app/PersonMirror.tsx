@@ -10,6 +10,7 @@ import type { BaziResult } from "@/server/tools/bazi/types";
 import { calculateAstrology } from "@/server/tools/astrology/core";
 import type { AstrologyResult } from "@/server/tools/astrology/types";
 import { LocationPicker } from "./LocationPicker";
+import { BirthDateFields } from "./BirthDateFields";
 import styles from "./PersonMirror.module.css";
 import profileStyles from "./PersonMirrorProfile.module.css";
 
@@ -29,6 +30,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
   const [birthOffset, setBirthOffset] = useState(person.birthProfile?.utcOffsetMinutes?.toString() ?? "");
   const [birthLatitude, setBirthLatitude] = useState(person.birthProfile?.latitude?.toString() ?? "");
   const [birthLongitude, setBirthLongitude] = useState(person.birthProfile?.longitude?.toString() ?? "");
+  const [birthDate, setBirthDate] = useState(person.birthProfile?.date ?? "");
   const [loopCreated, setLoopCreated] = useState(false);
   const [, refresh] = useState(0);
   const currentPerson = getPrivatePeople().find((item) => item.id === person.id) ?? person;
@@ -43,6 +45,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
   function openBirthProfile() {
     setProfileOpen(true);
     setBirthDetailsOpen(true);
+    setBirthDate(currentPerson.birthProfile?.date ?? "");
     setProfileNotice("");
     window.setTimeout(() => document.getElementById("person-birth-details")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }
@@ -107,7 +110,7 @@ export function PersonMirror({ person, onClose, onPractice }: { person: PrivateP
       </div>
       <details id="person-birth-details" className={profileStyles.birthDetails} open={birthDetailsOpen} onToggle={(event) => setBirthDetailsOpen(event.currentTarget.open)}><summary>出生资料与自动底图 <em>可选</em></summary><p>选择出生地会自动补全坐标；不知道出生时间可以留空。</p>
         <div className={profileStyles.profileFields}>
-          <label><span>出生日期</span><input name="birthDate" type="date" defaultValue={currentPerson.birthProfile?.date}/></label>
+          <div className={profileStyles.wideField}><BirthDateFields name="birthDate" value={birthDate} onChange={setBirthDate} /></div>
           <label><span>出生时间</span><input name="birthTime" type="time" defaultValue={currentPerson.birthProfile?.time}/></label>
           <div className={profileStyles.locationPicker}><LocationPicker onSelect={(location, displayName) => { setBirthPlace(displayName); setBirthOffset("480"); setBirthLatitude(location.latitude.toFixed(4)); setBirthLongitude(location.longitude.toFixed(4)); }} /></div>
           <label className={profileStyles.wideField}><span>出生地</span><input name="birthPlace" value={birthPlace} onChange={(event) => setBirthPlace(event.target.value)} maxLength={80} placeholder="城市或地区"/></label>
