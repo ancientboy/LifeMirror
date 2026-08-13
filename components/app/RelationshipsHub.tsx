@@ -4,6 +4,7 @@ import { ArrowRight, Bell, ChatCenteredText, Check, Copy, EnvelopeSimple, Heart,
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
+import { AppBackLink } from "./AppBackLink";
 import { getPrivatePeople, type PrivatePerson } from "@/lib/relationship-context";
 import styles from "./RelationshipsHub.module.css";
 import notificationStyles from "./RelationshipsHubNotifications.module.css";
@@ -222,6 +223,7 @@ export function RelationshipsHub() {
   const inviteLink = data && typeof window !== "undefined" ? `${window.location.origin}/app/relationships/?invite=${data.profile.inviteCode}` : "";
 
   return <main className={styles.shell}>
+    <AppBackLink href="/app/profile/" label="返回我的" />
     <header><small><UsersThree /> PRIVATE RELATIONSHIPS</small><h1>关系镜像</h1><p>只连接你真正想邀请的人。没有公开广场，也不会默认公开出生资料。</p></header>
 
     {share && <section className={styles.shareArrival}>

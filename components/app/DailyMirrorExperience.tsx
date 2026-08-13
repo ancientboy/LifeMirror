@@ -754,7 +754,7 @@ export function DailyMirrorExperience({ initialStage = "home" }: { initialStage?
 
       {stage === "question" && (
         <section className={styles.stepScreen}>
-          <button className={styles.backButton} onClick={() => setStage("home")}><ArrowLeft /> 返回</button>
+          {initialStage === "question" ? <Link className={styles.backButton} href="/app/explore/"><ArrowLeft /> 返回探索</Link> : <button className={styles.backButton} onClick={() => setStage("home")}><ArrowLeft /> 返回</button>}
           <div className={styles.stepIntro}><span>01 · QUESTION</span><h1>先说清楚，<br />这次到底想问什么。</h1><p>方向由你选择，具体目标由系统理解；有歧义时会先请你确认。</p></div>
           <div className={styles.questionCard}>
             <fieldset className={styles.topicPicker}><legend>先选一个最接近的方向</legend><div>{topicOptions.map((item) => <button type="button" aria-pressed={topicHint === item.value} className={topicHint === item.value ? styles.selectedTopic : ""} key={item.value} onClick={() => { setTopicHint(item.value); setIntentSelection(null); setIntentClarification(null); }}>{item.label}</button>)}</div><small>这只是理解提示，不会直接决定卦的结果。</small></fieldset>

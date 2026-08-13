@@ -362,6 +362,7 @@ button { font: inherit; }
 
 .theory-page { min-height: 100vh; background: radial-gradient(circle at 75% 7%,rgba(61,52,122,.2),transparent 26%),#06101b; }
 .theory-page-header { min-height: 680px; padding: 175px max(8vw,calc((100vw - var(--sidebar) - 960px)/2)) 95px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--line); background: linear-gradient(125deg,rgba(2,8,16,.97),rgba(5,18,31,.82)); }
+.paper-back{width:max-content;min-height:44px;display:inline-flex;align-items:center;gap:8px;margin-bottom:34px;padding:0 14px;border:1px solid rgba(197,167,110,.22);border-radius:999px;color:#c7b89f;font-size:11px}.paper-back svg{width:17px;height:17px}.paper-back:hover{color:#eee5d8;border-color:rgba(197,167,110,.48)}.paper-back:focus-visible{outline:3px solid rgba(197,167,110,.32);outline-offset:3px}
 .paper-status { display: flex; align-items: center; gap: 12px; color: #9b8b75; font: 9px/1 Georgia,serif; letter-spacing: .14em; }
 .paper-status i { width: 34px; height: 1px; background: rgba(213,168,95,.35); }
 .theory-page-header > p:not(.theory-summary) { margin: 40px 0 0; color: var(--gold); font: 11px/1 Georgia,serif; letter-spacing: .2em; }

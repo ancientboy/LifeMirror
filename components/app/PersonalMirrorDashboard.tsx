@@ -224,7 +224,7 @@ export function PersonalMirrorDashboard() {
     </header>
 
     <section className={styles.hero}>
-      <div><Link href="/app/" className={styles.back}><ArrowLeft /> 返回今日镜像</Link><p>MY CONTEXT · PRIVATE</p><h1>发生过的事，<br /><em>都能在这里找回。</em></h1><span>记录、明确记忆与长期线索各自分开；拾光只在有证据时，才把它们带回给你。</span></div>
+      <div><Link href="/app/profile/" className={styles.back}><ArrowLeft /> 返回我的</Link><p>MY CONTEXT · PRIVATE</p><h1>发生过的事，<br /><em>都能在这里找回。</em></h1><span>记录、明确记忆与长期线索各自分开；拾光只在有证据时，才把它们带回给你。</span></div>
       <div className={styles.orbit} aria-label="个人镜像记录概览"><i /><i /><i /><strong>{mode === "loading" ? <CircleNotch className={stateStyles.spin} /> : events.length}<small>镜像时刻</small></strong></div>
     </section>
 

@@ -1,0 +1,2 @@
+.wrap{width:min(720px,100%);margin:0 auto 22px}.wrap a{min-height:44px;display:inline-flex;align-items:center;gap:7px;padding:0 13px;border:1px solid rgba(49,93,82,.16);border-radius:999px;color:#315d52;background:rgba(255,252,246,.78);box-shadow:0 7px 20px rgba(49,63,58,.055);font-size:11px;font-weight:700}.wrap svg{width:17px;height:17px}.wrap a:focus-visible{outline:3px solid rgba(49,93,82,.28);outline-offset:3px}
+@media(max-width:600px){.wrap{margin-bottom:17px}.wrap a{min-width:44px;padding:0 12px}}

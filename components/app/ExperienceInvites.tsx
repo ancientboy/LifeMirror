@@ -4,6 +4,7 @@ import { ArrowRight, Check, Copy, Gift, LinkSimple, LockKey, ShareNetwork, Spark
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppBottomNav } from "./AppBottomNav";
+import { AppBackLink } from "./AppBackLink";
 import styles from "./ExperienceInvites.module.css";
 
 type InviteBatch = {
@@ -76,6 +77,7 @@ export function ExperienceInvites() {
   const expired = batch ? Date.parse(batch.expiresAt) <= Date.now() : false;
 
   return <main className={styles.shell}>
+    <AppBackLink href="/app/profile/" label="返回我的" />
     <header><small><Gift /> SHIGUANG INVITE</small><h1>邀请朋友体验拾光</h1><p>把完整体验分享给你真正觉得适合的人。对方不会被限制聊天次数，也不会自动成为你的好友。</p></header>
 
     {signedIn === false ? <section className={styles.signIn}><LockKey /><h2>登录后生成你的体验邀请</h2><p>邀请记录需要与你的账户关联；游客仍然可以分享普通站点链接。</p><Link href="/app/?login=1&return=/app/invite/">登录并继续 <ArrowRight /></Link></section> : signedIn && <>

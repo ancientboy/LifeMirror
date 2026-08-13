@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
@@ -33,6 +34,7 @@ export default async function DataPaperPage({ params }: PageProps) {
     <InstituteShell papers={theoryPapers} activeDataId={document.id} activeResearchLayer="data">
       <article className="theory-page data-paper-page">
         <header className="theory-page-header data-paper-header">
+          <Link className="paper-back" href="/data/"><ArrowLeft />返回数据目录</Link>
           <div className="paper-status"><span>DATA ARCHITECTURE</span><i /><span>{document.status === "planned" ? "IN EVOLUTION" : "PUBLISHED"}</span></div>
           <p>{document.id} · DATA PAPER</p>
           <h1>{document.title}</h1><h2>{document.subtitle}</h2>

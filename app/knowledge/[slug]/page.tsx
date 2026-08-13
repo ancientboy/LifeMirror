@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
@@ -33,6 +34,7 @@ export default async function KnowledgePaperPage({ params }: PageProps) {
     <InstituteShell papers={theoryPapers} activeKnowledgeId={document.id} activeResearchLayer="knowledge">
       <article className="theory-page knowledge-paper-page">
         <header className="theory-page-header knowledge-paper-header">
+          <Link className="paper-back" href="/knowledge/"><ArrowLeft />返回知识目录</Link>
           <div className="paper-status"><span>KNOWLEDGE LAYER</span><i /><span>{document.status === "planned" ? "IN EVOLUTION" : "PUBLISHED"}</span></div>
           <p>{document.id} · KNOWLEDGE PAPER</p>
           <h1>{document.title}</h1><h2>{document.subtitle}</h2>

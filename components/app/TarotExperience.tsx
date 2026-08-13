@@ -139,8 +139,8 @@ export function TarotExperience() {
   return (
     <main className={styles.shell}>
       <header>
-        <Link href="/app/home/">
-          <ArrowLeft /> 返回拾光
+        <Link href="/app/explore/">
+          <ArrowLeft /> 返回探索
         </Link>
         <span>
           <MoonStars /> WESTERN MIRROR · 拾光

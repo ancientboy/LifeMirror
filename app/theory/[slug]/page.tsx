@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
@@ -40,6 +41,7 @@ export default async function TheoryPage({ params }: PageProps) {
     <InstituteShell papers={papers} activeSlug={document.slug} activePart={getTheoryPart(document.category)?.slug}>
       <article className="theory-page">
         <header className="theory-page-header">
+          <Link className="paper-back" href="/theory/"><ArrowLeft />返回理论目录</Link>
           <div className="paper-status"><span>{document.part}</span><i /> <span>{document.status === "planned" ? "IN EVOLUTION" : "PUBLISHED"}</span></div>
           <p>{document.id} · RESEARCH PAPER</p>
           <h1>{document.title}</h1>
