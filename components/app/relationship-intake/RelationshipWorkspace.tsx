@@ -14,7 +14,7 @@ type Props = { mode: RelationshipHomeMode };
 
 function normalizedLocal(person: PrivatePerson): RelationshipPerson {
   const inferred = classifyRelationship(`${person.relationshipType ?? ""} ${person.userDescription ?? ""}`);
-  return { id: person.id, displayName: person.displayName, relationshipLabel: person.relationshipType ?? "", domain: person.relationshipDomain ?? inferred.domain, role: person.relationshipRole ?? inferred.role, stage: person.relationshipStage ?? inferred.stage, powerPosition: person.powerPosition ?? inferred.powerPosition, confirmedByUser: person.relationshipConfirmed ?? Boolean(person.relationshipType), legacyPersonId: person.id, createdAt: person.createdAt, updatedAt: person.updatedAt };
+  return { id: person.id, displayName: person.displayName, relationshipLabel: person.relationshipType ?? "", domain: person.relationshipDomain ?? inferred.domain, role: person.relationshipRole ?? inferred.role, stage: person.relationshipStage ?? inferred.stage, powerPosition: person.powerPosition ?? inferred.powerPosition, confirmedByUser: person.relationshipConfirmed ?? Boolean(person.relationshipType), userDescription: person.userDescription, communicationNotes: person.communicationNotes, legacyPersonId: person.id, createdAt: person.createdAt, updatedAt: person.updatedAt };
 }
 
 export function RelationshipWorkspace({ mode }: Props) {
