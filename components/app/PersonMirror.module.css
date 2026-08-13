@@ -10,8 +10,12 @@
 .hero div button:first-child,.compose button,.reality{background:#315d52!important;color:#fff!important}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid article,.chat,.timeline{background:#fffdf8;border:1px solid #ded7c7;border-radius:18px;padding:20px;margin-top:16px}
+.chat{scroll-margin-top:18px}
 .grid h2{font:400 20px/1.5 Georgia,serif}
 .grid p,.chat>p{font-size:14px;line-height:1.65}
+.simulationBadge{display:flex;align-items:center;gap:5px;border:1px solid #d7cdb9;border-radius:999px;padding:7px 10px;color:#6e766f;font-size:12px;white-space:nowrap}
+.simulationBadge svg{width:16px;height:16px}
+.evidenceStatus{margin:12px 0 4px;padding:10px 12px;border-radius:12px;background:#f3f6f1;color:#536b63;font-size:12px;line-height:1.55}
 .messages{display:grid;gap:12px;margin:18px 0}
 .messages article{max-width:85%;padding:12px 14px;border-radius:14px;background:#eee9dd}
 .messages .user{margin-left:auto;background:#dce9e3}
@@ -19,14 +23,22 @@
 .messages article div{display:flex;gap:6px}
 .messages article div button{font-size:12px;padding:5px 8px}
 .messages aside{display:flex;gap:6px;margin-top:8px}
+.emptyPractice{display:grid;gap:5px;padding:22px 18px;border:1px dashed #d8d0bf;border-radius:14px;color:#61716b;text-align:center}
+.emptyPractice span{font-size:13px;line-height:1.6}
+.generating{display:flex;align-items:center;gap:7px;color:#6f7a75}
+.generating svg{width:17px;height:17px;animation:spin .9s linear infinite}
+.generationError{margin:0 0 10px!important;padding:9px 11px;border-radius:10px;background:#fff1ec;color:#9a4d3c}
 .messages input,.compose textarea,.timeline textarea{width:100%;border:1px solid #d8d0bf;border-radius:10px;padding:10px;background:#fff;color:#24443d;-webkit-text-fill-color:#24443d;caret-color:#315d52;font:inherit}
 .messages input::placeholder,.compose textarea::placeholder,.timeline textarea::placeholder{color:#7b8782;-webkit-text-fill-color:#7b8782;opacity:1}
 .compose{display:flex;gap:8px}
 .compose textarea{min-height:64px}
+.compose button:disabled{opacity:.55;cursor:default}
 .coach{padding:10px;background:#f5efdd;border-radius:10px}
+.practiceActions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .timeline form{display:flex;gap:8px}
 .timeline form textarea{min-height:56px}
 .timeline article{position:relative;border-top:1px solid #e5dfd1;padding:12px 34px 12px 0}
 .timeline article p{margin:5px 0;line-height:1.6}
 .timeline article>button{position:absolute;right:0;top:18px;padding:5px}
-@media(max-width:620px){.grid{grid-template-columns:1fr}.hero h1{font-size:38px}.timeline form,.compose{flex-direction:column}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.hero h1{font-size:38px}.chat header{align-items:flex-start;gap:10px}.simulationBadge{white-space:normal}.timeline form,.compose{flex-direction:column}.practiceActions{align-items:stretch;flex-direction:column-reverse}.practiceActions button{width:100%}}
