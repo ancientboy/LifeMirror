@@ -73,3 +73,16 @@ test("person memory labels extracted evidence, prior hypotheses and reality feed
   assert.match(context, /仅是当时假设，不是事实/);
   assert.match(context, /现实反馈（优先用于校准判断）/);
 });
+
+test("relationship analysis receives the same owner-authored person notes used by rehearsal", () => {
+  const classification = classifyRelationship("我想知道他为什么这样回复");
+  const context = buildRelationshipContext({
+    classification,
+    person: {
+      id: "person-1", displayName: "小林", relationshipLabel: "暧昧中", domain: "romance", role: "dating", stage: "developing", powerPosition: "roughly_equal", confirmedByUser: true,
+      userDescription: "面对冲突时会先回避，过一会儿再解释", communicationNotes: "不喜欢被连续追问", createdAt: "2026-08-12", updatedAt: "2026-08-13",
+    },
+  });
+  assert.match(context, /用户对该人物的私密观察：面对冲突时会先回避/);
+  assert.match(context, /沟通时需留意：不喜欢被连续追问/);
+});
