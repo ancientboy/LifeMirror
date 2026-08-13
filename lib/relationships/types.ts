@@ -25,6 +25,9 @@ export type RelationshipPerson = {
   stage: RelationshipStage;
   powerPosition: PowerPosition;
   confirmedByUser: boolean;
+  /** Private, owner-authored perspective shared by analysis and rehearsal. */
+  userDescription?: string;
+  communicationNotes?: string;
   legacyPersonId?: string;
   createdAt: string;
   updatedAt: string;
