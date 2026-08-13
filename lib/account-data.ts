@@ -1,4 +1,5 @@
 import { createClientId } from "./client-id";
+import { rememberAuthenticatedSession, type ClientSessionUser } from "./client-session";
 
 export type AccountSnapshot = {
   settings: Record<string, unknown>;
@@ -73,7 +74,8 @@ export function accountLoginPayload() {
   return { guestData: readLocalAccountData(), migrationId: getGuestMigrationId() };
 }
 
-export function finishAccountLogin(data: AccountSnapshot) {
+export function finishAccountLogin(data: AccountSnapshot, user?: ClientSessionUser) {
   writeLocalAccountData(data);
+  rememberAuthenticatedSession(user);
   window.localStorage.removeItem("life-mirror:guest-session:v1");
 }

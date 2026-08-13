@@ -10,6 +10,7 @@ import { AccountDataSync } from "./AccountDataSync";
 import { BIRTH_PROFILE_CHANGED_EVENT, formatSavedBirthProfile, getSavedBirthProfile, removeSavedBirthProfile, type SavedBirthProfile } from "@/lib/birth-profile";
 import { getUserProfile, saveUserProfile, USER_PROFILE_CHANGED_EVENT, type GenderDisplay, type UserProfile } from "@/lib/user-profile";
 import { readLocalAccountData, writeLocalAccountData, type AccountSnapshot } from "@/lib/account-data";
+import { forgetClientSession, readClientSession, rememberAuthenticatedSession } from "@/lib/client-session";
 
 const avatarPresets = ["#315d52", "#625d82", "#a9823d", "#8a5a54"];
 const MAX_AVATAR_SOURCE_BYTES = 15 * 1024 * 1024;
@@ -60,7 +61,8 @@ function readableAvatarSize(bytes: number) {
 }
 
 export function ProfileHub() {
-  const [guest, setGuest] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [guest, setGuest] = useState(false);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountProvider, setAccountProvider] = useState("");
   const [publicId, setPublicId] = useState("");
@@ -83,12 +85,18 @@ export function ProfileHub() {
 
   useEffect(() => {
     const sync = () => { setSettings(getMemorySettings()); setFacts(getSavedFacts()); setBirthProfile(getSavedBirthProfile()); setProfile(getUserProfile()); };
+    const cached = readClientSession();
+    if (cached.status === "authenticated") {
+      setGuest(false); setAccountEmail(cached.user.email ?? ""); setAccountProvider(cached.user.provider ?? ""); setSessionReady(true);
+    } else if (cached.status === "guest") { setGuest(true); setSessionReady(true); }
     fetch("/api/v1/auth/session", { credentials: "include" }).then(async (response) => {
-      if (!response.ok) throw new Error("signed_out");
+      if (!response.ok) { forgetClientSession(); throw new Error("signed_out"); }
       const session = await response.json() as { user?: { email?: string | null; provider?: string } };
+      rememberAuthenticatedSession(session.user);
       setAccountEmail(session.user?.email ?? "");
       setAccountProvider(session.user?.provider ?? "");
       setGuest(false);
+      setSessionReady(true);
       window.localStorage.removeItem("life-mirror:guest-session:v1");
       fetch("/api/v1/account/context", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => {
         const accountFacts = value?.context?.facts;
@@ -98,7 +106,11 @@ export function ProfileHub() {
       fetch("/api/v1/account/expression-preferences", { credentials: "include" }).then((value) => value.ok ? value.json() : null).then((value) => {
         if (value?.preferences) setExpressionPreferences({ ...defaultExpressionPreferences, ...value.preferences });
       }).catch(() => undefined);
-    }).catch(() => { setAccountEmail(""); setAccountProvider(""); setGuest(true); });
+    }).catch(() => {
+      const current = readClientSession();
+      if (current.status !== "authenticated") { setAccountEmail(""); setAccountProvider(""); setGuest(true); }
+      setSessionReady(true);
+    });
     sync();
     window.addEventListener(MEMORY_CHANGED_EVENT, sync);
     window.addEventListener(BIRTH_PROFILE_CHANGED_EVENT, sync);
@@ -155,6 +167,7 @@ export function ProfileHub() {
 
   async function logout() {
     await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
+    forgetClientSession();
     window.location.href = "/app/";
   }
 
@@ -209,6 +222,8 @@ export function ProfileHub() {
 
   const displayName = profile.nickname || (accountEmail ? accountEmail.split("@")[0] : "镜像旅人");
   const genderLabel = ({ hidden: "不展示", female: "女性", male: "男性", nonbinary: "非二元／其他" } as Record<GenderDisplay, string>)[profile.gender];
+
+  if (!sessionReady) return <main className={styles.sessionLoading} aria-busy="true"><UserCircle weight="thin" /><span>正在读取你的账户…</span><AppBottomNav active="profile" /></main>;
 
   return <main className={styles.shell}>
     {accountEmail && <AccountDataSync />}

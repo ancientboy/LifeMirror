@@ -2,6 +2,8 @@
 
 import { Compass, House, Sparkle, UserCircle } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { RelationshipFollowupNudge } from "./RelationshipFollowupNudge";
 import navStyles from "./ShiguangBottomNav.module.css";
 
@@ -15,6 +17,8 @@ const items = [
 ] as const;
 
 export function AppBottomNav({ active }: { active: NavKey }) {
+  const router = useRouter();
+  useEffect(() => { for (const item of items) router.prefetch(item.href); }, [router]);
   return <><nav className={navStyles.bottomNav} aria-label="LifeMirror 主导航">
     {items.map((item) => {
       const Icon = item.icon;

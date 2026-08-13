@@ -13,6 +13,7 @@ import { getLatestSavedNatalMirrors, type SavedNatalMirror } from "@/lib/natal-m
 import { deleteMirrorHistory, updateMirrorHistory } from "@/lib/mirror-history";
 import { deletePrivatePerson, deleteRelationshipLoop, getPrivatePeople, getRelationshipArchive, getRelationshipLoopMetrics, getRelationshipLoops, getRelationshipLoopsForPerson, reportRelationshipLoop, savePrivatePerson, type PrivatePerson, type RelationshipLoop } from "@/lib/relationship-context";
 import { PersonMirror } from "./PersonMirror";
+import { rememberAuthenticatedSession, rememberGuestSession } from "@/lib/client-session";
 
 type MirrorEvent = { id: string; question: string; savedAt: string; source?: "tarot" | "bazi" | "astrology"; sourceLabel?: string; meta?: string; important?: boolean; personId?: string; personName?: string; openLoopStatus?: "open" | "resolved" | "unknown"; hexagram?: { originalHexagram?: { name?: string }; changedHexagram?: { name?: string } }; reflection?: { shareableReflection?: string; practicalGuidance?: string; shiguangInterpretation?: string } };
 type PatternMemory = { id: string; title: string; summary: string; signalCount: number; confidence: number };
@@ -97,7 +98,8 @@ export function PersonalMirrorDashboard() {
     let active = true;
     async function load() {
       try {
-        await api<{ authenticated: boolean }>("/api/v1/auth/session");
+        const session = await api<{ authenticated: boolean; user?: { email?: string | null; provider?: string | null } }>("/api/v1/auth/session");
+        rememberAuthenticatedSession(session.user);
         if (!active) return;
         const summary = await api<{ timeline?: MirrorEvent[]; recentPatterns?: PatternMemory[] }>("/api/v1/memories/summary").catch(() => null);
         if (!active) return;
@@ -110,6 +112,7 @@ export function PersonalMirrorDashboard() {
       } catch (cause) {
         if (!active) return;
         const code = cause instanceof Error ? cause.message : "";
+        if (window.localStorage.getItem("life-mirror:guest-session:v1") === "active") rememberGuestSession();
         setEvents(readGuestEvents()); setPatterns([]); setMode("guest");
         if (code !== "authentication_required") setError("暂时无法连接个人镜像，当前显示此设备保存的记录。");
       }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { accountLoginPayload, finishAccountLogin, type AccountSnapshot } from "@/lib/account-data";
+import { rememberAuthenticatedSession, rememberGuestSession } from "@/lib/client-session";
 import styles from "./LifeMirrorGateway.module.css";
 
 const GUEST_SESSION_KEY = "life-mirror:guest-session:v1";
@@ -59,7 +60,7 @@ export function LifeMirrorGateway() {
   const [referral, setReferral] = useState<ExperienceInvitePreview["invite"] | null>(null);
 
   function enterAsGuest() {
-    window.localStorage.setItem(GUEST_SESSION_KEY, "active");
+    rememberGuestSession();
     router.replace(returnTo);
   }
 
@@ -69,7 +70,7 @@ export function LifeMirrorGateway() {
     setInviteCode(normalized); setBusy(true); setError("");
     try {
       const result = await authRequest<LoginResponse>("/api/v1/auth/invite", { method: "POST", body: JSON.stringify({ code: normalized, ...accountLoginPayload() }) });
-      finishAccountLogin(result.data);
+      finishAccountLogin(result.data, result.user);
       window.localStorage.removeItem(GUEST_SESSION_KEY);
       if (result.created) window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ version: 1, stage: "welcome", startedAt: new Date().toISOString() }));
       router.replace(destination);
@@ -82,7 +83,7 @@ export function LifeMirrorGateway() {
     setBusy(true); setError("");
     try {
       const result = await authRequest<LoginResponse & { inviter?: { name?: string } | null }>("/api/v1/auth/experience-invite", { method: "POST", body: JSON.stringify({ code: referralCode, ...accountLoginPayload() }) });
-      finishAccountLogin(result.data);
+      finishAccountLogin(result.data, result.user);
       window.localStorage.removeItem(GUEST_SESSION_KEY);
       window.localStorage.setItem("life-mirror:experience-invite:v1", JSON.stringify({ inviterName: result.inviter?.name || referral?.inviter?.name || "朋友", acceptedAt: new Date().toISOString() }));
       if (result.created) window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ version: 1, stage: "welcome", startedAt: new Date().toISOString() }));
@@ -121,10 +122,10 @@ export function LifeMirrorGateway() {
       if (params.get("chatgpt") === "1") {
         try {
           const result = await authRequest<LoginResponse>("/api/v1/auth/chatgpt", { method: "POST", body: JSON.stringify(accountLoginPayload()) });
-          finishAccountLogin(result.data); router.replace(safeReturn); return;
+          finishAccountLogin(result.data, result.user); router.replace(safeReturn); return;
         } catch (cause) { if (active) setError(message(cause)); }
       } else if (!forceLogin) {
-        try { await authRequest("/api/v1/auth/session"); router.replace("/app/home/"); return; } catch { /* show invite */ }
+        try { const session = await authRequest<{ user?: LoginResponse["user"] }>("/api/v1/auth/session"); rememberAuthenticatedSession(session.user); router.replace("/app/home/"); return; } catch { /* show invite */ }
       }
       if (active) { setStep(forceLogin ? "email" : "invite"); setChecking(false); }
     }
@@ -147,7 +148,7 @@ export function LifeMirrorGateway() {
         setStep("code");
       } else {
         const result = await authRequest<LoginResponse>("/api/v1/auth/verify-code", { method: "POST", body: JSON.stringify({ email: normalizedEmail, code, ...accountLoginPayload() }) });
-        finishAccountLogin(result.data); router.replace(returnTo);
+        finishAccountLogin(result.data, result.user); router.replace(returnTo);
       }
     } catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }

@@ -15,6 +15,7 @@ import { dailyEvidenceFingerprint, isNewHomeExperience } from "@/lib/home-experi
 import { metricDayKey, recordProductMetric } from "@/lib/product-metrics";
 import { patchLocalLifeEventLoop, readLifeEventLoops, type LifeEventLoop } from "@/lib/life-event-loops";
 import { initialConversationMode, type ConversationMode } from "@/lib/conversation-mode";
+import { forgetClientSession, readClientSession, rememberAuthenticatedSession, rememberGuestSession } from "@/lib/client-session";
 
 type MirrorHistoryItem = { question?: string; savedAt?: string; source?: string; sourceLabel?: string; reflection?: { shareableReflection?: string; shiguangInterpretation?: string; traditionalJudgment?: string } };
 type DailyLoopStatus = "done" | "later" | "release";
@@ -113,7 +114,7 @@ export function ShiguangHome() {
   }
 
   function enterAsGuest() {
-    window.localStorage.setItem("life-mirror:guest-session:v1", "active");
+    rememberGuestSession();
     setReady(true);
   }
 
@@ -207,19 +208,23 @@ export function ShiguangHome() {
     async function initialize() {
       const search = new URLSearchParams(window.location.search);
       setConversationMode(initialConversationMode(window.location.search, relationshipEntryEnabled));
+      const knownAtOpen = readClientSession();
+      if (knownAtOpen.status !== "unknown") setReady(true);
       const guestRequested = search.get("guest") === "1";
       if (guestRequested) {
-        window.localStorage.setItem("life-mirror:guest-session:v1", "active");
+        rememberGuestSession();
         setReady(true);
         window.history.replaceState({}, "", window.location.pathname);
       }
       let snapshot = readLocalAccountData();
-      let authenticated = false;
+      const knownSession = readClientSession();
+      let authenticated = knownSession.status === "authenticated";
       try {
         const session = await fetch("/api/v1/auth/session", { credentials: "include" });
-        if (!session.ok) throw new Error("signed_out");
+        if (!session.ok) { forgetClientSession(); authenticated = false; throw new Error("signed_out"); }
         authenticated = true;
-        window.localStorage.removeItem("life-mirror:guest-session:v1");
+        const sessionData = await session.json() as { user?: { email?: string | null; provider?: string | null } };
+        rememberAuthenticatedSession(sessionData.user);
         const [accountResponse, contextResponse] = await Promise.all([
           fetch("/api/v1/account/data", { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ data: snapshot }) }),
           fetch("/api/v1/account/context?mode=daily_guidance", { credentials: "include" }),
@@ -232,7 +237,7 @@ export function ShiguangHome() {
           const accountContext = await contextResponse.json() as AccountContextResponse;
           runtimeRef.current = accountContext.context?.runtime ?? null;
         }
-      } catch { authenticated = false; }
+      } catch { authenticated = readClientSession().status === "authenticated"; }
       if (!active) return;
       setNewUser(isNewHomeExperience(snapshot));
       applyExperience(snapshot, runtimeRef.current);

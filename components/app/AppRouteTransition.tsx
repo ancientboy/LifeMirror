@@ -7,8 +7,20 @@ import styles from "./AppRouteTransition.module.css";
 export function AppRouteTransition() {
   const pathname = usePathname();
   const [pending, setPending] = useState(false);
+  const [targetPath, setTargetPath] = useState("");
 
-  useEffect(() => setPending(false), [pathname]);
+  useEffect(() => {
+    const normalize = (value: string) => value.length > 1 ? value.replace(/\/+$/, "") : value;
+    if (!pending || normalize(pathname) !== normalize(targetPath)) return;
+    const timer = window.setTimeout(() => setPending(false), 140);
+    return () => window.clearTimeout(timer);
+  }, [pathname, pending, targetPath]);
+
+  useEffect(() => {
+    if (!pending) return;
+    const fallback = window.setTimeout(() => setPending(false), 5000);
+    return () => window.clearTimeout(fallback);
+  }, [pending]);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -19,6 +31,7 @@ export function AppRouteTransition() {
       const url = new URL(anchor.href, window.location.href);
       if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
       if (!url.pathname.startsWith("/app/") && url.pathname !== "/mirror/") return;
+      setTargetPath(url.pathname);
       setPending(true);
     };
     document.addEventListener("click", onClick, true);

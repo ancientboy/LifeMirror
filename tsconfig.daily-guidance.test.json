@@ -30,6 +30,8 @@
     "lib/safety-boundary.test.ts",
     "lib/birth-date-selection.ts",
     "lib/birth-date-selection.test.ts",
+    "lib/client-session.ts",
+    "lib/client-session.test.ts",
     "lib/relationships/types.ts",
     "lib/relationships/taxonomy.ts",
     "lib/relationships/policy.ts",
