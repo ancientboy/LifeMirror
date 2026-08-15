@@ -2,6 +2,8 @@ name: Deploy LifeMirror Singapore
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
