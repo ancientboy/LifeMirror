@@ -6,5 +6,6 @@ out/
 *.log
 .env
 .env.local
+.env.production
 dist/
 *.tsbuildinfo

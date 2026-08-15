@@ -1,0 +1,46 @@
+name: Deploy LifeMirror Singapore
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lifemirror-singapore-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy production
+    runs-on: [self-hosted, linux, x64, lifemirror, prod]
+    env:
+      DEPLOY_DIR: /home/github-runner/lifemirror-production
+      SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Refresh deploy source
+        shell: bash
+        run: |
+          mkdir -p "$DEPLOY_DIR"
+          tar --exclude-vcs --exclude=node_modules --exclude=.env.production -cf - . | tar -xf - -C "$DEPLOY_DIR"
+
+      - name: Verify server configuration
+        shell: bash
+        run: |
+          test -f "$DEPLOY_DIR/.env.production" || {
+            echo "Missing $DEPLOY_DIR/.env.production. Run: cp $DEPLOY_DIR/.env.production.example $DEPLOY_DIR/.env.production, then fill in real values."
+            exit 1
+          }
+          docker version --format '{{.Server.Version}}'
+          docker compose version
+
+      - name: Build, migrate, and restart
+        shell: bash
+        run: |
+          cd "$DEPLOY_DIR"
+          export SOURCE_COMMIT
+          docker compose --env-file .env.production -f docker-compose.production.yml up -d --build --remove-orphans
+          docker compose --env-file .env.production -f docker-compose.production.yml ps
