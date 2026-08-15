@@ -1,15 +1,16 @@
 # The beta hostname is the temporary public origin during the D1 migration.
-# Caddy terminates HTTPS here so Cloudflare can use a full HTTPS origin, then
-# passes both the web app and /api routes to the matching containers.
+# Caddy terminates HTTPS here so Cloudflare can use a full HTTPS origin.
 beta.lumeword.com {
   encode zstd gzip
 
-  @api path /api/*
-  handle @api {
+  # Keep API traffic out of the static-app fallback.
+  handle /api/* {
     reverse_proxy api:8787
   }
 
-  root * /usr/share/caddy
-  try_files {path} {path}/ /index.html
-  file_server
+  handle {
+    root * /usr/share/caddy
+    try_files {path} {path}/ /index.html
+    file_server
+  }
 }
