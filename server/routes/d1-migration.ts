@@ -33,12 +33,12 @@ function fingerprint(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-function sourceKey(row: Record<string, unknown>, fallbackIndex: number) {
-  for (const field of ["id", "user_id", "email", "code", "component"]) {
-    const value = row[field];
-    if (typeof value === "string" && value) return `${field}:${value}`;
-  }
-  return `hash:${fallbackIndex}:${fingerprint(row)}`;
+function sourceKey(row: Record<string, unknown>) {
+  // Foreign keys such as user_id repeat across many legitimate source rows.
+  // Only a true primary id is safe as a stable source key; every other row is
+  // keyed by its complete immutable payload so the archive preserves all rows.
+  const id = row.id;
+  return typeof id === "string" && id ? `id:${id}` : `hash:${fingerprint(row)}`;
 }
 
 function timestamp(value: unknown) {
@@ -93,8 +93,8 @@ export async function registerD1MigrationRoutes(app: FastifyInstance, dependenci
          ON CONFLICT (run_id) DO UPDATE SET status = 'receiving', updated_at = now()`,
         [runId],
       );
-      for (const [index, row] of rows.entries()) {
-        const key = sourceKey(row, index);
+      for (const row of rows) {
+        const key = sourceKey(row);
         const hash = fingerprint(row);
         await client.query(
           `INSERT INTO d1_migration_records (run_id, source_table, source_row_key, payload, payload_hash)
