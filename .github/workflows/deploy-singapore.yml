@@ -63,11 +63,17 @@ jobs:
           set +a
           test -n "${D1_MIGRATION_TOKEN:-}" || { echo "D1_MIGRATION_TOKEN is missing from .env.production"; exit 1; }
           run_id="d1-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}"
-          curl --fail --show-error --silent \
+          response_file="$(mktemp)"
+          response_status="$(curl --show-error --silent --output "$response_file" --write-out '%{http_code}' \
             --request POST \
             --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
-            "https://lifemirror.yellow-mole-5128.chatgpt.site/api/internal/migration/v1/export?runId=$run_id"
+            "https://lifemirror.yellow-mole-5128.chatgpt.site/api/internal/migration/v1/export?runId=$run_id")"
+          cat "$response_file"
           echo
+          test "$response_status" -ge 200 && test "$response_status" -lt 300 || {
+            echo "Legacy export failed with HTTP $response_status"
+            exit 1
+          }
           status="$(curl --fail --show-error --silent \
             --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
             "https://beta.lumeword.com/api/internal/migration/v1/status/$run_id")"
