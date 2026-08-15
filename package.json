@@ -24,6 +24,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
+    "@fastify/multipart": "^10.1.1",
     "@fastify/rate-limit": "^11.2.0",
     "@mdx-js/react": "^3.1.1",
     "@phosphor-icons/react": "^2.1.10",

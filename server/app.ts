@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import type { AppConfig } from "./config.js";
@@ -16,6 +17,7 @@ import { registerEffectLoopRoutes } from "./routes/effect-loop.js";
 import { registerRelationshipRoutes } from "./routes/relationships.js";
 import { registerAccountDataRoutes } from "./routes/account-data.js";
 import { registerD1MigrationRoutes } from "./routes/d1-migration.js";
+import { registerVisionRoutes } from "./routes/vision.js";
 import { RuntimeMetrics } from "./observability/metrics.js";
 
 export type AppDependencies = {
@@ -39,6 +41,9 @@ export async function buildApp(dependencies: AppDependencies) {
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
   await app.register(cookie);
+  await app.register(multipart, {
+    limits: { files: 3, fileSize: 1_200_000, parts: 3 },
+  });
   await app.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",
@@ -77,6 +82,7 @@ export async function buildApp(dependencies: AppDependencies) {
   await registerPersonMirrorRoutes(app, dependencies);
   await registerEffectLoopRoutes(app, dependencies);
   await registerRelationshipRoutes(app, dependencies);
+  await registerVisionRoutes(app);
   await registerReviewRoutes(app, dependencies);
 
   return app;
