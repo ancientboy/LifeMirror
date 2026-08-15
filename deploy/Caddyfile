@@ -1,7 +1,7 @@
-# Route the temporary beta hostname and the formal hostname through the same
-# isolated LifeMirror instance during cutover. Public TLS is handled by the
-# edge proxy, so Caddy accepts HTTP on the origin port for every host.
-:80 {
+# The beta hostname is the temporary public origin during the D1 migration.
+# Caddy terminates HTTPS here so Cloudflare can use a full HTTPS origin, then
+# passes both the web app and /api routes to the matching containers.
+beta.lumeword.com {
   encode zstd gzip
 
   @api path /api/*
