@@ -14,6 +14,8 @@ import { registerContextRoutes } from "./routes/context.js";
 import { registerPersonMirrorRoutes } from "./routes/person-mirror.js";
 import { registerEffectLoopRoutes } from "./routes/effect-loop.js";
 import { registerRelationshipRoutes } from "./routes/relationships.js";
+import { registerAccountDataRoutes } from "./routes/account-data.js";
+import { registerD1MigrationRoutes } from "./routes/d1-migration.js";
 import { RuntimeMetrics } from "./observability/metrics.js";
 
 export type AppDependencies = {
@@ -27,7 +29,7 @@ export async function buildApp(dependencies: AppDependencies) {
   dependencies.metrics ??= new RuntimeMetrics();
   const app = Fastify({
     logger: dependencies.config.NODE_ENV !== "test",
-    bodyLimit: 64 * 1024,
+    bodyLimit: 2 * 1024 * 1024,
     trustProxy: true,
   });
 
@@ -67,6 +69,8 @@ export async function buildApp(dependencies: AppDependencies) {
 
   await registerHealthRoutes(app, dependencies);
   await registerAuthRoutes(app, dependencies);
+  await registerAccountDataRoutes(app, dependencies);
+  await registerD1MigrationRoutes(app, dependencies);
   await registerDailyMirrorRoutes(app, dependencies);
   await registerMemoryRoutes(app, dependencies);
   await registerContextRoutes(app, dependencies);

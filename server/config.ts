@@ -14,6 +14,13 @@ const environmentSchema = z.object({
   LLM_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  // Passwordless email login is kept compatible with the existing D1-backed
+  // product.  It is optional until the mail provider is configured.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().email().optional(),
+  // A short-lived, server-to-server credential used only while importing the
+  // legacy D1 database.  The migration routes stay disabled when it is absent.
+  D1_MIGRATION_TOKEN: z.string().min(32).optional(),
   METRICS_TOKEN: z.string().min(24).optional(),
   // Release identity is intentionally supplied at build/deploy time.  It is
   // exposed only by liveness so an incident can be tied back to the exact
@@ -43,6 +50,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
 
   if (parsed.data.NODE_ENV === "production" && !parsed.data.METRICS_TOKEN) {
     throw new Error("METRICS_TOKEN is required in production");
+  }
+
+  if (parsed.data.RESEND_API_KEY && !parsed.data.EMAIL_FROM) {
+    throw new Error("EMAIL_FROM is required when RESEND_API_KEY is configured");
   }
 
   return parsed.data;

@@ -2,6 +2,12 @@ name: Deploy LifeMirror Singapore
 
 on:
   workflow_dispatch:
+    inputs:
+      migrate_legacy_d1:
+        description: "Run the one-time D1 to PostgreSQL transfer after both migration secrets are configured"
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -46,3 +52,31 @@ jobs:
           export SOURCE_COMMIT
           docker compose --env-file .env.production -f docker-compose.production.yml up -d --build --remove-orphans
           docker compose --env-file .env.production -f docker-compose.production.yml ps
+
+      - name: Transfer legacy D1 data
+        if: ${{ inputs.migrate_legacy_d1 == true }}
+        shell: bash
+        run: |
+          cd "$DEPLOY_DIR"
+          set -a
+          . ./.env.production
+          set +a
+          test -n "${D1_MIGRATION_TOKEN:-}" || { echo "D1_MIGRATION_TOKEN is missing from .env.production"; exit 1; }
+          run_id="d1-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}"
+          curl --fail --show-error --silent \
+            --request POST \
+            --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
+            "https://mirror.lumeword.com/api/internal/migration/v1/export?runId=$run_id"
+          echo
+          status="$(curl --fail --show-error --silent \
+            --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
+            "https://beta.lumeword.com/api/internal/migration/v1/status/$run_id")"
+          node --input-type=module -e '
+            const status = JSON.parse(process.argv[1]);
+            if (status.run?.status !== "completed") throw new Error("legacy migration did not complete");
+            const actual = Object.fromEntries((status.tables || []).map((row) => [row.source_table, Number(row.rows)]));
+            for (const [table, expected] of Object.entries(status.run.source_counts || {})) {
+              if ((actual[table] || 0) !== Number(expected)) throw new Error(`row count mismatch for ${table}`);
+            }
+            console.log(JSON.stringify({ runId: status.run.run_id, receivedRows: status.run.received_rows, verifiedTables: Object.keys(status.run.source_counts || {}).length }));
+          ' "$status"

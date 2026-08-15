@@ -4,6 +4,8 @@ import type { Database } from "../database/pool.js";
 export type AuthenticatedUser = {
   id: string;
   email: string;
+  displayName?: string | null;
+  provider?: string | null;
 };
 
 export function hashSessionToken(token: string): string {
@@ -36,7 +38,7 @@ export async function findUserBySession(
      WHERE sessions.token_hash = $1
        AND sessions.expires_at > now()
        AND users.id = sessions.user_id
-     RETURNING users.id, users.email`,
+     RETURNING users.id, users.email, users.display_name AS "displayName", users.provider`,
     [hashSessionToken(token)],
   );
 
