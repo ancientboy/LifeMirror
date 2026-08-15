@@ -224,7 +224,14 @@ rollback_previous() {
 
 redeploy_current() {
   backup_current_images
-  if compose up -d --build --remove-orphans && wait_for_api && origin_health; then
+  # Build the two application images sequentially. Running both Node/Next
+  # builds in parallel can exhaust memory on the production host and take the
+  # self-hosted runner down with it.
+  if compose build api &&
+    compose build web &&
+    compose up -d --no-build --remove-orphans &&
+    wait_for_api &&
+    origin_health; then
     public_health || echo "Public HTTPS check failed; deployment is healthy at the local origin."
     compose ps
     return 0
