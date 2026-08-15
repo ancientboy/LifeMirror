@@ -54,7 +54,7 @@ jobs:
           docker compose --env-file .env.production -f docker-compose.production.yml ps
 
       - name: Transfer legacy D1 data
-        # The exact commit title below is reserved for the explicitly authorized one-time transfer.
+        # The exact commit title below is reserved for the explicitly authorized one-time transfer; the origin is verified.
         if: ${{ inputs.migrate_legacy_d1 == true || github.event.head_commit.message == 'Run legacy D1 transfer now' }}
         shell: bash
         run: |
