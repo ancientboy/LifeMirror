@@ -33,6 +33,33 @@ Fill the real secrets in `.env.production` and run the workflow a second time.
 The project does not migrate existing Sites/D1 account data automatically;
 keep Sites as the rollback target until a deliberate data migration is planned.
 
+## GitHub mobile operations
+
+The `Operate LifeMirror Singapore` workflow provides four manual operations in
+GitHub Actions without requiring an interactive SSH session:
+
+- `diagnose` checks required configuration presence, Docker/container state,
+  disk and memory capacity, internal API liveness/readiness, public HTTPS, and
+  recent application logs.
+- `restart_app` restarts only the API and web containers, leaving PostgreSQL
+  untouched, then verifies the application.
+- `redeploy_current` rebuilds the source already present in the production
+  directory. It saves the currently running API and web images first.
+- `rollback_previous` restores those saved application images. Database
+  migrations are forward-only and are not reversed by this operation.
+
+Logs pass through credential, token, password, and email redaction before they
+are written to GitHub Actions. Configuration checks report only whether a value
+exists; `.env.production` values are never printed.
+
+Normal pushes to `main` use the same verified deployment script. If the new
+containers fail internal API or local web-origin verification, the workflow
+tries to restore the saved application images and still marks the deployment
+failed so the incident remains visible. A public HTTPS failure is reported but
+does not roll back healthy containers because DNS or proxy outages are not
+fixed by reverting application code. Set `PUBLIC_HEALTHCHECK_URL` to the beta
+URL now and change it during the formal-domain cutover.
+
 ## Release sequence
 
 1. Point a temporary subdomain such as `beta.lumeword.com` at the Singapore

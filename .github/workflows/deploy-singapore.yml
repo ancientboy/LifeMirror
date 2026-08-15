@@ -16,12 +16,13 @@ permissions:
 
 concurrency:
   group: lifemirror-singapore-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Build and deploy production
     runs-on: [self-hosted, linux, x64, lifemirror, prod]
+    timeout-minutes: 30
     env:
       DEPLOY_DIR: /home/github-runner/lifemirror-production
       SOURCE_COMMIT: ${{ github.sha }}
@@ -50,8 +51,7 @@ jobs:
         run: |
           cd "$DEPLOY_DIR"
           export SOURCE_COMMIT
-          docker compose --env-file .env.production -f docker-compose.production.yml up -d --build --remove-orphans
-          docker compose --env-file .env.production -f docker-compose.production.yml ps
+          LOG_LINES=200 bash scripts/production-ops.sh redeploy_current
 
       - name: Transfer legacy D1 data
         # Manual only: the legacy transfer is intentionally never run on a normal push.

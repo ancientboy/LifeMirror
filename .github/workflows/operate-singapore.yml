@@ -1,0 +1,60 @@
+name: Operate LifeMirror Singapore
+
+run-name: "Singapore: ${{ inputs.operation }} by @${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose a safe production operation"
+        required: true
+        type: choice
+        default: diagnose
+        options:
+          - diagnose
+          - restart_app
+          - redeploy_current
+          - rollback_previous
+      log_lines:
+        description: "Number of redacted application log lines"
+        required: true
+        type: choice
+        default: "200"
+        options:
+          - "100"
+          - "200"
+          - "400"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lifemirror-singapore-production
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    name: "${{ inputs.operation }} production"
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: [self-hosted, linux, x64, lifemirror, prod]
+    timeout-minutes: 20
+    env:
+      DEPLOY_DIR: /home/github-runner/lifemirror-production
+      LOG_LINES: ${{ inputs.log_lines }}
+    steps:
+      - name: Checkout trusted operations script
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate requested operation
+        shell: bash
+        run: |
+          case "${{ inputs.operation }}" in
+            diagnose|restart_app|redeploy_current|rollback_previous) ;;
+            *) echo "Unsupported operation"; exit 2 ;;
+          esac
+
+      - name: Run production operation
+        shell: bash
+        run: bash "$GITHUB_WORKSPACE/scripts/production-ops.sh" "${{ inputs.operation }}"
