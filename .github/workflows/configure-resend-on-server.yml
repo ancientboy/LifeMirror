@@ -2,6 +2,8 @@ name: One-time configure Resend on Singapore server
 
 on:
   workflow_dispatch:
+  issues:
+    types: [opened]
   push:
     branches: [main]
     paths:
@@ -17,6 +19,7 @@ concurrency:
 
 jobs:
   configure:
+    if: github.event_name != 'issues' || github.event.issue.title == 'LifeMirror ops: prepare Resend 2026-08-15'
     name: Securely configure email service
     runs-on: [self-hosted, linux, x64, lifemirror, prod]
     env:
