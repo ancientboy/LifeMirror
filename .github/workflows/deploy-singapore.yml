@@ -66,7 +66,7 @@ jobs:
           curl --fail --show-error --silent \
             --request POST \
             --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
-            "https://mirror.lumeword.com/api/internal/migration/v1/export?runId=$run_id"
+            "https://lifemirror.yellow-mole-5128.chatgpt.site/api/internal/migration/v1/export?runId=$run_id"
           echo
           status="$(curl --fail --show-error --silent \
             --header "x-lifemirror-migration-token: $D1_MIGRATION_TOKEN" \
