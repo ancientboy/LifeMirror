@@ -1,4 +1,7 @@
-{$APP_DOMAIN:localhost} {
+# Route the temporary beta hostname and the formal hostname through the same
+# isolated LifeMirror instance during cutover. Public TLS is handled by the
+# edge proxy, so Caddy accepts HTTP on the origin port for every host.
+:80 {
   encode zstd gzip
 
   @api path /api/*
