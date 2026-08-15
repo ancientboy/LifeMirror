@@ -33,7 +33,14 @@ jobs:
       - name: Refresh deploy source
         shell: bash
         run: |
+          test "$DEPLOY_DIR" = "/home/github-runner/lifemirror-production"
           mkdir -p "$DEPLOY_DIR"
+          # Keep the server-owned production environment file, but remove every
+          # previously deployed source file so deleted/renamed files cannot leak
+          # into the next Docker build.
+          find "$DEPLOY_DIR" -mindepth 1 -maxdepth 1 \
+            ! -name .env.production \
+            -exec rm -rf -- {} +
           tar --exclude-vcs --exclude=node_modules --exclude=.env.production -cf - . | tar -xf - -C "$DEPLOY_DIR"
 
       - name: Verify server configuration
