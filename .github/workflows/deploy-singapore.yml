@@ -54,7 +54,8 @@ jobs:
           docker compose --env-file .env.production -f docker-compose.production.yml ps
 
       - name: Transfer legacy D1 data
-        if: ${{ inputs.migrate_legacy_d1 == true }}
+        # This commit runs the user-authorized one-time legacy transfer; remove the push trigger after success.
+        if: ${{ inputs.migrate_legacy_d1 == true || github.event.head_commit.message == 'Run legacy D1 transfer now' }}
         shell: bash
         run: |
           cd "$DEPLOY_DIR"
