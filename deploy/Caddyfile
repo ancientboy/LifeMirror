@@ -1,8 +1,6 @@
-# The beta hostname is the temporary public origin during the D1 migration.
-# The edge proxy retains HTTPS to origin; Caddy's internal certificate avoids
-# an external ACME challenge while this temporary hostname is proxied.
+# beta is the temporary migration origin. Caddy obtains a publicly trusted
+# certificate so Cloudflare Full (strict) can verify the Singapore origin.
 beta.lumeword.com {
-  tls internal
   encode zstd gzip
 
   # Keep API traffic out of the static-app fallback.
